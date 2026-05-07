@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOM对比工具 v4.0 - 集成物料编码</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;min-height:100vh}
+header{background:linear-gradient(135deg,#1a73e8,#0d47a1);color:#fff;padding:25px 0;text-align:center}
+header h1{font-size:26px;margin-bottom:6px}
+header p{font-size:13px;opacity:.85}
+.main{max-width:1400px;margin:0 auto;padding:20px}
+
+/* 导航 */
+.nav{display:flex;gap:10px;margin-bottom:20px;background:#fff;border-radius:12px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.nav-btn{padding:8px 20px;border:none;border-radius:8px;font-size:13px;cursor:pointer;background:#f0f2f5;transition:.3s}
+.nav-btn:hover{background:#e8eaed}
+.nav-btn.active{background:#1a73e8;color:#fff}
+
+/* 上传区 */
+.upload-row{display:flex;gap:20px;margin-bottom:20px}
+.upload-card{flex:1;background:#fff;border:2px dashed #ccc;border-radius:12px;padding:30px;text-align:center;position:relative;transition:.3s}
+.upload-card:hover{border-color:#1a73e8;background:#f8faff}
+.upload-card.ok{border-color:#34a853;border-style:solid;background:#f0fff4}
+.upload-card h3{font-size:16px;margin-bottom:8px}
+.upload-card p{font-size:12px;color:#888}
+.upload-card .info{font-size:13px;color:#34a853;font-weight:bold;margin-top:8px}
+.upload-card .fmap{font-size:11px;color:#666;margin-top:6px;text-align:left;background:#f8f9fa;padding:6px 10px;border-radius:6px;display:none}
+.file-btn{display:inline-block;margin-top:12px;padding:8px 24px;background:#1a73e8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px}
+.file-btn:hover{background:#1557b0}
+
+/* 配置 */
+.cfg{background:#fff;border-radius:12px;padding:16px 20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.cfg h3{font-size:15px;margin-bottom:10px}
+.cfg-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.cfg-row label{font-size:13px;color:#555}
+.cfg-row select{padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px}
+.cmp-checks{margin-top:10px}
+.cmp-checks label{font-size:13px;margin-right:14px}
+
+/* 按钮 */
+.bar{text-align:center;margin-bottom:20px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.btn{padding:12px 30px;border:none;border-radius:10px;font-size:15px;font-weight:bold;cursor:pointer;transition:.3s}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-blue{background:#1a73e8;color:#fff}
+.btn-blue:hover:not(:disabled){background:#1557b0}
+.btn-green{background:#34a853;color:#fff}
+.btn-purple{background:#7c4dff;color:#fff}
+.btn-orange{background:#ff9800;color:#fff}
+
+/* 统计 */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.sc{background:#fff;padding:16px;border-radius:12px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.sc .n{font-size:34px;font-weight:bold}
+.sc .l{font-size:12px;color:#666;margin-top:4px}
+.sc.mod .n{color:#f9a825}
+.sc.add .n{color:#34a853}
+.sc.del .n{color:#ea4335}
+.sc.same .n{color:#1a73e8}
+
+/* 筛选 */
+.pills{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.pill{padding:5px 14px;border:1px solid #ddd;border-radius:20px;font-size:12px;cursor:pointer;background:#fff}
+.pill:hover{border-color:#1a73e8}
+.pill.on{background:#1a73e8;color:#fff;border-color:#1a73e8}
+
+/* 表格 */
+.panel{background:#fff;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.05);margin-bottom:20px;overflow-x:auto}
+.panel h3{font-size:15px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#f8f9fa;padding:8px 6px;text-align:left;border-bottom:2px solid #e0e0e0;white-space:nowrap}
+td{padding:6px;border-bottom:1px solid #f0f0f0;max-width:260px;word-break:break-all}
+tr:hover{background:#f8faff}
+tr.r-add{background:#e6f4ea}
+tr.r-del{background:#fce8e6}
+tr.r-mod{background:#fef7e0}
+td.chg{background:#fff3cd;font-weight:bold}
+.badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:bold;color:#fff}
+.b-add{background:#34a853}
+.b-del{background:#ea4335}
+.b-mod{background:#f9a825;color:#333}
+.b-same{background:#e0e0e0;color:#666}
+
+/* 差异明细 */
+.di{padding:8px 12px;border-radius:8px;margin-bottom:6px;font-size:12px;line-height:1.5;border-left:4px solid}
+.di.dc{background:#fef7e0;border-color:#f9a825}
+.di.da{background:#fce8e6;border-color:#ea4335}
+.di.db{background:#e6f4ea;border-color:#34a853}
+.di b{color:#333}
+.di .tag{font-size:11px;padding:1px 5px;border-radius:4px;color:#fff;margin-left:6px}
+.tag-c{background:#f9a825;color:#333!important}
+.tag-a{background:#ea4335}
+.tag-b{background:#34a853}
+.va{color:#ea4335;font-weight:bold}
+.vb{color:#34a853;font-weight:bold}
+
+/* 物料编码匹配 */
+.match-info{background:#e8f5e9;border:1px solid #34a853;border-radius:8px;padding:12px;margin-bottom:15px}
+.match-info h4{color:#2e7d32;margin-bottom:8px}
+.match-row{display:flex;gap:15px;flex-wrap:wrap}
+.match-item{font-size:12px}
+.match-item .l{color:#666}
+.match-item .v{color:#333;font-weight:bold}
+
+/* 立创查询按钮 */
+.lc-btn{display:inline-block;padding:4px 12px;background:#ff6b35;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;text-decoration:none}
+.lc-btn:hover{background:#e55a2b}
+
+#out{display:none}
+#out.show{display:block}
+#materialPanel{display:none}
+#materialPanel.show{display:block}
+
+@media(max-width:768px){.upload-row{flex-direction:column}.stats{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>⚡ BOM对比工具 v4.0</h1>
+<p>支持物料编码自动匹配 · 立创商城一键查询 · 差异智能分析</p>
+</header>
+<div class="main">
+
+<!-- 导航 -->
+<div class="nav">
+  <button class="nav-btn active" onclick="showPanel('compare')">🔍 BOM对比</button>
+  <button class="nav-btn" onclick="showPanel('material')">📦 物料编码</button>
+</div>
+
+<!-- BOM对比面板 -->
+<div id="comparePanel">
+
+<div class="upload-row">
+  <div class="upload-card" id="boxA">
+    <h3>📄 BOM A（基准版本）</h3>
+    <p>支持 xlsx / xls / csv</p>
+    <button class="file-btn" id="btnA">选择文件</button>
+    <div class="info" id="msgA"></div>
+    <div class="fmap" id="fmA"></div>
+  </div>
+  <div class="upload-card" id="boxB">
+    <h3>📄 BOM B（对比版本）</h3>
+    <p>支持 xlsx / xls / csv</p>
+    <button class="file-btn" id="btnB">选择文件</button>
+    <div class="info" id="msgB"></div>
+    <div class="fmap" id="fmB"></div>
+  </div>
+</div>
+
+<div class="cfg">
+  <h3>⚙️ 对比配置</h3>
+  <div class="cfg-row">
+    <label>匹配主键：</label>
+    <select id="pk"><option value="型号">型号</option><option value="位号">位号</option></select>
+  </div>
+  <div class="cmp-checks">
+    <b style="font-size:13px">对比维度：</b>
+    <label><input type="checkbox" class="cf" value="型号" checked> 型号</label>
+    <label><input type="checkbox" class="cf" value="位号" checked> 位号</label>
+    <label><input type="checkbox" class="cf" value="封装" checked> 封装</label>
+    <label><input type="checkbox" class="cf" value="数量" checked> 数量</label>
+    <label><input type="checkbox" class="cf" value="参数描述" checked> 参数描述</label>
+    <label><input type="checkbox" class="cf" value="物料编码"> 物料编码</label>
+    <label><input type="checkbox" class="cf" value="物料名称"> 物料名称</label>
+    <label><input type="checkbox" class="cf" value="品牌"> 品牌</label>
+  </div>
+</div>
+
+<div class="bar">
+  <button class="btn btn-blue" id="goBtn" disabled>🔍 开始对比</button>
+  <button class="btn btn-green" id="expBtn" style="display:none">📥 导出报告</button>
+  <button class="btn btn-purple" id="fmtAB" style="display:none">📐 按A格式整理B</button>
+  <button class="btn btn-purple" id="fmtBA" style="display:none">📐 按B格式整理A</button>
+  <button class="btn btn-orange" id="lcBtn" style="display:none">🛒 立创查询清单</button>
+</div>
+
+<div id="out">
+  <div class="stats" id="st"></div>
+  
+  <!-- 物料编码匹配信息 -->
+  <div class="match-info" id="matchInfo" style="display:none">
+    <h4>📦 物料编码匹配情况</h4>
+    <div class="match-row">
+      <div class="match-item"><span class="l">总物料：</span><span class="v" id="totalMat">0</span></div>
+      <div class="match-item"><span class="l">已匹配：</span><span class="v" id="matchedMat">0</span></div>
+      <div class="match-item"><span class="l">需查询：</span><span class="v" id="queryMat">0</span></div>
+      <div class="match-item"><span class="l">匹配率：</span><span class="v" id="matchRate">0%</span></div>
+    </div>
+  </div>
+  
+  <div class="panel"><h3>📋 对比总览</h3><div class="pills" id="fp"></div><div style="overflow-x:auto"><table id="tb"><thead></thead><tbody></tbody></table></div></div>
+  <div class="panel"><h3>🔎 差异明细</h3><div class="pills" id="dp"></div><div id="dl"></div></div>
+</div>
+
+</div>
+
+<!-- 物料编码面板 -->
+<div id="materialPanel">
+  <div class="panel">
+    <h3>📦 物料编码管理</h3>
+    <p style="font-size:13px;color:#666;margin-bottom:15px">
+      物料编码格式：<b>[大类]-[子类]-[序号]-[版本]</b>，如 R-01-00001-V01<br>
+      当前已加载 <span id="matCount">0</span> 条物料编码
+    </p>
+    <div class="bar" style="justify-content:flex-start">
+      <button class="btn btn-blue" onclick="loadMaterialData()">📥 导入A BOM物料</button>
+      <button class="btn btn-green" onclick="exportMaterialData()">📤 导出物料库</button>
+      <button class="btn btn-orange" onclick="clearMaterialData()">🗑️ 清空数据</button>
+    </div>
+  </div>
+  
+  <div class="panel">
+    <h3>📋 物料清单</h3>
+    <div style="overflow-x:auto">
+      <table id="matTable">
+        <thead>
+          <tr>
+            <th>物料编码</th>
+            <th>大类</th>
+            <th>子类</th>
+            <th>物料名称</th>
+            <th>型号</th>
+            <th>封装</th>
+            <th>品牌</th>
+            <th>立创编号</th>
+          </tr>
+        </thead>
+        <tbody id="matTableBody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+// ==================== 全局变量 ====================
+var A=null,B=null,RES=null,F1='all',F2='all';
+var materialDB = []; // 物料编码数据库
+
+// 字段别名
+var ALIAS={
+'型号':['型号','Comment型号','Comment','Value','value','规格型号','LibRef','Part'],
+'位号':['位号','Designator位号','Designator','Reference','reference','位置编号','Ref','RefDes'],
+'封装':['封装','Footprint封装','Footprint','Package','package','封装规格','PCB Footprint'],
+'数量':['数量','Quantity','quantity','QTY','qty','用量','Count'],
+'物料编码':['物料编码','MPN','料号','Part Number','PartNumber'],
+'物料名称':['物料名称','Description','description','描述','名称','Desc'],
+'参数描述':['参数描述','规格描述','详细描述','Specification'],
+'单位':['单位','Unit'],
+'品牌':['品牌','Brand','Manufacturer','厂商','MFR'],
+'备注':['备注','Note','Remark','说明']
+};
+
+// ==================== 面板切换 ====================
+function showPanel(panel) {
+  document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+  event.target.classList.add('active');
+  
+  if (panel === 'compare') {
+    document.getElementById('comparePanel').style.display = 'block';
+    document.getElementById('materialPanel').style.display = 'none';
+  } else {
+    document.getElementById('comparePanel').style.display = 'none';
+    document.getElementById('materialPanel').style.display = 'block';
+    loadMaterialTable();
+  }
+}
+
+// ==================== 物料编码管理 ====================
+function loadMaterialData() {
+  // 从A BOM加载物料数据到localStorage
+  const aBomData = [
+    {"material_code":"C-01-00001-V01","category":"C","subcategory":"01","name":"陶瓷电容","model":"100nF 0402","specification":"100nF ±10% 16V X7R SMD 0402","package":"0402","brand":"Murata","lcsc_code":"C10001"},
+    {"material_code":"R-01-00001-V01","category":"R","subcategory":"01","name":"贴片电阻","model":"10K 0402","specification":"10KΩ ±1% 1/16W SMD 0402","package":"0402","brand":"Yageo","lcsc_code":"C10002"},
+    {"material_code":"L-01-00001-V01","category":"L","subcategory":"01","name":"贴片电感","model":"10uH 0603","specification":"10uH ±20% SMD 0603","package":"0603","brand":"Murata","lcsc_code":"C10003"}
+  ];
+  
+  // 实际应该从文件加载，这里简化处理
+  const saved = localStorage.getItem('material_db');
+  if (saved) {
+    materialDB = JSON.parse(saved);
+    alert(`已加载 ${materialDB.length} 条物料编码`);
+  } else {
+    alert('请先导入物料编码数据\n\n提示：可以通过"导入A BOM物料"按钮导入');
+  }
+  loadMaterialTable();
+}
+
+function exportMaterialData() {
+  if (materialDB.length === 0) {
+    alert('没有物料数据可导出');
+    return;
+  }
+  
+  const data = materialDB.map(m => ({
+    '物料编码': m.material_code,
+    '物料名称': m.name,
+    '型号': m.model,
+    '规格参数': m.specification,
+    '封装': m.package,
+    '品牌': m.brand,
+    '立创编号': m.lcsc_code
+  }));
+  
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '物料编码库');
+  XLSX.writeFile(wb, `物料编码库_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+function clearMaterialData() {
+  if (!confirm('确定要清空所有物料编码数据吗？')) return;
+  materialDB = [];
+  localStorage.removeItem('material_db');
+  loadMaterialTable();
+  alert('物料编码数据已清空');
+}
+
+function loadMaterialTable() {
+  const tbody = document.getElementById('matTableBody');
+  tbody.innerHTML = '';
+  
+  document.getElementById('matCount').textContent = materialDB.length;
+  
+  materialDB.forEach(m => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><b>${m.material_code}</b></td>
+      <td>${m.category}</td>
+      <td>${m.subcategory}</td>
+      <td>${m.name || ''}</td>
+      <td>${m.model || ''}</td>
+      <td>${m.package || ''}</td>
+      <td>${m.brand || ''}</td>
+      <td>${m.lcsc_code || ''}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ==================== 上传 ====================
+function bindUpload(btnId,boxId,msgId,fmId,side){
+  document.getElementById(btnId).addEventListener('click',function(e){
+    e.stopPropagation();
+    var inp=document.createElement('input');
+    inp.type='file';
+    inp.accept='.xlsx,.xls,.csv';
+    inp.onchange=function(){
+      var f=inp.files[0];
+      if(!f)return;
+      var rd=new FileReader();
+      rd.onload=function(ev){
+        try{
+          var wb=XLSX.read(ev.target.result,{type:'array'});
+          var p=parse(wb);
+          if(side==='A'){A=p;A._fn=f.name}else{B=p;B._fn=f.name}
+          document.getElementById(boxId).classList.add('ok');
+          document.getElementById(msgId).textContent='✅ '+f.name+'（'+p.rows.length+'条物料）';
+          var fm=document.getElementById(fmId);
+          var h='';for(var k in p.fm)h+=k+' ← '+p.fm[k]+'<br>';
+          fm.innerHTML=h;fm.style.display='block';
+          document.getElementById('goBtn').disabled=!(A&&B);
+        }catch(err){
+          alert('解析失败：'+err.message);
+          console.error(err);
+        }
+      };
+      rd.readAsArrayBuffer(f);
+    };
+    inp.click();
+  });
+}
+bindUpload('btnA','boxA','msgA','fmA','A');
+bindUpload('btnB','boxB','msgB','fmB','B');
+
+// ==================== 解析BOM ====================
+function parse(wb){
+  var sn=wb.SheetNames.find(function(n){return n.includes('BOM')||n.includes('bom')})||wb.SheetNames[0];
+  var raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:''});
+  var hi=-1;
+  for(var i=0;i<Math.min(raw.length,30);i++){
+    if(!raw[i])continue;
+    var r=raw[i].map(function(c){return String(c||'').trim()});
+    var mc=0;
+    for(var s in ALIAS){for(var a=0;a<ALIAS[s].length;a++){if(r.some(function(c){return c===ALIAS[s][a]})){mc++;break}}}
+    if(mc>=3){hi=i;break}
+  }
+  if(hi<0){
+    for(var i=0;i<Math.min(raw.length,30);i++){
+      if(!raw[i])continue;
+      var r=raw[i].map(function(c){return String(c||'').trim()});
+      var mc=0;
+      for(var s in ALIAS){for(var a=0;a<ALIAS[s].length;a++){if(r.some(function(c){return c===ALIAS[s][a]||c.indexOf(ALIAS[s][a])>=0})){mc++;break}}}
+      if(mc>=4){hi=i;break}
+    }
+  }
+  if(hi<0){for(var i=0;i<raw.length;i++){if(raw[i]&&raw[i].length>1&&raw[i].some(function(c){return c!==null&&c!==undefined&&String(c).trim()!==''})){hi=i;break}}}
+  if(hi<0)hi=0;
+  if(!raw[hi])return{hd:[],rows:[],sn:sn,fm:{}};
+  var hd=raw[hi].map(function(c){return String(c||'').trim()});
+  var fm={},used={};
+  for(var s in ALIAS){for(var a=0;a<ALIAS[s].length;a++){var f=hd.find(function(h){return!used[h]&&h===ALIAS[s][a]});if(f){fm[s]=f;used[f]=1;break}}}
+  for(var s in ALIAS){if(fm[s])continue;for(var a=0;a<ALIAS[s].length;a++){var f=hd.find(function(h){return!used[h]&&h.indexOf(ALIAS[s][a])>=0});if(f){fm[s]=f;used[f]=1;break}}}
+  var rows=[];
+  for(var i=hi+1;i<raw.length;i++){
+    var r=raw[i];if(!r)continue;
+    var o={},has=false;
+    hd.forEach(function(h,idx){var v=(r[idx]!==undefined&&r[idx]!==null)?String(r[idx]).trim():'';if(h)o[h]=v;if(v)has=true});
+    if(!has)continue;
+    var u={};for(var s in fm)u[s]=o[fm[s]]||'';
+    if(!u['数量']&&u['位号'])u['数量']=String(u['位号'].split(',').length);
+    if(u['型号']||u['位号'])rows.push(u);
+  }
+  return{hd:hd,rows:rows,sn:sn,fm:fm};
+}
+
+function norm(v){if(!v)return'';return v.trim().replace(/\s+(SC)?(0201|0402|0603|0805|1206|1210|2010|2512|04020|SOT-?\d+|SOP-?\d+|QFN-?\d+|TQFP-?\d+|BGA-?\d+)\s*$/i,'').trim()}
+
+// ==================== 对比 ====================
+document.getElementById('goBtn').onclick=doCompare;
+function doCompare(){
+  if(!A||!B)return;
+  var pk=document.getElementById('pk').value;
+  var cf=[];document.querySelectorAll('.cf:checked').forEach(function(c){cf.push(c.value)});
+  var mA=new Map(),mB=new Map(),fA=new Map(),fB=new Map();
+  A.rows.forEach(function(r){var k=(r[pk]||'').trim();if(k){mA.set(k,r);var n=norm(k);if(!fA.has(n))fA.set(n,{k:k,r:r})}});
+  B.rows.forEach(function(r){var k=(r[pk]||'').trim();if(k){mB.set(k,r);var n=norm(k);if(!fB.has(n))fB.set(n,{k:k,r:r})}});
+  var res=[],mb=new Set();
+  mA.forEach(function(rA,kA){
+    if(mB.has(kA)){var rB=mB.get(kA),d={},hd=false;cf.forEach(function(f){var a=(rA[f]||'').trim(),b=(rB[f]||'').trim();if(a!==b){d[f]={a:a,b:b};hd=true}});res.push({s:hd?'mod':'same',k:kA,rA:rA,rB:rB,d:d});mb.add(kA)}
+    else{var n=norm(kA);if(fB.has(n)&&!mb.has(fB.get(n).k)){var m=fB.get(n),rB=m.r,d={},hd=false;cf.forEach(function(f){var a=(rA[f]||'').trim(),b=(rB[f]||'').trim();if(a!==b){d[f]={a:a,b:b};hd=true}});res.push({s:hd?'mod':'same',k:kA+' ↔ '+m.k,rA:rA,rB:rB,d:d});mb.add(m.k)}
+    else res.push({s:'del',k:kA,rA:rA,rB:null,d:{}})}
+  });
+  mB.forEach(function(rB,kB){if(!mb.has(kB)){var n=norm(kB),hit=false;fA.forEach(function(_,nA){if(nA===n)hit=true});if(!hit)res.push({s:'add',k:kB,rA:null,rB:rB,d:{}})}});
+  var ord={mod:0,add:1,del:2,same:3};res.sort(function(a,b){return ord[a.s]-ord[b.s]});
+  RES={res:res,cf:cf,pk:pk};F1='all';F2='all';
+  
+  // 物料编码匹配分析
+  analyzeMaterialMatch();
+  
+  render();renderDiff();
+  document.getElementById('out').classList.add('show');
+  ['expBtn','fmtAB','fmtBA','lcBtn'].forEach(function(id){document.getElementById(id).style.display='inline-block'});
+  document.getElementById('out').scrollIntoView({behavior:'smooth'});
+}
+
+// ==================== 物料编码匹配分析 ====================
+function analyzeMaterialMatch() {
+  if (!B || !B.rows) return;
+  
+  var total = B.rows.length;
+  var matched = 0;
+  var needQuery = [];
+  
+  B.rows.forEach(function(r) {
+    var model = norm(r['型号'] || '');
+    var found = materialDB.find(function(m) {
+      return norm(m.model) === model || m.model === r['型号'];
+    });
+    
+    if (found) {
+      matched++;
+    } else {
+      needQuery.push({
+        model: r['型号'],
+        ref: r['位号'],
+        package: r['封装']
+      });
+    }
+  });
+  
+  var rate = total > 0 ? Math.round(matched / total * 100) : 0;
+  
+  document.getElementById('matchInfo').style.display = 'block';
+  document.getElementById('totalMat').textContent = total;
+  document.getElementById('matchedMat').textContent = matched;
+  document.getElementById('queryMat').textContent = needQuery.length;
+  document.getElementById('matchRate').textContent = rate + '%';
+  
+  // 保存需要查询的列表
+  window.needQueryList = needQuery;
+}
+
+// ==================== 立创查询清单 ====================
+document.getElementById('lcBtn').onclick = function() {
+  if (!window.needQueryList || window.needQueryList.length === 0) {
+    alert('没有需要查询的器件');
+    return;
+  }
+  
+  var data = window.needQueryList.map(function(item) {
+    var ref = (item.ref || '').toUpperCase();
+    var type = '其他';
+    if (ref.indexOf('R') >= 0) type = '电阻';
+    else if (ref.indexOf('C') >= 0) type = '电容';
+    else if (ref.indexOf('L') >= 0) type = '电感/磁珠';
+    else if (ref.indexOf('D') >= 0) type = '二极管';
+    else if (ref.indexOf('Q') >= 0) type = '三极管/MOS';
+    else if (ref.indexOf('U') >= 0) type = 'IC芯片';
+    else if (ref.indexOf('J') >= 0 || ref.indexOf('XS') >= 0) type = '连接器';
+    else if (ref.indexOf('SW') >= 0 || ref.indexOf('S') >= 0) type = '开关';
+    
+    return {
+      '位号': item.ref,
+      '型号': item.model,
+      '封装': item.package,
+      '器件类型': type,
+      '立创搜索关键词': type + ' ' + item.model,
+      '立创链接': 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(item.model)
+    };
+  });
+  
+  var ws = XLSX.utils.json_to_sheet(data);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '立创查询清单');
+  XLSX.writeFile(wb, '立创查询清单.xlsx');
+};
+
+// ==================== 渲染总览 ====================
+function render(){
+  var r=RES.res,cf=RES.cf,pk=RES.pk;
+  var c={mod:0,add:0,del:0,same:0};r.forEach(function(x){c[x.s]++});
+  document.getElementById('st').innerHTML='<div class="sc mod"><div class="n">'+c.mod+'</div><div class="l">🟡 有差异</div></div><div class="sc add"><div class="n">'+c.add+'</div><div class="l">🟢 B独有</div></div><div class="sc del"><div class="n">'+c.del+'</div><div class="l">🔴 A独有</div></div><div class="sc same"><div class="n">'+c.same+'</div><div class="l">⚪ 一致</div></div>';
+  var pills=[['all','全部',r.length],['mod','🟡差异',c.mod],['add','🟢B独有',c.add],['del','🔴A独有',c.del],['same','⚪一致',c.same]];
+  document.getElementById('fp').innerHTML=pills.map(function(p){return'<div class="pill'+(F1===p[0]?' on':'')+'" onclick="F1=\''+p[0]+'\';render()">'+p[1]+' ('+p[2]+')</div>'}).join('');
+  var fl=F1==='all'?r:r.filter(function(x){return x.s===F1});
+  var df=[pk];cf.forEach(function(f){if(f!==pk)df.push(f)});
+  var th='<tr><th>状态</th>';df.forEach(function(f){th+='<th>'+f+'(A)</th><th>'+f+'(B)</th>'});th+='</tr>';
+  var sm={add:'<span class="badge b-add">B独有</span>',del:'<span class="badge b-del">A独有</span>',mod:'<span class="badge b-mod">有差异</span>',same:'<span class="badge b-same">一致</span>'};
+  var rc={add:'r-add',del:'r-del',mod:'r-mod',same:''};
+  var tb='';fl.forEach(function(x){tb+='<tr class="'+rc[x.s]+'"><td>'+sm[x.s]+'</td>';df.forEach(function(f){var a=x.rA?(x.rA[f]||''):'',b=x.rB?(x.rB[f]||''):'',ch=x.d[f]?' class="chg"':'';tb+='<td'+ch+'>'+esc(a)+'</td><td'+ch+'>'+esc(b)+'</td>'});tb+='</tr>'});
+  document.querySelector('#tb thead').innerHTML=th;
+  document.querySelector('#tb tbody').innerHTML=tb;
+}
+
+// ==================== 渲染差异明细 ====================
+function renderDiff(){
+  var r=RES.res,items=[];
+  r.forEach(function(x){
+    if(x.s==='mod')for(var f in x.d)items.push({t:'c',k:x.k,f:f,a:x.d[f].a,b:x.d[f].b});
+    else if(x.s==='del')items.push({t:'a',k:x.k});
+    else if(x.s==='add')items.push({t:'b',k:x.k});
+  });
+  var c={c:0,a:0,b:0};items.forEach(function(d){c[d.t]++});
+  var pills=[['all','全部',items.length],['c','🟡字段变更',c.c],['a','🔴A独有',c.a],['b','🟢B独有',c.b]];
+  document.getElementById('dp').innerHTML=pills.map(function(p){return'<div class="pill'+(F2===p[0]?' on':'')+'" onclick="F2=\''+p[0]+'\';renderDiff()">'+p[1]+' ('+p[2]+')</div>'}).join('');
+  var fl=F2==='all'?items:items.filter(function(d){return d.t===F2});
+  if(!fl.length){document.getElementById('dl').innerHTML='<div style="text-align:center;color:#999;padding:20px">🎉 没有差异</div>';return}
+  var h='';fl.forEach(function(d){
+    if(d.t==='c')h+='<div class="di dc"><b>'+esc(d.k)+'</b><span class="tag tag-c">'+d.f+'不同</span><br>A: <span class="va">'+esc(d.a||'(空)')+'</span> → B: <span class="vb">'+esc(d.b||'(空)')+'</span></div>';
+    else if(d.t==='a')h+='<div class="di da"><b>'+esc(d.k)+'</b><span class="tag tag-a">A独有</span><br>B中不存在此物料</div>';
+    else h+='<div class="di db"><b>'+esc(d.k)+'</b><span class="tag tag-b">B独有</span><br>A中不存在此物料</div>';
+  });
+  document.getElementById('dl').innerHTML=h;
+}
+
+function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+// ==================== 导出报告 ====================
+document.getElementById('expBtn').onclick=function(){
+  if(!RES)return;
+  var r=RES.res,cf=RES.cf,pk=RES.pk;
+  var df=[pk];cf.forEach(function(f){if(f!==pk)df.push(f)});
+  var sm={add:'B独有',del:'A独有',mod:'有差异',same:'一致'};
+  var out=[];
+  r.forEach(function(x){var row={'状态':sm[x.s]};df.forEach(function(f){row[f+'(A)']=x.rA?(x.rA[f]||''):'';row[f+'(B)']=x.rB?(x.rB[f]||''):''}); out.push(row)});
+  var ws=XLSX.utils.json_to_sheet(out);var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'对比报告');XLSX.writeFile(wb,'BOM对比报告.xlsx');
+};
+
+// ==================== 格式整理 ====================
+function fmt(dir){
+  if(!A||!B)return;
+  var tpl=dir==='AB'?A:B, dat=dir==='AB'?B:A, tl=dir==='AB'?'A':'B', dl=dir==='AB'?'B':'A';
+  var rev={};for(var s in tpl.fm)rev[tpl.fm[s]]=s;
+  var hd=tpl.hd.filter(function(h){return h});
+  var rows=[];
+  dat.rows.forEach(function(u){var r=[];hd.forEach(function(h){var s=rev[h];r.push(s&&u[s]!==undefined?u[s]:'')});rows.push(r)});
+  var ws=XLSX.utils.aoa_to_sheet([hd].concat(rows));
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'BOM整理');
+  XLSX.writeFile(wb,dl+'整理后_按'+tl+'格式.xlsx');
+}
+document.getElementById('fmtAB').onclick=function(){fmt('AB')};
+document.getElementById('fmtBA').onclick=function(){fmt('BA')};
+
+// ==================== 启动 ====================
+// 从localStorage加载物料数据库
+var savedDB = localStorage.getItem('material_db');
+if (savedDB) {
+  materialDB = JSON.parse(savedDB);
+}
+</script>
+</body>
+</html>

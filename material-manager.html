@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>物料编码管理系统 v1.0</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f7fa;min-height:100vh}
+header{background:linear-gradient(135deg,#1a73e8,#0d47a1);color:#fff;padding:20px 0;text-align:center}
+header h1{font-size:24px;margin-bottom:6px}
+header p{font-size:13px;opacity:.85}
+.main{max-width:1400px;margin:0 auto;padding:20px}
+
+/* 统计卡片 */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;margin-bottom:20px}
+.stat-card{background:#fff;border-radius:12px;padding:20px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.stat-card .n{font-size:32px;font-weight:bold;color:#1a73e8}
+.stat-card .l{font-size:13px;color:#666;margin-top:4px}
+
+/* 搜索区 */
+.search-box{background:#fff;border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.search-box h3{font-size:16px;margin-bottom:15px}
+.search-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.search-row input,.search-row select{flex:1;min-width:150px;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px}
+.search-row button{padding:8px 24px;background:#1a73e8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px}
+.search-row button:hover{background:#1557b0}
+
+/* 表格 */
+.table-container{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);overflow-x:auto}
+.table-container h3{font-size:16px;margin-bottom:15px;display:flex;justify-content:space-between;align-items:center}
+.btn{padding:8px 20px;border:none;border-radius:8px;font-size:13px;cursor:pointer;transition:.3s;margin-left:10px}
+.btn-blue{background:#1a73e8;color:#fff}
+.btn-green{background:#34a853;color:#fff}
+.btn-orange{background:#ff9800;color:#fff}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#f8f9fa;padding:10px 8px;text-align:left;border-bottom:2px solid #e0e0e0;white-space:nowrap;font-weight:600}
+td{padding:8px;border-bottom:1px solid #f0f0f0;max-width:200px;word-break:break-all}
+tr:hover{background:#f8faff}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;color:#fff}
+.badge-green{background:#34a853}
+.badge-red{background:#ea4335}
+.badge-yellow{background:#f9a825;color:#333}
+
+/* 添加物料弹窗 */
+.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:1000;justify-content:center;align-items:center}
+.modal.show{display:flex}
+.modal-content{background:#fff;border-radius:12px;padding:30px;width:90%;max-width:600px;max-height:90vh;overflow-y:auto}
+.modal-content h2{margin-bottom:20px}
+.form-row{display:flex;gap:15px;margin-bottom:15px;flex-wrap:wrap}
+.form-group{flex:1;min-width:200px}
+.form-group label{display:block;font-size:13px;color:#555;margin-bottom:5px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px}
+.form-group textarea{resize:vertical;min-height:80px}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+
+/* 分类树 */
+.category-tree{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);margin-bottom:20px}
+.category-tree h3{font-size:16px;margin-bottom:15px}
+.cat-list{display:flex;flex-wrap:wrap;gap:10px}
+.cat-item{padding:6px 14px;background:#f0f2f5;border-radius:20px;font-size:12px;cursor:pointer;transition:.3s}
+.cat-item:hover,.cat-item.active{background:#1a73e8;color:#fff}
+
+/* 分页 */
+.pagination{display:flex;justify-content:center;gap:5px;margin-top:20px}
+.pagination button{padding:6px 12px;border:1px solid #ddd;background:#fff;border-radius:6px;cursor:pointer;font-size:12px}
+.pagination button:hover{background:#f0f2f5}
+.pagination button.active{background:#1a73e8;color:#fff;border-color:#1a73e8}
+
+/* 响应式 */
+@media(max-width:768px){
+  .stats{grid-template-columns:1fr 1fr}
+  .search-row{flex-direction:column}
+  .search-row input,.search-row select{width:100%}
+}
+</style>
+</head>
+<body>
+<header>
+<h1>📦 物料编码管理系统</h1>
+<p>标准化物料编码 · 智能分类管理 · 快速查询检索</p>
+</header>
+
+<div class="main">
+<!-- 统计卡片 -->
+<div class="stats">
+  <div class="stat-card">
+    <div class="n" id="totalCount">0</div>
+    <div class="l">总物料数</div>
+  </div>
+  <div class="stat-card">
+    <div class="n" id="categoryCount">0</div>
+    <div class="l">分类数量</div>
+  </div>
+  <div class="stat-card">
+    <div class="n" id="activeCount">0</div>
+    <div class="l">在用物料</div>
+  </div>
+  <div class="stat-card">
+    <div class="n" id="todayCount">0</div>
+    <div class="l">今日新增</div>
+  </div>
+</div>
+
+<!-- 分类筛选 -->
+<div class="category-tree">
+  <h3>📂 物料分类</h3>
+  <div class="cat-list" id="categoryList">
+    <div class="cat-item active" data-cat="">全部</div>
+  </div>
+</div>
+
+<!-- 搜索区 -->
+<div class="search-box">
+  <h3>🔍 物料查询</h3>
+  <div class="search-row">
+    <input type="text" id="searchKeyword" placeholder="搜索：编码/名称/型号/参数...">
+    <select id="searchCategory">
+      <option value="">所有分类</option>
+    </select>
+    <select id="searchStatus">
+      <option value="">所有状态</option>
+      <option value="在用">在用</option>
+      <option value="停用">停用</option>
+      <option value="待验证">待验证</option>
+    </select>
+    <button onclick="searchMaterials()">🔍 搜索</button>
+    <button class="btn-green" onclick="showAddModal()">➕ 新增物料</button>
+    <button class="btn-orange" onclick="exportData()">📥 导出</button>
+  </div>
+</div>
+
+<!-- 物料表格 -->
+<div class="table-container">
+  <h3>
+    📋 物料清单
+    <span style="font-size:13px;color:#666">（共 <span id="tableCount">0</span> 条）</span>
+  </h3>
+  <table>
+    <thead>
+      <tr>
+        <th>物料编码</th>
+        <th>物料名称</th>
+        <th>型号</th>
+        <th>规格参数</th>
+        <th>封装</th>
+        <th>品牌</th>
+        <th>单位</th>
+        <th>状态</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody id="materialTable">
+    </tbody>
+  </table>
+  <div class="pagination" id="pagination"></div>
+</div>
+</div>
+
+<!-- 添加/编辑物料弹窗 -->
+<div class="modal" id="materialModal">
+  <div class="modal-content">
+    <h2>➕ 新增物料</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>物料名称 *</label>
+        <input type="text" id="mName" placeholder="如：贴片电阻">
+      </div>
+      <div class="form-group">
+        <label>型号 *</label>
+        <input type="text" id="mModel" placeholder="如：10K 0402">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>大类 *</label>
+        <select id="mCategory" onchange="updateSubcategories()">
+          <option value="">请选择</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>子类 *</label>
+        <select id="mSubcategory">
+          <option value="">请选择</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>规格参数</label>
+        <textarea id="mSpecification" placeholder="如：10KΩ ±1% 1/16W SMD 0402"></textarea>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>封装</label>
+        <input type="text" id="mPackage" placeholder="如：0402">
+      </div>
+      <div class="form-group">
+        <label>品牌</label>
+        <input type="text" id="mBrand" placeholder="如：Yageo">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>制造商型号</label>
+        <input type="text" id="mMfrModel" placeholder="如：RC0402FR-0710KL">
+      </div>
+      <div class="form-group">
+        <label>立创编号</label>
+        <input type="text" id="mLCSC" placeholder="如：C10001">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>单位</label>
+        <select id="mUnit">
+          <option value="PCS">PCS</option>
+          <option value="SET">SET</option>
+          <option value="M">M</option>
+          <option value="KG">KG</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>单价（元）</label>
+        <input type="number" id="mPrice" placeholder="0.00" step="0.01">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>备注</label>
+        <textarea id="mRemarks" placeholder="其他说明..."></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-blue" onclick="saveMaterial()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== 数据存储 ====================
+let materials = [];
+let categories = [];
+let currentPage = 1;
+let pageSize = 20;
+let currentCategory = '';
+
+// 分类定义
+const CATEGORY_DEF = {
+  'R': { name: '电阻器', subcategories: {'01':'贴片电阻','02':'插件电阻','03':'排阻','04':'可变电阻','05':'热敏电阻','06':'压敏电阻'} },
+  'C': { name: '电容器', subcategories: {'01':'陶瓷电容','02':'钽电容','03':'铝电解电容','04':'薄膜电容','05':'超级电容','06':'插件电容'} },
+  'L': { name: '电感器', subcategories: {'01':'贴片电感','02':'绕线电感','03':'磁珠','04':'共模电感','05':'插件电感'} },
+  'D': { name: '二极管', subcategories: {'01':'整流二极管','02':'肖特基二极管','03':'稳压二极管','04':'TVS二极管','05':'发光二极管','06':'快恢复二极管'} },
+  'Q': { name: '三极管/MOS', subcategories: {'01':'NPN三极管','02':'PNP三极管','03':'N-MOS','04':'P-MOS','05':'IGBT','06':'达林顿管'} },
+  'IC': { name: '集成电路', subcategories: {'01':'MCU','02':'MPU','03':'存储器','04':'电源IC','05':'接口IC','06':'放大器','07':'ADC/DAC','08':'射频IC','09':'传感器IC','10':'逻辑IC','11':'时钟IC','12':'驱动IC'} },
+  'CON': { name: '连接器', subcategories: {'01':'排针/排母','02':'USB连接器','03':'HDMI连接器','04':'射频连接器','05':'端子台','06':'FPC连接器','07':'电源连接器','08':'音频连接器','09':'网络连接器','10':'卡座'} },
+  'SW': { name: '开关', subcategories: {'01':'轻触开关','02':'拨动开关','03':'滑动开关','04':'按键开关','05':'旋转开关','06':'微动开关'} },
+  'LED': { name: '发光二极管', subcategories: {'01':'贴片LED','02':'插件LED','03':'LED阵列','04':'红外LED','05':'UV LED'} },
+  'CRY': { name: '晶振', subcategories: {'01':'无源晶振','02':'有源晶振','03':'温补晶振','04':'压控晶振'} },
+  'MOD': { name: '模块', subcategories: {'01':'通信模块','02':'传感器模块','03':'电源模块','04':'显示模块','05':'存储模块'} },
+  'PCB': { name: '电路板', subcategories: {'01':'PCB板','02':'FPC板','03':'铝基板','04':'陶瓷基板'} },
+  'MEC': { name: '结构件', subcategories: {'01':'外壳','02':'支架','03':'散热器','04':'螺丝','05':'垫片'} },
+  'BAT': { name: '电池', subcategories: {'01':'锂电池','02':'纽扣电池','03':'干电池','04':'蓄电池'} },
+  'ANT': { name: '天线', subcategories: {'01':'PCB天线','02':'陶瓷天线','03':'外置天线','04':'弹簧天线'} },
+  'SEN': { name: '传感器', subcategories: {'01':'温度传感器','02':'湿度传感器','03':'压力传感器','04':'光传感器','05':'加速度传感器'} },
+  'POW': { name: '电源器件', subcategories: {'01':'变压器','02':'电感器','03':'整流桥','04':'滤波器'} },
+  'PRO': { name: '保护器件', subcategories: {'01':'保险丝','02':'TVS管','03':'压敏电阻','04':'ESD保护器'} },
+  'MIS': { name: '杂项', subcategories: {'01':'其他'} }
+};
+
+// ==================== 初始化 ====================
+function init() {
+  // 从localStorage加载数据
+  const saved = localStorage.getItem('materials_data');
+  if (saved) {
+    materials = JSON.parse(saved);
+  }
+  
+  // 初始化分类
+  initCategories();
+  
+  // 更新统计
+  updateStats();
+  
+  // 加载表格
+  loadTable();
+}
+
+function initCategories() {
+  const catList = document.getElementById('categoryList');
+  const searchCat = document.getElementById('searchCategory');
+  const mCategory = document.getElementById('mCategory');
+  
+  // 清空并添加"全部"
+  catList.innerHTML = '<div class="cat-item active" data-cat="">全部</div>';
+  searchCat.innerHTML = '<option value="">所有分类</option>';
+  mCategory.innerHTML = '<option value="">请选择</option>';
+  
+  // 添加分类
+  for (const [code, info] of Object.entries(CATEGORY_DEF)) {
+    // 分类列表
+    const div = document.createElement('div');
+    div.className = 'cat-item';
+    div.dataset.cat = code;
+    div.textContent = `${code} (${info.name})`;
+    div.onclick = () => filterByCategory(code);
+    catList.appendChild(div);
+    
+    // 搜索下拉
+    const option = document.createElement('option');
+    option.value = code;
+    option.textContent = `${code} - ${info.name}`;
+    searchCat.appendChild(option);
+    
+    // 新增下拉
+    const mOption = document.createElement('option');
+    mOption.value = code;
+    mOption.textContent = `${code} - ${info.name}`;
+    mCategory.appendChild(mOption);
+  }
+}
+
+function updateSubcategories() {
+  const cat = document.getElementById('mCategory').value;
+  const subSelect = document.getElementById('mSubcategory');
+  
+  subSelect.innerHTML = '<option value="">请选择</option>';
+  
+  if (cat && CATEGORY_DEF[cat]) {
+    for (const [subCode, subName] of Object.entries(CATEGORY_DEF[cat].subcategories)) {
+      const option = document.createElement('option');
+      option.value = subCode;
+      option.textContent = `${subCode} - ${subName}`;
+      subSelect.appendChild(option);
+    }
+  }
+}
+
+// ==================== 核心功能 ====================
+function generateMaterialCode(category, subcategory) {
+  // 查找当前子类的最大序号
+  const sameCat = materials.filter(m => m.category === category && m.subcategory === subcategory);
+  const maxSeq = sameCat.length > 0 ? Math.max(...sameCat.map(m => m.sequence || 0)) : 0;
+  const newSeq = maxSeq + 1;
+  
+  return {
+    code: `${category}-${subcategory}-${String(newSeq).padStart(5, '0')}-V01`,
+    sequence: newSeq
+  };
+}
+
+function addMaterial(material) {
+  materials.push(material);
+  saveData();
+  updateStats();
+  loadTable();
+}
+
+function saveData() {
+  localStorage.setItem('materials_data', JSON.stringify(materials));
+}
+
+function updateStats() {
+  document.getElementById('totalCount').textContent = materials.length;
+  document.getElementById('categoryCount').textContent = Object.keys(CATEGORY_DEF).length;
+  document.getElementById('activeCount').textContent = materials.filter(m => m.status === '在用').length;
+  
+  const today = new Date().toDateString();
+  document.getElementById('todayCount').textContent = materials.filter(m => {
+    const d = new Date(m.created_at);
+    return d.toDateString() === today;
+  }).length;
+}
+
+// ==================== 表格功能 ====================
+function loadTable() {
+  let filtered = materials;
+  
+  // 分类筛选
+  if (currentCategory) {
+    filtered = filtered.filter(m => m.category === currentCategory);
+  }
+  
+  // 搜索筛选
+  const keyword = document.getElementById('searchKeyword').value.toLowerCase();
+  if (keyword) {
+    filtered = filtered.filter(m => 
+      (m.material_code && m.material_code.toLowerCase().includes(keyword)) ||
+      (m.name && m.name.toLowerCase().includes(keyword)) ||
+      (m.model && m.model.toLowerCase().includes(keyword)) ||
+      (m.specification && m.specification.toLowerCase().includes(keyword))
+    );
+  }
+  
+  // 分类筛选
+  const cat = document.getElementById('searchCategory').value;
+  if (cat) {
+    filtered = filtered.filter(m => m.category === cat);
+  }
+  
+  // 状态筛选
+  const status = document.getElementById('searchStatus').value;
+  if (status) {
+    filtered = filtered.filter(m => m.status === status);
+  }
+  
+  // 更新计数
+  document.getElementById('tableCount').textContent = filtered.length;
+  
+  // 分页
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  const start = (currentPage - 1) * pageSize;
+  const pageData = filtered.slice(start, start + pageSize);
+  
+  // 渲染表格
+  const tbody = document.getElementById('materialTable');
+  tbody.innerHTML = '';
+  
+  pageData.forEach(m => {
+    const tr = document.createElement('tr');
+    
+    const statusBadge = m.status === '在用' ? 'badge-green' : 
+                       m.status === '停用' ? 'badge-red' : 'badge-yellow';
+    
+    tr.innerHTML = `
+      <td><b>${m.material_code}</b></td>
+      <td>${m.name || ''}</td>
+      <td>${m.model || ''}</td>
+      <td>${m.specification || ''}</td>
+      <td>${m.package || ''}</td>
+      <td>${m.brand || ''}</td>
+      <td>${m.unit || 'PCS'}</td>
+      <td><span class="badge ${statusBadge}">${m.status || '在用'}</span></td>
+      <td>
+        <button class="btn btn-blue" onclick="editMaterial('${m.material_code}')">编辑</button>
+        <button class="btn" style="background:#ea4335;color:#fff" onclick="deleteMaterial('${m.material_code}')">删除</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  
+  // 渲染分页
+  renderPagination(totalPages);
+}
+
+function renderPagination(totalPages) {
+  const pagination = document.getElementById('pagination');
+  pagination.innerHTML = '';
+  
+  if (totalPages <= 1) return;
+  
+  // 上一页
+  const prevBtn = document.createElement('button');
+  prevBtn.textContent = '上一页';
+  prevBtn.onclick = () => { if (currentPage > 1) { currentPage--; loadTable(); }};
+  pagination.appendChild(prevBtn);
+  
+  // 页码
+  for (let i = 1; i <= totalPages; i++) {
+    const btn = document.createElement('button');
+    btn.textContent = i;
+    btn.className = i === currentPage ? 'active' : '';
+    btn.onclick = () => { currentPage = i; loadTable(); };
+    pagination.appendChild(btn);
+  }
+  
+  // 下一页
+  const nextBtn = document.createElement('button');
+  nextBtn.textContent = '下一页';
+  nextBtn.onclick = () => { if (currentPage < totalPages) { currentPage++; loadTable(); }};
+  pagination.appendChild(nextBtn);
+}
+
+// ==================== 事件处理 ====================
+function filterByCategory(cat) {
+  currentCategory = cat;
+  currentPage = 1;
+  
+  // 更新分类样式
+  document.querySelectorAll('.cat-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.cat === cat);
+  });
+  
+  loadTable();
+}
+
+function searchMaterials() {
+  currentPage = 1;
+  loadTable();
+}
+
+function showAddModal() {
+  document.getElementById('materialModal').classList.add('show');
+  document.getElementById('mCategory').value = '';
+  document.getElementById('mSubcategory').innerHTML = '<option value="">请选择</option>';
+}
+
+function closeModal() {
+  document.getElementById('materialModal').classList.remove('show');
+}
+
+function saveMaterial() {
+  const category = document.getElementById('mCategory').value;
+  const subcategory = document.getElementById('mSubcategory').value;
+  const name = document.getElementById('mName').value;
+  const model = document.getElementById('mModel').value;
+  
+  if (!category || !subcategory || !name || !model) {
+    alert('请填写必填项：物料名称、型号、大类、子类');
+    return;
+  }
+  
+  // 生成编码
+  const { code, sequence } = generateMaterialCode(category, subcategory);
+  
+  const material = {
+    material_code: code,
+    category: category,
+    subcategory: subcategory,
+    sequence: sequence,
+    version: 'V01',
+    name: name,
+    model: model,
+    specification: document.getElementById('mSpecification').value,
+    package: document.getElementById('mPackage').value,
+    brand: document.getElementById('mBrand').value,
+    manufacturer_model: document.getElementById('mMfrModel').value,
+    lcsc_code: document.getElementById('mLCSC').value,
+    unit: document.getElementById('mUnit').value,
+    unit_price: parseFloat(document.getElementById('mPrice').value) || 0,
+    status: '在用',
+    remarks: document.getElementById('mRemarks').value,
+    created_at: new Date().toISOString()
+  };
+  
+  addMaterial(material);
+  closeModal();
+  
+  // 清空表单
+  document.getElementById('mName').value = '';
+  document.getElementById('mModel').value = '';
+  document.getElementById('mSpecification').value = '';
+  document.getElementById('mPackage').value = '';
+  document.getElementById('mBrand').value = '';
+  document.getElementById('mMfrModel').value = '';
+  document.getElementById('mLCSC').value = '';
+  document.getElementById('mPrice').value = '';
+  document.getElementById('mRemarks').value = '';
+  
+  alert(`物料添加成功！\n物料编码：${code}`);
+}
+
+function editMaterial(code) {
+  const m = materials.find(item => item.material_code === code);
+  if (!m) return;
+  
+  // 填充表单
+  document.getElementById('mName').value = m.name || '';
+  document.getElementById('mModel').value = m.model || '';
+  document.getElementById('mCategory').value = m.category || '';
+  updateSubcategories();
+  document.getElementById('mSubcategory').value = m.subcategory || '';
+  document.getElementById('mSpecification').value = m.specification || '';
+  document.getElementById('mPackage').value = m.package || '';
+  document.getElementById('mBrand').value = m.brand || '';
+  document.getElementById('mMfrModel').value = m.manufacturer_model || '';
+  document.getElementById('mLCSC').value = m.lcsc_code || '';
+  document.getElementById('mUnit').value = m.unit || 'PCS';
+  document.getElementById('mPrice').value = m.unit_price || '';
+  document.getElementById('mRemarks').value = m.remarks || '';
+  
+  showAddModal();
+}
+
+function deleteMaterial(code) {
+  if (!confirm(`确定要删除物料 ${code} 吗？`)) return;
+  
+  materials = materials.filter(m => m.material_code !== code);
+  saveData();
+  updateStats();
+  loadTable();
+}
+
+function exportData() {
+  if (materials.length === 0) {
+    alert('没有数据可导出');
+    return;
+  }
+  
+  // 转换为Excel
+  const data = materials.map(m => ({
+    '物料编码': m.material_code,
+    '物料名称': m.name,
+    '型号': m.model,
+    '规格参数': m.specification,
+    '封装': m.package,
+    '品牌': m.brand,
+    '制造商型号': m.manufacturer_model,
+    '立创编号': m.lcsc_code,
+    '单位': m.unit,
+    '单价': m.unit_price,
+    '状态': m.status,
+    '备注': m.remarks
+  }));
+  
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '物料清单');
+  XLSX.writeFile(wb, `物料清单_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+// ==================== 导入功能 ====================
+function importFromJSON(jsonData) {
+  try {
+    const data = JSON.parse(jsonData);
+    let count = 0;
+    
+    data.forEach(item => {
+      if (!materials.find(m => m.material_code === item.material_code)) {
+        materials.push(item);
+        count++;
+      }
+    });
+    
+    saveData();
+    updateStats();
+    loadTable();
+    
+    return count;
+  } catch (e) {
+    console.error('导入失败:', e);
+    return 0;
+  }
+}
+
+// ==================== 启动 ====================
+window.onload = init;
+
+// 点击弹窗外部关闭
+window.onclick = function(event) {
+  const modal = document.getElementById('materialModal');
+  if (event.target === modal) {
+    closeModal();
+  }
+}
+</script>
+</body>
+</html>
