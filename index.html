@@ -6,6 +6,7 @@
 <title>BOM整理神器 v5.0 - 技象科技</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:#f0f2f5;min-height:100vh;display:flex;flex-direction:column}
@@ -578,7 +579,17 @@ function bindUpload(btnId,boxId,msgId,fmId,side){
         try{
           var wb=XLSX.read(ev.target.result,{type:'array'});
           var p=parse(wb);
-          if(side==='A'){A=p;A._fn=f.name}else{B=p;B._fn=f.name}
+          if(side==='A'){
+            A=p;A._fn=f.name;
+            // 保留 A 的原始字节用于模板复现（封面+表头原样保留）
+            A._raw = new Uint8Array(ev.target.result);
+            A._wb = wb;
+            // 检测数据起始行（hi+1），存模板信息
+            A._dataStartRow = p._hi;  // 列头所在行（0-based）
+            A._bomSheetName = p._sn;
+          }else{
+            B=p;B._fn=f.name
+          }
           document.getElementById(boxId).classList.add('ok');
           document.getElementById(msgId).textContent='✅ '+f.name+'（'+p.rows.length+'条物料）';
           var fm=document.getElementById(fmId);
@@ -636,7 +647,7 @@ function parse(wb){
     if(!u['数量']&&u['位号'])u['数量']=String(u['位号'].split(',').length);
     if(u['型号']||u['位号'])rows.push(u);
   }
-  return{hd:hd,rows:rows,sn:sn,fm:fm};
+  return{hd:hd,rows:rows,sn:sn,fm:fm,_hi:hi,_sn:sn};
 }
 
 function norm(v){if(!v)return'';return v.trim().replace(/\s+(SC)?(0201|0402|0603|0805|1206|1210|2010|2512|04020|SOT-?\d+|SOP-?\d+|QFN-?\d+|TQFP-?\d+|BGA-?\d+)\s*$/i,'').trim()}
@@ -961,6 +972,236 @@ document.getElementById('expBtn').onclick=function(){
   XLSX.utils.book_append_sheet(wb,ws,'对比报告');XLSX.writeFile(wb,'BOM对比报告.xlsx');
 };
 
+
+// ==================== xlsx 原地改造（保留封面 LOGO + 表头 + 样式）====================
+// 用 JSZip 解开 A.xlsx → 只改 sheet2.xml 的数据行 + 追加补齐报告 sheet → 重新打包
+// 所有其他文件（封面 sheet1、LOGO 图片、drawings、styles、theme、sharedStrings）原封不动
+function patchAndDownloadXlsx(rawArrayBuffer, dataRows, enrichStats, enrichDetails, dlLabel, tlLabel, templateHeaders){
+  return JSZip.loadAsync(rawArrayBuffer).then(function(zip){
+    // 1) 读 workbook.xml 找出 BOM sheet 对应的 sheetN.xml
+    return zip.file('xl/workbook.xml').async('string').then(function(wbXml){
+      // 解析 sheet 名字和 rId 映射
+      var sheetMatches = wbXml.match(/<sheet[^\/]*\/>/g) || [];
+      var bomSheet = null;  // {name, rid}
+      sheetMatches.forEach(function(m){
+        var nameMatch = m.match(/name="([^"]+)"/);
+        var ridMatch = m.match(/r:id="(rId\d+)"/);
+        if (nameMatch && ridMatch && (nameMatch[1].indexOf('单板') >= 0 || nameMatch[1].toUpperCase().indexOf('BOM') >= 0)) {
+          if (!bomSheet) bomSheet = {name: nameMatch[1], rid: ridMatch[1]};
+        }
+      });
+      if (!bomSheet) throw new Error('找不到"单板BOM" sheet');
+
+      // 2) 根据 rId 找到对应的 sheet 文件
+      return zip.file('xl/_rels/workbook.xml.rels').async('string').then(function(relsXml){
+        var relRegex = new RegExp('<Relationship[^>]*Id="'+bomSheet.rid+'"[^>]*Target="([^"]+)"', 'i');
+        var m = relsXml.match(relRegex);
+        if (!m) throw new Error('找不到 BOM sheet 的 rels 映射');
+        var sheetPath = 'xl/' + m[1].replace(/^\/?/, '');
+
+        // 3) 读 BOM sheet XML
+        return zip.file(sheetPath).async('string').then(function(sheetXml){
+          // 提取 sheetData 内的 row
+          var sheetDataMatch = sheetXml.match(/<sheetData>([\s\S]*?)<\/sheetData>/);
+          if (!sheetDataMatch) throw new Error('BOM sheet 缺 sheetData 节点');
+          var sheetData = sheetDataMatch[1];
+
+          // 找数据起始行（列头行的下一行）
+          // A._hi 是 0-based 列头行（index 4 = 行 5），数据从行 6 开始
+          var headerIdx = (typeof A._hi === 'number') ? A._hi : 4;
+          var dataStartRow1Based = headerIdx + 2;  // 0-based → 1-based (+1)，再下一行 (+1)
+
+          // 保留 row r <= dataStartRow1Based-1 的部分（表头）
+          // 删除 row r >= dataStartRow1Based 的部分
+          var keepRows = [];
+          var rowRegex = /<row[^>]*r="(\d+)"[^>]*>[\s\S]*?<\/row>/g;
+          var match;
+          while ((match = rowRegex.exec(sheetData)) !== null) {
+            var rNum = parseInt(match[1], 10);
+            if (rNum < dataStartRow1Based) keepRows.push(match[0]);
+          }
+
+          // 生成新数据行 XML（inlineStr 避免改 sharedStrings）
+          function xmlEscape(s){
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+          }
+          function colLetter(idx){
+            var s = '';
+            idx = idx + 1;
+            while (idx > 0) { var r = (idx - 1) % 26; s = String.fromCharCode(65 + r) + s; idx = Math.floor((idx - 1) / 26); }
+            return s;
+          }
+          // 找"序号"列的索引，自动填 1..N（如果 B 没提供）
+          var snIdx = -1;
+          (templateHeaders || []).forEach(function(h, i){ if (h && (h.indexOf('序号') >= 0 || h === '#' || h.toLowerCase() === 'no')) snIdx = i; });
+
+          var newRowsXml = dataRows.map(function(row, i){
+            var rowNum = dataStartRow1Based + i;
+            // 自动填序号（如果该位置为空）
+            if (snIdx >= 0 && (row[snIdx] === '' || row[snIdx] === null || row[snIdx] === undefined)) {
+              row[snIdx] = i + 1;
+            }
+            var cells = row.map(function(v, c){
+              if (v === '' || v === null || v === undefined) return '';
+              var addr = colLetter(c) + rowNum;
+              if (typeof v === 'number' && !isNaN(v)) {
+                return '<c r="'+addr+'"><v>'+v+'</v></c>';
+              }
+              // inline string，避免 sharedStrings 冲突
+              return '<c r="'+addr+'" t="inlineStr"><is><t>'+xmlEscape(v)+'</t></is></c>';
+            }).join('');
+            return '<row r="'+rowNum+'">'+cells+'</row>';
+          }).join('');
+
+          var newSheetData = '<sheetData>' + keepRows.join('') + newRowsXml + '</sheetData>';
+          var newSheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, newSheetData);
+
+          // 更新 dimension（如果有）
+          var endRow = dataStartRow1Based + dataRows.length - 1;
+          if (endRow < dataStartRow1Based) endRow = dataStartRow1Based - 1;
+          var dimMatch = newSheetXml.match(/<dimension ref="([A-Z]+)\d+:([A-Z]+)\d+"/);
+          if (dimMatch) {
+            newSheetXml = newSheetXml.replace(/<dimension ref="[^"]*"/, '<dimension ref="'+dimMatch[1]+'1:'+dimMatch[2]+endRow+'"');
+          }
+
+          zip.file(sheetPath, newSheetXml);
+
+          // 4) 追加"补齐报告"sheet
+          return appendReportSheet(zip, enrichStats, enrichDetails);
+        });
+      });
+    }).then(function(){
+      // 5) 打包下载
+      return zip.generateAsync({type:'blob', compression:'DEFLATE'});
+    }).then(function(blob){
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = dlLabel + '整理后_按' + tlLabel + '格式（含封面）.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+
+      if (materialDB.length) {
+        alert('✨ 整理完成（已保留 A 模板封面 LOGO + 表头 + 样式）！\n'
+          + '📊 匹配统计：\n'
+          + '  L1 立创精确：'+enrichStats.l1+'\n'
+          + '  L2 型号+封装：'+enrichStats.l2+'\n'
+          + '  L3 规范化容差：'+enrichStats.l3+'\n'
+          + '  未命中：'+enrichStats.l0+'\n\n'
+          + '🔧 共补齐 '+enrichStats.filled+' 个字段\n'
+          + '📁 输出：封面（含 LOGO）+ 单板BOM（原样表头）+ 补齐报告\n\n'
+          + '💡 请打开文件修改封面上的板卡名/ERP/版本号');
+      } else {
+        alert('⚠️ 物料库为空，已按 A 模板整理格式但未补齐字段。\n建议先导入器件BOM库。');
+      }
+    });
+  });
+}
+
+// 追加"补齐报告"sheet 到 zip 里（手工生成 sheet XML + 注册到 workbook）
+function appendReportSheet(zip, enrichStats, enrichDetails){
+  return Promise.all([
+    zip.file('xl/workbook.xml').async('string'),
+    zip.file('xl/_rels/workbook.xml.rels').async('string'),
+    zip.file('[Content_Types].xml').async('string')
+  ]).then(function(arr){
+    var wbXml = arr[0], relsXml = arr[1], ctXml = arr[2];
+
+    // 找出现有 sheet 最大编号
+    var existingSheets = (wbXml.match(/r:id="rId(\d+)"/g) || []).map(function(s){
+      return parseInt(s.match(/(\d+)/)[1], 10);
+    });
+    var maxRid = existingSheets.length ? Math.max.apply(null, existingSheets) : 0;
+
+    // 找所有 sheetN.xml 的最大 N
+    var existingSheetFiles = Object.keys(zip.files).filter(function(p){
+      return /^xl\/worksheets\/sheet(\d+)\.xml$/.test(p);
+    });
+    var maxSheetN = Math.max.apply(null, existingSheetFiles.map(function(p){
+      return parseInt(p.match(/sheet(\d+)\.xml/)[1], 10);
+    }));
+
+    // 找已存在的"补齐报告"先删掉（重复调用幂等）
+    var existingReportMatch = wbXml.match(/<sheet[^\/]*name="补齐报告"[^\/]*\/>/);
+    if (existingReportMatch) {
+      var oldRid = (existingReportMatch[0].match(/r:id="(rId\d+)"/) || [])[1];
+      // 从 workbook 去掉
+      wbXml = wbXml.replace(existingReportMatch[0], '');
+      // 从 rels 去掉
+      if (oldRid) {
+        var oldRelRegex = new RegExp('<Relationship[^>]*Id="'+oldRid+'"[^>]*\\/>');
+        var oldRelMatch = relsXml.match(oldRelRegex);
+        if (oldRelMatch) {
+          var oldTarget = (oldRelMatch[0].match(/Target="([^"]+)"/) || [])[1];
+          relsXml = relsXml.replace(oldRelMatch[0], '');
+          // 删除旧 sheet 文件
+          if (oldTarget) {
+            var oldPath = 'xl/' + oldTarget.replace(/^\/?/, '');
+            if (zip.files[oldPath]) zip.remove(oldPath);
+            // 清 Content_Types
+            ctXml = ctXml.replace(new RegExp('<Override[^>]*PartName="/'+oldPath+'"[^>]*\\/>'), '');
+          }
+        }
+      }
+    }
+
+    var newRid = 'rId' + (maxRid + 10);  // 留余量避免冲突
+    var newSheetN = maxSheetN + 1;
+    var newSheetPath = 'xl/worksheets/sheet' + newSheetN + '.xml';
+
+    // 生成补齐报告 sheet XML
+    function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    var reportRows = [['位号','型号','匹配等级','补齐字段']];
+    enrichDetails.forEach(function(d){
+      reportRows.push([d.ref, d.model, 'L'+d.level, d.filled.join(' / ')]);
+    });
+    reportRows.push(['']);
+    reportRows.push(['统计','']);
+    reportRows.push(['L1 立创精确', enrichStats.l1]);
+    reportRows.push(['L2 型号+封装', enrichStats.l2]);
+    reportRows.push(['L3 规范化容差', enrichStats.l3]);
+    reportRows.push(['未命中', enrichStats.l0]);
+    reportRows.push(['总补齐字段数', enrichStats.filled]);
+
+    function colLetter(idx){ var s=''; idx=idx+1; while(idx>0){var r=(idx-1)%26; s=String.fromCharCode(65+r)+s; idx=Math.floor((idx-1)/26);} return s; }
+    var rowsXml = reportRows.map(function(row, i){
+      var rowNum = i + 1;
+      var cells = row.map(function(v, c){
+        if (v === '' || v === null || v === undefined) return '';
+        var addr = colLetter(c) + rowNum;
+        if (typeof v === 'number' && !isNaN(v)) return '<c r="'+addr+'"><v>'+v+'</v></c>';
+        return '<c r="'+addr+'" t="inlineStr"><is><t>'+esc(v)+'</t></is></c>';
+      }).join('');
+      return '<row r="'+rowNum+'">'+cells+'</row>';
+    }).join('');
+
+    var sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+      + '<dimension ref="A1:D'+reportRows.length+'"/>'
+      + '<sheetData>' + rowsXml + '</sheetData>'
+      + '</worksheet>';
+    zip.file(newSheetPath, sheetXml);
+
+    // 注册到 workbook.xml
+    var newSheetEntry = '<sheet name="补齐报告" sheetId="'+newSheetN+'" r:id="'+newRid+'"/>';
+    wbXml = wbXml.replace('</sheets>', newSheetEntry + '</sheets>');
+    zip.file('xl/workbook.xml', wbXml);
+
+    // 注册到 rels
+    var newRelEntry = '<Relationship Id="'+newRid+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet'+newSheetN+'.xml"/>';
+    relsXml = relsXml.replace('</Relationships>', newRelEntry + '</Relationships>');
+    zip.file('xl/_rels/workbook.xml.rels', relsXml);
+
+    // 注册到 Content_Types
+    if (ctXml.indexOf('PartName="/'+newSheetPath+'"') < 0) {
+      var newCtEntry = '<Override PartName="/'+newSheetPath+'" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+      ctXml = ctXml.replace('</Types>', newCtEntry + '</Types>');
+      zip.file('[Content_Types].xml', ctXml);
+    }
+  });
+}
+
 // ==================== 格式整理（带物料库自动补齐） ====================
 function fmt(dir){
   if(!A||!B)return;
@@ -975,11 +1216,9 @@ function fmt(dir){
   var enrichDetails = [];
 
   dat.rows.forEach(function(u, idx){
-    // 克隆一份行数据（按标准字段）
     var clone = {};
     for (var k in u) clone[k] = u[k];
 
-    // 三级匹配 + 补齐
     var emptyBefore = [];
     ['物料编码','物料名称','参数描述','品牌','立创编号'].forEach(function(f){
       if (!clone[f]) emptyBefore.push(f);
@@ -999,7 +1238,6 @@ function fmt(dir){
     else if (mr.level === 3) enrichStats.l3++;
     else enrichStats.l0++;
 
-    // 按模板表头输出
     var r = [];
     hd.forEach(function(h){
       var s = rev[h];
@@ -1008,18 +1246,23 @@ function fmt(dir){
     rows.push(r);
   });
 
-  // 增加备注列：匹配等级（可选）
-  var headerWithLevel = hd.slice();
-  var rowsWithLevel = rows.map(function(r, i){
-    return r;
-  });
+  // ========== 方案 A：AB 方向且 A 有原始字节 → JSZip 原地改 xlsx，保留封面 LOGO + 表头 + 样式 ==========
+  if (dir === 'AB' && A._raw && typeof JSZip !== 'undefined') {
+    try {
+      patchAndDownloadXlsx(A._raw, rows, enrichStats, enrichDetails, dl, tl, hd);
+      return;
+    } catch (err) {
+      console.error('模板 JSZip 复现失败，降级：', err);
+      alert('⚠️ 保留 A 模板失败，已降级为简版输出。\n错误：' + err.message);
+      // 继续往下走降级逻辑
+    }
+  }
 
-  // 生成 Excel：sheet1=整理后BOM，sheet2=补齐报告
+  // ========== 降级方案：简版输出（BA 方向 / 或模板复现失败） ==========
   var wb = XLSX.utils.book_new();
   var ws1 = XLSX.utils.aoa_to_sheet([hd].concat(rows));
   XLSX.utils.book_append_sheet(wb, ws1, '整理后BOM');
 
-  // 补齐报告 sheet
   if (dir === 'AB' && materialDB.length) {
     var report = [['位号','型号','匹配等级','补齐字段']];
     enrichDetails.forEach(function(d){

@@ -1,6 +1,3 @@
-__pycache__/
-venv/
-*.pyc
+_test/
+*.log
 .DS_Store
-lib_test.json
-b_test.json
