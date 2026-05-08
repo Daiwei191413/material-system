@@ -130,6 +130,24 @@ td.chg{background:#fff3cd;font-weight:bold}
 /* 导入向导 */
 .import-hint{background:#fff8e1;border-left:4px solid #f9a825;padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:12px;line-height:1.6}
 
+/* 全局流程卡 */
+.workflow{background:#fff;border-radius:12px;padding:16px 20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:3px solid #1a73e8}
+.workflow-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;cursor:pointer}
+.workflow-head h3{font-size:15px;color:#1a73e8}
+.workflow-head .toggle{font-size:12px;color:#888;user-select:none}
+.workflow-body{display:block}
+.workflow-body.collapsed{display:none}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
+.step{background:#f8faff;border:1px solid #e3eafc;border-radius:10px;padding:12px 14px;position:relative;transition:.3s}
+.step:hover{border-color:#1a73e8;background:#f0f6ff}
+.step-num{position:absolute;top:-10px;left:12px;background:#1a73e8;color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold}
+.step h4{font-size:13px;color:#333;margin:4px 0 6px 28px}
+.step p{font-size:11px;color:#666;line-height:1.5}
+.step .go{display:inline-block;margin-top:8px;font-size:11px;color:#1a73e8;cursor:pointer;text-decoration:underline}
+.match-strategy{background:#f0fff4;border:1px solid #b5e0c2;border-radius:8px;padding:10px 14px;font-size:12px;line-height:1.8}
+.match-strategy b{color:#2e7d32}
+@media(max-width:768px){.steps{grid-template-columns:1fr}}
+
 #out{display:none}
 #out.show{display:block}
 #materialPanel{display:none}
@@ -149,6 +167,41 @@ td.chg{background:#fff3cd;font-weight:bold}
 <div class="nav">
   <button class="nav-btn active" onclick="showPanel('compare')">🔍 BOM对比</button>
   <button class="nav-btn" onclick="showPanel('material')">📦 物料编码</button>
+</div>
+
+<!-- 全局使用流程 -->
+<div class="workflow">
+  <div class="workflow-head" onclick="toggleWorkflow()">
+    <h3>📘 使用流程</h3>
+    <span class="toggle" id="wfToggle">▲ 点击收起</span>
+  </div>
+  <div class="workflow-body" id="wfBody">
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h4>导入物料库</h4>
+        <p>在「📦 物料编码」页导入 <b>器件BOM库.xlsx</b>，物料会持久化存到浏览器，下次免重复导入。</p>
+        <span class="go" onclick="showPanelDirect('material')">→ 去导入</span>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h4>上传两份 BOM</h4>
+        <p>在「🔍 BOM对比」页上传 <b>A（模板）</b> 和 <b>B（待整理）</b>。A 的字段格式就是输出的标准格式。</p>
+        <span class="go" onclick="showPanelDirect('compare')">→ 去上传</span>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h4>对比 + 一键整理</h4>
+        <p>点「开始对比」看差异；点 <b>✨ 按A格式整理B</b> 即按库自动补齐物料名称/参数/品牌等字段，输出 Excel。</p>
+      </div>
+    </div>
+    <div class="match-strategy">
+      🎯 <b>三级匹配策略（精确度优先）：</b>
+      <span class="lv-badge lv-1">L1</span> 立创编号精确匹配 &nbsp;→&nbsp;
+      <span class="lv-badge lv-2">L2</span> 型号+封装复合键（含前缀容差） &nbsp;→&nbsp;
+      <span class="lv-badge lv-3">L3</span> 规范化型号容差（仅封装兼容时）
+    </div>
+  </div>
 </div>
 
 <!-- BOM对比面板 -->
@@ -238,11 +291,7 @@ td.chg{background:#fff3cd;font-weight:bold}
   <div class="panel">
     <h3>📦 物料库管理</h3>
     <div class="import-hint">
-      💡 <b>使用流程：</b>先在这里导入 <b>器件BOM库</b>（如 器件BOM库V1.0.xlsx），再回到"BOM对比"页上传要整理的 BOM，系统会自动按物料库补齐字段。<br>
-      🎯 <b>三级匹配策略：</b>
-      <span class="lv-badge lv-1">L1</span> 立创编号精确匹配 →
-      <span class="lv-badge lv-2">L2</span> 型号+封装复合键 →
-      <span class="lv-badge lv-3">L3</span> 规范化型号容差匹配
+      💡 这里存放的是<b>器件BOM库</b>（主库），导入后会持久化在浏览器里。去到「🔍 BOM对比」页整理 BOM 时，系统会自动用库里的数据补齐字段。
     </div>
     <p style="font-size:13px;color:#666;margin-bottom:15px">
       当前已加载 <span id="matCount" style="color:#1a73e8;font-weight:bold">0</span> 条物料
@@ -317,6 +366,52 @@ function showPanel(panel) {
     loadMaterialTable();
   }
 }
+
+// 从流程卡跳转（没有 event.target 时用这个）
+function showPanelDirect(panel){
+  var btns = document.querySelectorAll('.nav-btn');
+  btns.forEach(b => b.classList.remove('active'));
+  if (panel === 'compare') {
+    btns[0].classList.add('active');
+    document.getElementById('comparePanel').style.display = 'block';
+    document.getElementById('materialPanel').style.display = 'none';
+  } else {
+    btns[1].classList.add('active');
+    document.getElementById('comparePanel').style.display = 'none';
+    document.getElementById('materialPanel').style.display = 'block';
+    loadMaterialTable();
+  }
+  // 平滑滚动到面板
+  setTimeout(function(){
+    var target = panel === 'compare' ? document.querySelector('.upload-row') : document.getElementById('materialPanel');
+    if (target) target.scrollIntoView({behavior:'smooth', block:'start'});
+  }, 50);
+}
+
+// 流程卡折叠
+function toggleWorkflow(){
+  var body = document.getElementById('wfBody');
+  var toggle = document.getElementById('wfToggle');
+  if (body.classList.contains('collapsed')) {
+    body.classList.remove('collapsed');
+    toggle.textContent = '▲ 点击收起';
+    localStorage.setItem('wf_collapsed','0');
+  } else {
+    body.classList.add('collapsed');
+    toggle.textContent = '▼ 点击展开';
+    localStorage.setItem('wf_collapsed','1');
+  }
+}
+// 恢复折叠状态
+(function(){
+  if (localStorage.getItem('wf_collapsed') === '1') {
+    document.addEventListener('DOMContentLoaded', function(){
+      var body = document.getElementById('wfBody');
+      var toggle = document.getElementById('wfToggle');
+      if (body) { body.classList.add('collapsed'); toggle.textContent = '▼ 点击展开'; }
+    });
+  }
+})();
 
 // ==================== 物料库导入（Excel 真导入） ====================
 document.getElementById('btnImportMat').addEventListener('click', function(e){
