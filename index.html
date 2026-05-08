@@ -364,7 +364,7 @@ var ALIAS={
 '参数描述':['参数描述','规格描述','详细描述','Specification','规格'],
 '单位':['单位','Unit'],
 '品牌':['品牌','Brand','Manufacturer','厂商','MFR','制造商'],
-'立创编号':['立创编号','LCSC','LCSC编号','立创商城编号','LCSC Part','嘉立创编号'],
+'立创编号':['立创编号','LCSC','LCSC编号','立创商城编号','LCSC Part','嘉立创编号','嘉立创元件编号','嘉立创编码','立创元件编号','立创料号'],
 '备注':['备注','Note','Remark','说明']
 };
 
@@ -444,9 +444,15 @@ document.getElementById('btnImportMat').addEventListener('click', function(e){
         var parsed = parse(wb);
         if (!parsed.rows.length) { alert('未识别到物料数据，请检查表头'); return; }
         var newDB = parsed.rows.map(function(r, idx){
+          // 关键修复：立创编号严格只从"立创编号/嘉立创编号/LCSC"列取
+          // 不再用"物料编码"兜底（物料编码是内部 ERP 码如 2-00009，不是 C+数字）
+          var rawLcsc = (r['立创编号'] || '').toString().trim();
+          var lcscClean = '';
+          var lm = rawLcsc.toUpperCase().match(/C\d{3,}/);
+          if (lm) lcscClean = lm[0];
           return {
             idx: idx + 1,
-            lcsc_code: (r['立创编号'] || r['物料编码'] || '').toString().trim(),
+            lcsc_code: lcscClean,
             model: (r['型号'] || '').toString().trim(),
             package: (r['封装'] || '').toString().trim(),
             name: (r['物料名称'] || '').toString().trim(),
@@ -458,7 +464,17 @@ document.getElementById('btnImportMat').addEventListener('click', function(e){
           };
         }).filter(function(m){ return m.model || m.lcsc_code || m.material_code; });
 
-        if (!confirm('识别到 '+newDB.length+' 条物料。\n当前库 '+materialDB.length+' 条。\n\n点确定覆盖导入，点取消合并追加（按型号+封装去重）')) {
+        // 立创编号覆盖率体检
+        var withLcsc = newDB.filter(function(m){return m.lcsc_code;}).length;
+        var covRate = newDB.length ? Math.round(withLcsc * 100 / newDB.length) : 0;
+        var covMsg = '\n\n📊 立创编号覆盖率：' + withLcsc + '/' + newDB.length + ' (' + covRate + '%)';
+        if (covRate < 50) {
+          covMsg += '\n⚠️ 覆盖率偏低，建议在库里补齐"立创编号"列以提升 L1 精确匹配命中率。';
+        } else if (covRate >= 90) {
+          covMsg += '\n✅ 覆盖率优秀，L1 匹配将高效运作。';
+        }
+
+        if (!confirm('识别到 '+newDB.length+' 条物料。\n当前库 '+materialDB.length+' 条。'+covMsg+'\n\n点确定覆盖导入，点取消合并追加（按型号+封装去重）')) {
           // 合并
           var seen = {};
           materialDB.forEach(function(m){ seen[(m.model+'|'+m.package).toLowerCase()] = true; });
@@ -467,10 +483,10 @@ document.getElementById('btnImportMat').addEventListener('click', function(e){
             var k = (m.model+'|'+m.package).toLowerCase();
             if (!seen[k]) { materialDB.push(m); seen[k] = true; added++; }
           });
-          alert('合并完成：新增 '+added+' 条，总计 '+materialDB.length+' 条');
+          alert('合并完成：新增 '+added+' 条，总计 '+materialDB.length+' 条'+covMsg);
         } else {
           materialDB = newDB;
-          alert('覆盖导入完成：'+materialDB.length+' 条物料');
+          alert('覆盖导入完成：'+materialDB.length+' 条物料'+covMsg);
         }
         saveMaterialDB();
         loadMaterialTable();
@@ -663,14 +679,46 @@ function normModel(v){
     .trim();
 }
 // 规范化封装：抽出纯数字封装代号
+// 封装别名表：把各种同义封装名映射到标准形
+var PKG_ALIASES = {
+  // SMA 系列
+  'SMA': 'SMA', 'SMADO214AC': 'SMA', 'DO214AC': 'SMA',
+  'SMB': 'SMB', 'SMBDO214AA': 'SMB', 'DO214AA': 'SMB',
+  'SMC': 'SMC', 'SMCDO214AB': 'SMC', 'DO214AB': 'SMC',
+  // SOT-89 系列
+  'SOT89': 'SOT89', 'SOT893': 'SOT89', 'SOT89MPT3': 'SOT89', 'SOT89MPT': 'SOT89',
+  // SOT-23 系列
+  'SOT23': 'SOT23', 'SOT236': 'SOT236', 'SOT235': 'SOT235', 'SOT233': 'SOT23',
+  // 插件端子
+  'WJ15EDGRC381': 'WJTERM381', 'WJ1243812P': 'WJTERM381', 'WJTERM381': 'WJTERM381',
+  '插件P381MM': 'WJTERM381', '插件P381': 'WJTERM381',
+  // LED/二极管 — 标准贴片
+  'LED0603': '0603', 'LED0402': '0402', 'LED0805': '0805',
+  'SD0603': '0603', 'SD0402': '0402', 'SD0805': '0805', 'SD1206': '1206',
+  // IPEX/RF 连接器
+  'KHIPEXK50129': 'IPEX', 'SMD': 'SMD', 'IPEX': 'IPEX',
+  // TypeC
+  'TYPEC304ACP16': 'TYPEC16', 'TYPEC304BCP16': 'TYPEC16',
+  // 电阻电容标准封装（SC/SR 前缀去掉）
+  'SC0201': '0201', 'SC0402': '0402', 'SC0603': '0603', 'SC0805': '0805', 'SC1206': '1206', 'SC1210': '1210',
+  'SR0201': '0201', 'SR0402': '0402', 'SR0603': '0603', 'SR0805': '0805', 'SR1206': '1206', 'SR1210': '1210'
+};
 function normPkg(v){
   if(!v) return '';
   var s = String(v).trim().toUpperCase();
+  var raw = s.replace(/[\s\-_·/\.\,\(\)]/g,'');
+  // 别名直接命中
+  if (PKG_ALIASES[raw]) return PKG_ALIASES[raw];
+  // 纯数字贴片
   var m = s.match(/(0201|0402|0603|0805|1206|1210|2010|2512)/);
   if (m) return m[1];
-  m = s.match(/(SOT-?\d+|SOP-?\d+|QFN-?\d+|TQFP-?\d+|BGA-?\d+|LQFP-?\d+|DFN-?\d+|SMA|SMB|SMC|TO-?\d+)/);
+  // SOT/SOP/QFN 系列
+  m = s.match(/(SOT-?\d+|SOP-?\d+|QFN-?\d+|TQFP-?\d+|BGA-?\d+|LQFP-?\d+|DFN-?\d+)/);
   if (m) return m[1].replace(/-/g,'');
-  return s.replace(/[\s\-_]/g,'');
+  // SMA/SMB/SMC/TO
+  m = s.match(/(SMA|SMB|SMC|TO-?\d+)/);
+  if (m) return m[1].replace(/-/g,'');
+  return raw;
 }
 // 规范化立创编号：去前缀、大写
 function normLcsc(v){
@@ -825,7 +873,7 @@ function analyzeMaterialMatch() {
 
   // 立创查询清单（未命中的）
   window.needQueryList = MM_RESULT.filter(function(x){ return x.level === 0; }).map(function(x){
-    return { model: x.model, ref: x.ref, package: x.pkg };
+    return { model: x.model, ref: x.ref, package: x.pkg, lcsc: x.lcsc };
   });
 }
 
@@ -900,20 +948,33 @@ document.getElementById('lcBtn').onclick = function() {
     else if (ref.indexOf('J') >= 0 || ref.indexOf('XS') >= 0) type = '连接器';
     else if (ref.indexOf('SW') >= 0 || ref.indexOf('S') >= 0) type = '开关';
     
+    // 立创链接优先用立创编号（C+数字），否则用型号
+    var lcscNum = '';
+    var rawLcsc = String(item.lcsc || '').toUpperCase();
+    var lm = rawLcsc.match(/C\d{3,}/);
+    if (lm) lcscNum = lm[0];
+    var lcLink = lcscNum
+      ? 'https://item.szlcsc.com/' + lcscNum.replace('C','') + '.html'
+      : 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(item.model);
+
     return {
       '位号': item.ref,
       '型号': item.model,
-      '封装': item.package,
+      '封装': item.package || item.pkg || '',
+      '立创编号': lcscNum,
       '器件类型': type,
       '立创搜索关键词': type + ' ' + item.model,
-      '立创链接': 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(item.model)
+      '立创链接': lcLink,
+      '待补充': '→ 物料名称 / 参数描述 / 品牌'
     };
   });
   
   var ws = XLSX.utils.json_to_sheet(data);
+  // 列宽
+  ws['!cols'] = [{wch:14},{wch:20},{wch:14},{wch:12},{wch:12},{wch:24},{wch:50},{wch:28}];
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '立创查询清单');
-  XLSX.writeFile(wb, '立创查询清单.xlsx');
+  XLSX.writeFile(wb, '立创查询清单_待补录入库_'+new Date().toISOString().split('T')[0]+'.xlsx');
 };
 
 // ==================== 渲染总览 ====================
