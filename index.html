@@ -794,13 +794,17 @@ document.getElementById('lcBtn').onclick = function() {
 function render(){
   var r=RES.res,cf=RES.cf,pk=RES.pk;
   var c={mod:0,add:0,del:0,same:0};r.forEach(function(x){c[x.s]++});
-  document.getElementById('st').innerHTML='<div class="sc mod"><div class="n">'+c.mod+'</div><div class="l">🟡 有差异</div></div><div class="sc add"><div class="n">'+c.add+'</div><div class="l">🟢 B独有</div></div><div class="sc del"><div class="n">'+c.del+'</div><div class="l">🔴 A独有</div></div><div class="sc same"><div class="n">'+c.same+'</div><div class="l">⚪ 一致</div></div>';
-  var pills=[['all','全部',r.length],['mod','🟡差异',c.mod],['add','🟢B独有',c.add],['del','🔴A独有',c.del],['same','⚪一致',c.same]];
+  var diffTotal = c.mod + c.add + c.del;
+  document.getElementById('st').innerHTML='<div class="sc mod"><div class="n">'+c.mod+'</div><div class="l">🟡 字段变更</div></div><div class="sc add"><div class="n">'+c.add+'</div><div class="l">🟢 B独有</div></div><div class="sc del"><div class="n">'+c.del+'</div><div class="l">🔴 A独有</div></div><div class="sc same"><div class="n">'+c.same+'</div><div class="l">⚪ 一致</div></div>';
+  var pills=[['all','全部',r.length],['diff','🔺所有差异',diffTotal],['mod','🟡字段变更',c.mod],['add','🟢B独有',c.add],['del','🔴A独有',c.del],['same','⚪一致',c.same]];
   document.getElementById('fp').innerHTML=pills.map(function(p){return'<div class="pill'+(F1===p[0]?' on':'')+'" onclick="F1=\''+p[0]+'\';render()">'+p[1]+' ('+p[2]+')</div>'}).join('');
-  var fl=F1==='all'?r:r.filter(function(x){return x.s===F1});
+  var fl;
+  if(F1==='all') fl=r;
+  else if(F1==='diff') fl=r.filter(function(x){return x.s!=='same'});
+  else fl=r.filter(function(x){return x.s===F1});
   var df=[pk];cf.forEach(function(f){if(f!==pk)df.push(f)});
   var th='<tr><th>状态</th>';df.forEach(function(f){th+='<th>'+f+'(A)</th><th>'+f+'(B)</th>'});th+='</tr>';
-  var sm={add:'<span class="badge b-add">B独有</span>',del:'<span class="badge b-del">A独有</span>',mod:'<span class="badge b-mod">有差异</span>',same:'<span class="badge b-same">一致</span>'};
+  var sm={add:'<span class="badge b-add">B独有</span>',del:'<span class="badge b-del">A独有</span>',mod:'<span class="badge b-mod">字段变更</span>',same:'<span class="badge b-same">一致</span>'};
   var rc={add:'r-add',del:'r-del',mod:'r-mod',same:''};
   var tb='';fl.forEach(function(x){tb+='<tr class="'+rc[x.s]+'"><td>'+sm[x.s]+'</td>';df.forEach(function(f){var a=x.rA?(x.rA[f]||''):'',b=x.rB?(x.rB[f]||''):'',ch=x.d[f]?' class="chg"':'';tb+='<td'+ch+'>'+esc(a)+'</td><td'+ch+'>'+esc(b)+'</td>'});tb+='</tr>'});
   document.querySelector('#tb thead').innerHTML=th;
@@ -816,7 +820,7 @@ function renderDiff(){
     else if(x.s==='add')items.push({t:'b',k:x.k});
   });
   var c={c:0,a:0,b:0};items.forEach(function(d){c[d.t]++});
-  var pills=[['all','全部',items.length],['c','🟡字段变更',c.c],['a','🔴A独有',c.a],['b','🟢B独有',c.b]];
+  var pills=[['all','全部差异',items.length],['c','🟡字段变更',c.c],['a','🔴A独有',c.a],['b','🟢B独有',c.b]];
   document.getElementById('dp').innerHTML=pills.map(function(p){return'<div class="pill'+(F2===p[0]?' on':'')+'" onclick="F2=\''+p[0]+'\';renderDiff()">'+p[1]+' ('+p[2]+')</div>'}).join('');
   var fl=F2==='all'?items:items.filter(function(d){return d.t===F2});
   if(!fl.length){document.getElementById('dl').innerHTML='<div style="text-align:center;color:#999;padding:20px">🎉 没有差异</div>';return}
