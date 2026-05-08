@@ -3,33 +3,43 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BOM整理神器 v5.0 - 三级匹配+自动补齐</title>
+<title>BOM整理神器 v5.0 - 技象科技</title>
+<link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;min-height:100vh}
-header{background:linear-gradient(135deg,#1a73e8,#0d47a1);color:#fff;padding:25px 0;text-align:center}
-header h1{font-size:26px;margin-bottom:6px}
-header p{font-size:13px;opacity:.85}
-.main{max-width:1400px;margin:0 auto;padding:20px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:#f0f2f5;min-height:100vh;display:flex;flex-direction:column}
+/* 品牌顶部条 */
+.brand-bar{background:#fff;border-bottom:1px solid #e8ecef;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.brand-bar .logo{height:40px;width:auto}
+.brand-bar .subtitle{font-size:12px;color:#888;letter-spacing:1px}
+/* 产品 header */
+header{background:linear-gradient(135deg,#0078b8,#005a8a);color:#fff;padding:22px 0;text-align:center}
+header h1{font-size:24px;margin-bottom:6px}
+header p{font-size:13px;opacity:.9}
+.main{max-width:1400px;margin:0 auto;padding:20px;flex:1;width:100%}
+
+/* 页脚 */
+.site-footer{background:#fff;border-top:1px solid #e8ecef;padding:16px 24px;text-align:center;color:#888;font-size:12px;margin-top:20px}
+.site-footer .tag{color:#0078b8;letter-spacing:2px;margin-bottom:4px}
 
 /* 导航 */
 .nav{display:flex;gap:10px;margin-bottom:20px;background:#fff;border-radius:12px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
 .nav-btn{padding:8px 20px;border:none;border-radius:8px;font-size:13px;cursor:pointer;background:#f0f2f5;transition:.3s}
 .nav-btn:hover{background:#e8eaed}
-.nav-btn.active{background:#1a73e8;color:#fff}
+.nav-btn.active{background:#0078b8;color:#fff}
 
 /* 上传区 */
 .upload-row{display:flex;gap:20px;margin-bottom:20px}
 .upload-card{flex:1;background:#fff;border:2px dashed #ccc;border-radius:12px;padding:30px;text-align:center;position:relative;transition:.3s}
-.upload-card:hover{border-color:#1a73e8;background:#f8faff}
+.upload-card:hover{border-color:#0078b8;background:#f4fafd}
 .upload-card.ok{border-color:#34a853;border-style:solid;background:#f0fff4}
 .upload-card h3{font-size:16px;margin-bottom:8px}
 .upload-card p{font-size:12px;color:#888}
 .upload-card .info{font-size:13px;color:#34a853;font-weight:bold;margin-top:8px}
 .upload-card .fmap{font-size:11px;color:#666;margin-top:6px;text-align:left;background:#f8f9fa;padding:6px 10px;border-radius:6px;display:none}
-.file-btn{display:inline-block;margin-top:12px;padding:8px 24px;background:#1a73e8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px}
-.file-btn:hover{background:#1557b0}
+.file-btn{display:inline-block;margin-top:12px;padding:8px 24px;background:#0078b8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px}
+.file-btn:hover{background:#005a8a}
 
 /* 配置 */
 .cfg{background:#fff;border-radius:12px;padding:16px 20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
@@ -44,8 +54,8 @@ header p{font-size:13px;opacity:.85}
 .bar{text-align:center;margin-bottom:20px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
 .btn{padding:12px 30px;border:none;border-radius:10px;font-size:15px;font-weight:bold;cursor:pointer;transition:.3s}
 .btn:disabled{opacity:.4;cursor:not-allowed}
-.btn-blue{background:#1a73e8;color:#fff}
-.btn-blue:hover:not(:disabled){background:#1557b0}
+.btn-blue{background:#0078b8;color:#fff}
+.btn-blue:hover:not(:disabled){background:#005a8a}
 .btn-green{background:#34a853;color:#fff}
 .btn-purple{background:#7c4dff;color:#fff}
 .btn-orange{background:#ff9800;color:#fff}
@@ -58,13 +68,13 @@ header p{font-size:13px;opacity:.85}
 .sc.mod .n{color:#f9a825}
 .sc.add .n{color:#34a853}
 .sc.del .n{color:#ea4335}
-.sc.same .n{color:#1a73e8}
+.sc.same .n{color:#0078b8}
 
 /* 筛选 */
 .pills{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
 .pill{padding:5px 14px;border:1px solid #ddd;border-radius:20px;font-size:12px;cursor:pointer;background:#fff}
-.pill:hover{border-color:#1a73e8}
-.pill.on{background:#1a73e8;color:#fff;border-color:#1a73e8}
+.pill:hover{border-color:#0078b8}
+.pill.on{background:#0078b8;color:#fff;border-color:#0078b8}
 
 /* 表格 */
 .panel{background:#fff;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.05);margin-bottom:20px;overflow-x:auto}
@@ -72,7 +82,7 @@ header p{font-size:13px;opacity:.85}
 table{width:100%;border-collapse:collapse;font-size:12px}
 th{background:#f8f9fa;padding:8px 6px;text-align:left;border-bottom:2px solid #e0e0e0;white-space:nowrap}
 td{padding:6px;border-bottom:1px solid #f0f0f0;max-width:260px;word-break:break-all}
-tr:hover{background:#f8faff}
+tr:hover{background:#f4fafd}
 tr.r-add{background:#e6f4ea}
 tr.r-del{background:#fce8e6}
 tr.r-mod{background:#fef7e0}
@@ -114,36 +124,36 @@ td.chg{background:#fff3cd;font-weight:bold}
 .mm-pills{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
 .mm-pill{padding:5px 14px;border:1px solid #ddd;border-radius:20px;font-size:12px;cursor:pointer;background:#fff}
 .mm-pill.on{color:#fff}
-.mm-pill.on.l1{background:#1a73e8;border-color:#1a73e8}
+.mm-pill.on.l1{background:#0078b8;border-color:#0078b8}
 .mm-pill.on.l2{background:#34a853;border-color:#34a853}
 .mm-pill.on.l3{background:#ff9800;border-color:#ff9800}
 .mm-pill.on.l0{background:#ea4335;border-color:#ea4335}
 .mm-pill.on.all{background:#555;border-color:#555}
 .lv-badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;color:#fff;font-weight:bold}
-.lv-1{background:#1a73e8}
+.lv-1{background:#0078b8}
 .lv-2{background:#34a853}
 .lv-3{background:#ff9800}
 .lv-0{background:#ea4335}
 .prog{height:8px;background:#eee;border-radius:4px;overflow:hidden;margin-top:8px}
-.prog-bar{height:100%;background:linear-gradient(90deg,#1a73e8,#34a853);transition:.5s}
+.prog-bar{height:100%;background:linear-gradient(90deg,#0078b8,#34a853);transition:.5s}
 
 /* 导入向导 */
 .import-hint{background:#fff8e1;border-left:4px solid #f9a825;padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:12px;line-height:1.6}
 
 /* 全局流程卡 */
-.workflow{background:#fff;border-radius:12px;padding:16px 20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:3px solid #1a73e8}
+.workflow{background:#fff;border-radius:12px;padding:16px 20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:3px solid #0078b8}
 .workflow-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;cursor:pointer}
-.workflow-head h3{font-size:15px;color:#1a73e8}
+.workflow-head h3{font-size:15px;color:#0078b8}
 .workflow-head .toggle{font-size:12px;color:#888;user-select:none}
 .workflow-body{display:block}
 .workflow-body.collapsed{display:none}
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
-.step{background:#f8faff;border:1px solid #e3eafc;border-radius:10px;padding:12px 14px;position:relative;transition:.3s}
-.step:hover{border-color:#1a73e8;background:#f0f6ff}
-.step-num{position:absolute;top:-10px;left:12px;background:#1a73e8;color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold}
+.step{background:#f4fafd;border:1px solid #cfe6f2;border-radius:10px;padding:12px 14px;position:relative;transition:.3s}
+.step:hover{border-color:#0078b8;background:#e6f4fb}
+.step-num{position:absolute;top:-10px;left:12px;background:#0078b8;color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold}
 .step h4{font-size:13px;color:#333;margin:4px 0 6px 28px}
 .step p{font-size:11px;color:#666;line-height:1.5}
-.step .go{display:inline-block;margin-top:8px;font-size:11px;color:#1a73e8;cursor:pointer;text-decoration:underline}
+.step .go{display:inline-block;margin-top:8px;font-size:11px;color:#0078b8;cursor:pointer;text-decoration:underline}
 .match-strategy{background:#f0fff4;border:1px solid #b5e0c2;border-radius:8px;padding:10px 14px;font-size:12px;line-height:1.8}
 .match-strategy b{color:#2e7d32}
 @media(max-width:768px){.steps{grid-template-columns:1fr}}
@@ -157,6 +167,11 @@ td.chg{background:#fff3cd;font-weight:bold}
 </style>
 </head>
 <body>
+<!-- 品牌顶部栏 -->
+<div class="brand-bar">
+  <img src="assets/logo.jpg" alt="技象科技" class="logo">
+  <span class="subtitle">用科技打开想象力</span>
+</div>
 <header>
 <h1>⚡ BOM整理神器 v5.0</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
@@ -294,7 +309,7 @@ td.chg{background:#fff3cd;font-weight:bold}
       💡 这里存放的是<b>器件BOM库</b>（主库），导入后会持久化在浏览器里。去到「🔍 BOM对比」页整理 BOM 时，系统会自动用库里的数据补齐字段。
     </div>
     <p style="font-size:13px;color:#666;margin-bottom:15px">
-      当前已加载 <span id="matCount" style="color:#1a73e8;font-weight:bold">0</span> 条物料
+      当前已加载 <span id="matCount" style="color:#0078b8;font-weight:bold">0</span> 条物料
       · 最近更新：<span id="matUpdated" style="color:#888">未导入</span>
     </p>
     <div class="bar" style="justify-content:flex-start">
@@ -1046,5 +1061,9 @@ if (savedDB) {
   materialDB = JSON.parse(savedDB);
 }
 </script>
+<footer class="site-footer">
+  <div class="tag">用 科 技 打 开 想 象 力</div>
+  <div>© 2026 技象科技 · BOM整理神器 v5.0</div>
+</footer>
 </body>
 </html>
