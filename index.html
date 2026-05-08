@@ -288,6 +288,11 @@ td.chg{background:#fff3cd;font-weight:bold}
   <div class="match-detail" id="matchDetail" style="display:none">
     <h3>🔬 匹配详情</h3>
     <div class="mm-pills" id="mmPills"></div>
+    <div id="mmBulkBar" style="display:none;margin:8px 0 12px;padding:10px 14px;background:#fff4ef;border-left:3px solid #ff6b35;border-radius:4px;font-size:13px;color:#444">
+      <span id="mmBulkInfo"></span>
+      <button id="mmBulkOpen" class="lc-btn" style="margin-left:12px">🚀 批量打开立创搜索</button>
+      <span style="margin-left:8px;color:#999;font-size:11px">（浏览器会拦截多标签，第一次点需允许弹窗）</span>
+    </div>
     <div style="overflow-x:auto">
       <table id="mmTable">
         <thead><tr><th>等级</th><th>B 位号</th><th>B 型号</th><th>B 封装</th><th>B 立创编号</th><th>→ 命中库中</th><th>补齐字段</th></tr></thead>
@@ -893,6 +898,31 @@ function renderMatchDetail(counts){
     return '<div class="mm-pill '+cls+'" onclick="MM_FILTER=\''+p[0]+'\';renderMatchDetail({l1:'+counts.l1+',l2:'+counts.l2+',l3:'+counts.l3+',l0:'+counts.l0+'})">'+p[1]+'</div>';
   }).join('');
 
+  // 未命中批量打开栏
+  var missList = MM_RESULT.filter(function(x){ return x.level === 0; });
+  var bulkBar = document.getElementById('mmBulkBar');
+  if (missList.length > 0) {
+    bulkBar.style.display = 'block';
+    document.getElementById('mmBulkInfo').innerHTML =
+      '<b style="color:#ff6b35">'+missList.length+'</b> 个未命中器件 · 一键打开立创搜索/详情页';
+    document.getElementById('mmBulkOpen').onclick = function(){
+      if (missList.length > 8 && !confirm('将打开 '+missList.length+' 个标签页，确认继续？')) return;
+      var opened = 0, blocked = 0;
+      missList.forEach(function(x){
+        var lcRaw = String(x.lcsc || '').toUpperCase();
+        var lcM = lcRaw.match(/C\d{3,}/);
+        var url = lcM
+          ? 'https://item.szlcsc.com/' + lcM[0].replace('C','') + '.html'
+          : 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(x.model || x.ref);
+        var w = window.open(url, '_blank', 'noopener');
+        if (w) opened++; else blocked++;
+      });
+      if (blocked > 0) alert('已打开 '+opened+' 个\n被浏览器拦截 '+blocked+' 个\n\n请允许本站弹窗后重试');
+    };
+  } else {
+    bulkBar.style.display = 'none';
+  }
+
   var list = MM_RESULT;
   if (MM_FILTER !== 'all') list = MM_RESULT.filter(function(x){ return String(x.level) === String(MM_FILTER); });
 
@@ -914,7 +944,13 @@ function renderMatchDetail(counts){
       enrich = fills.length ? '<span style="color:#34a853;font-size:11px">'+fills.join('/')+'</span>' : '<span style="color:#bbb;font-size:11px">已齐</span>';
     } else {
       hitTxt = '<span style="color:#ea4335">— 需手工补齐 —</span>';
-      enrich = '<a class="lc-btn" target="_blank" href="https://so.szlcsc.com/global.html?k='+encodeURIComponent(x.model||x.ref)+'">🔍 查立创</a>';
+      // 优先级：立创C编号 > 型号 > 位号
+      var lcRaw = String(x.lcsc || '').toUpperCase();
+      var lcM = lcRaw.match(/C\d{3,}/);
+      var lcHref = lcM
+        ? 'https://item.szlcsc.com/' + lcM[0].replace('C','') + '.html'
+        : 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(x.model || x.ref);
+      enrich = '<a class="lc-btn" target="_blank" rel="noopener" href="'+lcHref+'">🔍 查立创</a>';
     }
     h += '<tr>'
        + '<td>'+badge+'</td>'
