@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BOM对比工具 v4.0 - 集成物料编码</title>
+<title>BOM整理神器 v5.0 - 三级匹配+自动补齐</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -108,6 +108,28 @@ td.chg{background:#fff3cd;font-weight:bold}
 .lc-btn{display:inline-block;padding:4px 12px;background:#ff6b35;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;text-decoration:none}
 .lc-btn:hover{background:#e55a2b}
 
+/* 三级匹配详情 */
+.match-detail{background:#fff;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.05);margin-bottom:20px}
+.match-detail h3{font-size:15px;margin-bottom:12px}
+.mm-pills{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.mm-pill{padding:5px 14px;border:1px solid #ddd;border-radius:20px;font-size:12px;cursor:pointer;background:#fff}
+.mm-pill.on{color:#fff}
+.mm-pill.on.l1{background:#1a73e8;border-color:#1a73e8}
+.mm-pill.on.l2{background:#34a853;border-color:#34a853}
+.mm-pill.on.l3{background:#ff9800;border-color:#ff9800}
+.mm-pill.on.l0{background:#ea4335;border-color:#ea4335}
+.mm-pill.on.all{background:#555;border-color:#555}
+.lv-badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;color:#fff;font-weight:bold}
+.lv-1{background:#1a73e8}
+.lv-2{background:#34a853}
+.lv-3{background:#ff9800}
+.lv-0{background:#ea4335}
+.prog{height:8px;background:#eee;border-radius:4px;overflow:hidden;margin-top:8px}
+.prog-bar{height:100%;background:linear-gradient(90deg,#1a73e8,#34a853);transition:.5s}
+
+/* 导入向导 */
+.import-hint{background:#fff8e1;border-left:4px solid #f9a825;padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:12px;line-height:1.6}
+
 #out{display:none}
 #out.show{display:block}
 #materialPanel{display:none}
@@ -118,8 +140,8 @@ td.chg{background:#fff3cd;font-weight:bold}
 </head>
 <body>
 <header>
-<h1>⚡ BOM对比工具 v4.0</h1>
-<p>支持物料编码自动匹配 · 立创商城一键查询 · 差异智能分析</p>
+<h1>⚡ BOM整理神器 v5.0</h1>
+<p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
 
@@ -171,7 +193,7 @@ td.chg{background:#fff3cd;font-weight:bold}
 <div class="bar">
   <button class="btn btn-blue" id="goBtn" disabled>🔍 开始对比</button>
   <button class="btn btn-green" id="expBtn" style="display:none">📥 导出报告</button>
-  <button class="btn btn-purple" id="fmtAB" style="display:none">📐 按A格式整理B</button>
+  <button class="btn btn-purple" id="fmtAB" style="display:none">✨ 按A格式整理B（自动补齐）</button>
   <button class="btn btn-purple" id="fmtBA" style="display:none">📐 按B格式整理A</button>
   <button class="btn btn-orange" id="lcBtn" style="display:none">🛒 立创查询清单</button>
 </div>
@@ -181,15 +203,30 @@ td.chg{background:#fff3cd;font-weight:bold}
   
   <!-- 物料编码匹配信息 -->
   <div class="match-info" id="matchInfo" style="display:none">
-    <h4>📦 物料编码匹配情况</h4>
+    <h4>📦 物料库匹配情况（三级引擎）</h4>
     <div class="match-row">
       <div class="match-item"><span class="l">总物料：</span><span class="v" id="totalMat">0</span></div>
-      <div class="match-item"><span class="l">已匹配：</span><span class="v" id="matchedMat">0</span></div>
-      <div class="match-item"><span class="l">需查询：</span><span class="v" id="queryMat">0</span></div>
-      <div class="match-item"><span class="l">匹配率：</span><span class="v" id="matchRate">0%</span></div>
+      <div class="match-item"><span class="l"><span class="lv-badge lv-1">L1</span> 立创编号命中：</span><span class="v" id="matL1">0</span></div>
+      <div class="match-item"><span class="l"><span class="lv-badge lv-2">L2</span> 型号+封装：</span><span class="v" id="matL2">0</span></div>
+      <div class="match-item"><span class="l"><span class="lv-badge lv-3">L3</span> 规范化容差：</span><span class="v" id="matL3">0</span></div>
+      <div class="match-item"><span class="l"><span class="lv-badge lv-0">未</span> 需补齐：</span><span class="v" id="queryMat">0</span></div>
+      <div class="match-item"><span class="l">总匹配率：</span><span class="v" id="matchRate">0%</span></div>
+    </div>
+    <div class="prog"><div class="prog-bar" id="progBar" style="width:0%"></div></div>
+  </div>
+
+  <!-- 三级匹配详情 -->
+  <div class="match-detail" id="matchDetail" style="display:none">
+    <h3>🔬 匹配详情</h3>
+    <div class="mm-pills" id="mmPills"></div>
+    <div style="overflow-x:auto">
+      <table id="mmTable">
+        <thead><tr><th>等级</th><th>B 位号</th><th>B 型号</th><th>B 封装</th><th>B 立创编号</th><th>→ 命中库中</th><th>补齐字段</th></tr></thead>
+        <tbody id="mmBody"></tbody>
+      </table>
     </div>
   </div>
-  
+
   <div class="panel"><h3>📋 对比总览</h3><div class="pills" id="fp"></div><div style="overflow-x:auto"><table id="tb"><thead></thead><tbody></tbody></table></div></div>
   <div class="panel"><h3>🔎 差异明细</h3><div class="pills" id="dp"></div><div id="dl"></div></div>
 </div>
@@ -199,32 +236,42 @@ td.chg{background:#fff3cd;font-weight:bold}
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料编码管理</h3>
+    <h3>📦 物料库管理</h3>
+    <div class="import-hint">
+      💡 <b>使用流程：</b>先在这里导入 <b>器件BOM库</b>（如 器件BOM库V1.0.xlsx），再回到"BOM对比"页上传要整理的 BOM，系统会自动按物料库补齐字段。<br>
+      🎯 <b>三级匹配策略：</b>
+      <span class="lv-badge lv-1">L1</span> 立创编号精确匹配 →
+      <span class="lv-badge lv-2">L2</span> 型号+封装复合键 →
+      <span class="lv-badge lv-3">L3</span> 规范化型号容差匹配
+    </div>
     <p style="font-size:13px;color:#666;margin-bottom:15px">
-      物料编码格式：<b>[大类]-[子类]-[序号]-[版本]</b>，如 R-01-00001-V01<br>
-      当前已加载 <span id="matCount">0</span> 条物料编码
+      当前已加载 <span id="matCount" style="color:#1a73e8;font-weight:bold">0</span> 条物料
+      · 最近更新：<span id="matUpdated" style="color:#888">未导入</span>
     </p>
     <div class="bar" style="justify-content:flex-start">
-      <button class="btn btn-blue" onclick="loadMaterialData()">📥 导入A BOM物料</button>
+      <button class="btn btn-blue" id="btnImportMat">📥 导入物料库 Excel</button>
       <button class="btn btn-green" onclick="exportMaterialData()">📤 导出物料库</button>
       <button class="btn btn-orange" onclick="clearMaterialData()">🗑️ 清空数据</button>
     </div>
   </div>
-  
+
   <div class="panel">
     <h3>📋 物料清单</h3>
+    <div style="margin-bottom:10px">
+      <input type="text" id="matSearch" placeholder="🔍 搜索型号/立创编号/封装..." style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px">
+    </div>
     <div style="overflow-x:auto">
       <table id="matTable">
         <thead>
           <tr>
-            <th>物料编码</th>
-            <th>大类</th>
-            <th>子类</th>
-            <th>物料名称</th>
+            <th>#</th>
+            <th>立创编号</th>
             <th>型号</th>
             <th>封装</th>
+            <th>物料名称</th>
+            <th>参数描述</th>
             <th>品牌</th>
-            <th>立创编号</th>
+            <th>物料编码</th>
           </tr>
         </thead>
         <tbody id="matTableBody">
@@ -248,10 +295,11 @@ var ALIAS={
 '封装':['封装','Footprint封装','Footprint','Package','package','封装规格','PCB Footprint'],
 '数量':['数量','Quantity','quantity','QTY','qty','用量','Count'],
 '物料编码':['物料编码','MPN','料号','Part Number','PartNumber'],
-'物料名称':['物料名称','Description','description','描述','名称','Desc'],
-'参数描述':['参数描述','规格描述','详细描述','Specification'],
+'物料名称':['物料名称','Description','description','描述','名称','Desc','物料描述'],
+'参数描述':['参数描述','规格描述','详细描述','Specification','规格'],
 '单位':['单位','Unit'],
-'品牌':['品牌','Brand','Manufacturer','厂商','MFR'],
+'品牌':['品牌','Brand','Manufacturer','厂商','MFR','制造商'],
+'立创编号':['立创编号','LCSC','LCSC编号','立创商城编号','LCSC Part','嘉立创编号'],
 '备注':['备注','Note','Remark','说明']
 };
 
@@ -270,77 +318,135 @@ function showPanel(panel) {
   }
 }
 
-// ==================== 物料编码管理 ====================
-function loadMaterialData() {
-  // 从A BOM加载物料数据到localStorage
-  const aBomData = [
-    {"material_code":"C-01-00001-V01","category":"C","subcategory":"01","name":"陶瓷电容","model":"100nF 0402","specification":"100nF ±10% 16V X7R SMD 0402","package":"0402","brand":"Murata","lcsc_code":"C10001"},
-    {"material_code":"R-01-00001-V01","category":"R","subcategory":"01","name":"贴片电阻","model":"10K 0402","specification":"10KΩ ±1% 1/16W SMD 0402","package":"0402","brand":"Yageo","lcsc_code":"C10002"},
-    {"material_code":"L-01-00001-V01","category":"L","subcategory":"01","name":"贴片电感","model":"10uH 0603","specification":"10uH ±20% SMD 0603","package":"0603","brand":"Murata","lcsc_code":"C10003"}
-  ];
-  
-  // 实际应该从文件加载，这里简化处理
-  const saved = localStorage.getItem('material_db');
-  if (saved) {
-    materialDB = JSON.parse(saved);
-    alert(`已加载 ${materialDB.length} 条物料编码`);
-  } else {
-    alert('请先导入物料编码数据\n\n提示：可以通过"导入A BOM物料"按钮导入');
+// ==================== 物料库导入（Excel 真导入） ====================
+document.getElementById('btnImportMat').addEventListener('click', function(e){
+  e.stopPropagation();
+  var inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.xlsx,.xls,.csv';
+  inp.onchange = function(){
+    var f = inp.files[0]; if(!f) return;
+    var rd = new FileReader();
+    rd.onload = function(ev){
+      try {
+        var wb = XLSX.read(ev.target.result, {type:'array'});
+        var parsed = parse(wb);
+        if (!parsed.rows.length) { alert('未识别到物料数据，请检查表头'); return; }
+        var newDB = parsed.rows.map(function(r, idx){
+          return {
+            idx: idx + 1,
+            lcsc_code: (r['立创编号'] || r['物料编码'] || '').toString().trim(),
+            model: (r['型号'] || '').toString().trim(),
+            package: (r['封装'] || '').toString().trim(),
+            name: (r['物料名称'] || '').toString().trim(),
+            specification: (r['参数描述'] || '').toString().trim(),
+            brand: (r['品牌'] || '').toString().trim(),
+            material_code: (r['物料编码'] || '').toString().trim(),
+            unit: (r['单位'] || '').toString().trim(),
+            _raw: r
+          };
+        }).filter(function(m){ return m.model || m.lcsc_code || m.material_code; });
+
+        if (!confirm('识别到 '+newDB.length+' 条物料。\n当前库 '+materialDB.length+' 条。\n\n点确定覆盖导入，点取消合并追加（按型号+封装去重）')) {
+          // 合并
+          var seen = {};
+          materialDB.forEach(function(m){ seen[(m.model+'|'+m.package).toLowerCase()] = true; });
+          var added = 0;
+          newDB.forEach(function(m){
+            var k = (m.model+'|'+m.package).toLowerCase();
+            if (!seen[k]) { materialDB.push(m); seen[k] = true; added++; }
+          });
+          alert('合并完成：新增 '+added+' 条，总计 '+materialDB.length+' 条');
+        } else {
+          materialDB = newDB;
+          alert('覆盖导入完成：'+materialDB.length+' 条物料');
+        }
+        saveMaterialDB();
+        loadMaterialTable();
+      } catch(err) {
+        alert('解析失败：'+err.message);
+        console.error(err);
+      }
+    };
+    rd.readAsArrayBuffer(f);
+  };
+  inp.click();
+});
+
+function saveMaterialDB(){
+  try {
+    localStorage.setItem('material_db', JSON.stringify(materialDB));
+    localStorage.setItem('material_db_updated', new Date().toLocaleString('zh-CN'));
+  } catch(e){
+    alert('保存失败，可能数据过大：'+e.message);
   }
-  loadMaterialTable();
 }
 
 function exportMaterialData() {
-  if (materialDB.length === 0) {
-    alert('没有物料数据可导出');
-    return;
-  }
-  
-  const data = materialDB.map(m => ({
-    '物料编码': m.material_code,
-    '物料名称': m.name,
-    '型号': m.model,
-    '规格参数': m.specification,
-    '封装': m.package,
-    '品牌': m.brand,
-    '立创编号': m.lcsc_code
-  }));
-  
-  const ws = XLSX.utils.json_to_sheet(data);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, '物料编码库');
-  XLSX.writeFile(wb, `物料编码库_${new Date().toISOString().split('T')[0]}.xlsx`);
+  if (materialDB.length === 0) { alert('没有物料数据可导出'); return; }
+  var data = materialDB.map(function(m){
+    return {
+      '立创编号': m.lcsc_code || '',
+      '型号': m.model || '',
+      '封装': m.package || '',
+      '物料名称': m.name || '',
+      '参数描述': m.specification || '',
+      '品牌': m.brand || '',
+      '物料编码': m.material_code || '',
+      '单位': m.unit || ''
+    };
+  });
+  var ws = XLSX.utils.json_to_sheet(data);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '物料库');
+  XLSX.writeFile(wb, '物料库_'+new Date().toISOString().split('T')[0]+'.xlsx');
 }
 
 function clearMaterialData() {
-  if (!confirm('确定要清空所有物料编码数据吗？')) return;
+  if (!confirm('确定要清空所有物料库数据吗？')) return;
   materialDB = [];
   localStorage.removeItem('material_db');
+  localStorage.removeItem('material_db_updated');
   loadMaterialTable();
-  alert('物料编码数据已清空');
+  alert('物料库已清空');
 }
 
 function loadMaterialTable() {
-  const tbody = document.getElementById('matTableBody');
-  tbody.innerHTML = '';
-  
+  var tbody = document.getElementById('matTableBody');
+  var kw = (document.getElementById('matSearch').value || '').toLowerCase().trim();
   document.getElementById('matCount').textContent = materialDB.length;
-  
-  materialDB.forEach(m => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><b>${m.material_code}</b></td>
-      <td>${m.category}</td>
-      <td>${m.subcategory}</td>
-      <td>${m.name || ''}</td>
-      <td>${m.model || ''}</td>
-      <td>${m.package || ''}</td>
-      <td>${m.brand || ''}</td>
-      <td>${m.lcsc_code || ''}</td>
-    `;
-    tbody.appendChild(tr);
+  document.getElementById('matUpdated').textContent = localStorage.getItem('material_db_updated') || '未导入';
+  var list = materialDB;
+  if (kw) {
+    list = materialDB.filter(function(m){
+      return (m.model||'').toLowerCase().indexOf(kw) >= 0
+          || (m.lcsc_code||'').toLowerCase().indexOf(kw) >= 0
+          || (m.package||'').toLowerCase().indexOf(kw) >= 0
+          || (m.name||'').toLowerCase().indexOf(kw) >= 0
+          || (m.material_code||'').toLowerCase().indexOf(kw) >= 0;
+    });
+  }
+  var h = '';
+  list.slice(0, 500).forEach(function(m){
+    h += '<tr>'
+       + '<td>'+m.idx+'</td>'
+       + '<td><b style="color:#ff6b35">'+esc(m.lcsc_code||'')+'</b></td>'
+       + '<td>'+esc(m.model||'')+'</td>'
+       + '<td>'+esc(m.package||'')+'</td>'
+       + '<td>'+esc(m.name||'')+'</td>'
+       + '<td style="color:#666;font-size:11px">'+esc(m.specification||'')+'</td>'
+       + '<td>'+esc(m.brand||'')+'</td>'
+       + '<td style="color:#888">'+esc(m.material_code||'')+'</td>'
+       + '</tr>';
   });
+  if (list.length > 500) h += '<tr><td colspan="8" style="text-align:center;color:#888">共 '+list.length+' 条，仅显示前 500 条，请用搜索缩小范围</td></tr>';
+  tbody.innerHTML = h || '<tr><td colspan="8" style="text-align:center;color:#999;padding:30px">暂无物料，请导入器件BOM库 Excel</td></tr>';
 }
+
+document.addEventListener('DOMContentLoaded', function(){
+  var s = document.getElementById('matSearch');
+  if (s) s.addEventListener('input', loadMaterialTable);
+});
 
 // ==================== 上传 ====================
 function bindUpload(btnId,boxId,msgId,fmId,side){
@@ -420,6 +526,107 @@ function parse(wb){
 
 function norm(v){if(!v)return'';return v.trim().replace(/\s+(SC)?(0201|0402|0603|0805|1206|1210|2010|2512|04020|SOT-?\d+|SOP-?\d+|QFN-?\d+|TQFP-?\d+|BGA-?\d+)\s*$/i,'').trim()}
 
+// ==================== 三级匹配引擎 ====================
+// 规范化型号：去空格、去封装后缀、大写、去特殊字符
+function normModel(v){
+  if(!v) return '';
+  return String(v).trim().toUpperCase()
+    .replace(/\s+(SC|SR|SL|LED)?(0201|0402|0603|0805|1206|1210|2010|2512)\b/gi,'')
+    .replace(/\s+NPO\b|\s+X[57]R\b|\s+COG\b/gi,'')
+    .replace(/[\s\-_]/g,'')
+    .trim();
+}
+// 规范化封装：抽出纯数字封装代号
+function normPkg(v){
+  if(!v) return '';
+  var s = String(v).trim().toUpperCase();
+  var m = s.match(/(0201|0402|0603|0805|1206|1210|2010|2512)/);
+  if (m) return m[1];
+  m = s.match(/(SOT-?\d+|SOP-?\d+|QFN-?\d+|TQFP-?\d+|BGA-?\d+|LQFP-?\d+|DFN-?\d+|SMA|SMB|SMC|TO-?\d+)/);
+  if (m) return m[1].replace(/-/g,'');
+  return s.replace(/[\s\-_]/g,'');
+}
+// 规范化立创编号：去前缀、大写
+function normLcsc(v){
+  if(!v) return '';
+  var s = String(v).trim().toUpperCase();
+  var m = s.match(/C\d{3,}/);
+  return m ? m[0] : '';
+}
+
+// 三级匹配：返回 {level: 1|2|3|0, hit: materialObj|null}
+// L1 立创编号精确；L2 型号+封装（精确或前缀）；L3 只型号容差
+function matchMaterial(row){
+  if (!materialDB.length) return {level:0, hit:null};
+  var lcscB = normLcsc(row['立创编号'] || row['物料编码'] || '');
+  var modelB = normModel(row['型号'] || '');
+  var pkgB = normPkg(row['封装'] || '');
+
+  // L1: 立创编号精确匹配
+  if (lcscB) {
+    for (var i=0; i<materialDB.length; i++){
+      var m = materialDB[i];
+      if (normLcsc(m.lcsc_code) === lcscB) return {level:1, hit:m};
+    }
+  }
+  // L2a: 型号+封装精确
+  if (modelB && pkgB) {
+    for (var i=0; i<materialDB.length; i++){
+      var m = materialDB[i];
+      if (normModel(m.model) === modelB && normPkg(m.package) === pkgB) return {level:2, hit:m};
+    }
+    // L2b: 型号+封装复合键（库型号里已含封装）
+    for (var i=0; i<materialDB.length; i++){
+      var m = materialDB[i];
+      if (normModel(m.model+' '+m.package) === modelB+pkgB) return {level:2, hit:m};
+    }
+    // L2c: 型号前缀匹配（B 型号是库型号的开头）+ 封装相同
+    // 要求 B.modelB 长度 ≥ 2 避免误匹配
+    if (modelB.length >= 2) {
+      for (var i=0; i<materialDB.length; i++){
+        var m = materialDB[i];
+        var libModel = normModel(m.model);
+        if (normPkg(m.package) === pkgB && libModel.indexOf(modelB) === 0) return {level:2, hit:m};
+      }
+    }
+  }
+  // L3a: 规范化型号完全相同（无封装要求，容差用于型号/封装字段互串的情况）
+  if (modelB) {
+    for (var i=0; i<materialDB.length; i++){
+      var m = materialDB[i];
+      if (normModel(m.model) === modelB) return {level:3, hit:m};
+    }
+    // L3b: 型号前缀匹配 — 仅在封装兼容时启用（避免电容电阻误串封装）
+    // 兼容定义：B 无封装 / 库无封装 / 两者规范化后相等
+    if (modelB.length >= 3) {
+      for (var i=0; i<materialDB.length; i++){
+        var m = materialDB[i];
+        var libPkg = normPkg(m.package);
+        var pkgOk = !pkgB || !libPkg || libPkg === pkgB;
+        if (pkgOk && normModel(m.model).indexOf(modelB) === 0) return {level:3, hit:m};
+      }
+    }
+  }
+  return {level:0, hit:null};
+}
+
+// 补齐：把 hit 的字段回填到 row（不覆盖已有非空字段）
+function enrichRow(row, hit){
+  var fields = [
+    ['物料编码','material_code'],
+    ['物料名称','name'],
+    ['参数描述','specification'],
+    ['品牌','brand'],
+    ['立创编号','lcsc_code'],
+    ['封装','package'],
+    ['单位','unit']
+  ];
+  fields.forEach(function(p){
+    if (!row[p[0]] && hit[p[1]]) row[p[0]] = hit[p[1]];
+  });
+  return row;
+}
+
 // ==================== 对比 ====================
 document.getElementById('goBtn').onclick=doCompare;
 function doCompare(){
@@ -448,41 +655,104 @@ function doCompare(){
   document.getElementById('out').scrollIntoView({behavior:'smooth'});
 }
 
-// ==================== 物料编码匹配分析 ====================
+// ==================== 物料编码匹配分析（三级引擎） ====================
+var MM_RESULT = []; // [{row, level, hit, ref, model, pkg, lcsc}]
+var MM_FILTER = 'all';
+
 function analyzeMaterialMatch() {
   if (!B || !B.rows) return;
-  
-  var total = B.rows.length;
-  var matched = 0;
-  var needQuery = [];
-  
-  B.rows.forEach(function(r) {
-    var model = norm(r['型号'] || '');
-    var found = materialDB.find(function(m) {
-      return norm(m.model) === model || m.model === r['型号'];
+  MM_RESULT = [];
+  var counts = {l1:0, l2:0, l3:0, l0:0};
+
+  B.rows.forEach(function(r){
+    var m = matchMaterial(r);
+    MM_RESULT.push({
+      row: r,
+      level: m.level,
+      hit: m.hit,
+      ref: r['位号'] || '',
+      model: r['型号'] || '',
+      pkg: r['封装'] || '',
+      lcsc: r['立创编号'] || r['物料编码'] || ''
     });
-    
-    if (found) {
-      matched++;
-    } else {
-      needQuery.push({
-        model: r['型号'],
-        ref: r['位号'],
-        package: r['封装']
-      });
-    }
+    if (m.level === 1) counts.l1++;
+    else if (m.level === 2) counts.l2++;
+    else if (m.level === 3) counts.l3++;
+    else counts.l0++;
   });
-  
+
+  var total = B.rows.length;
+  var matched = counts.l1 + counts.l2 + counts.l3;
   var rate = total > 0 ? Math.round(matched / total * 100) : 0;
-  
+
   document.getElementById('matchInfo').style.display = 'block';
   document.getElementById('totalMat').textContent = total;
-  document.getElementById('matchedMat').textContent = matched;
-  document.getElementById('queryMat').textContent = needQuery.length;
+  document.getElementById('matL1').textContent = counts.l1;
+  document.getElementById('matL2').textContent = counts.l2;
+  document.getElementById('matL3').textContent = counts.l3;
+  document.getElementById('queryMat').textContent = counts.l0;
   document.getElementById('matchRate').textContent = rate + '%';
-  
-  // 保存需要查询的列表
-  window.needQueryList = needQuery;
+  document.getElementById('progBar').style.width = rate + '%';
+
+  // 渲染匹配详情
+  renderMatchDetail(counts);
+
+  // 立创查询清单（未命中的）
+  window.needQueryList = MM_RESULT.filter(function(x){ return x.level === 0; }).map(function(x){
+    return { model: x.model, ref: x.ref, package: x.pkg };
+  });
+}
+
+function renderMatchDetail(counts){
+  if (!MM_RESULT.length) return;
+  var total = MM_RESULT.length;
+  document.getElementById('matchDetail').style.display = 'block';
+  var pills = [
+    ['all','全部 ('+total+')',''],
+    ['1','L1 立创精确 ('+counts.l1+')','l1'],
+    ['2','L2 型号+封装 ('+counts.l2+')','l2'],
+    ['3','L3 规范化容差 ('+counts.l3+')','l3'],
+    ['0','未命中 ('+counts.l0+')','l0']
+  ];
+  document.getElementById('mmPills').innerHTML = pills.map(function(p){
+    var cls = (String(MM_FILTER) === p[0]) ? 'on '+(p[2]||'all') : '';
+    return '<div class="mm-pill '+cls+'" onclick="MM_FILTER=\''+p[0]+'\';renderMatchDetail({l1:'+counts.l1+',l2:'+counts.l2+',l3:'+counts.l3+',l0:'+counts.l0+'})">'+p[1]+'</div>';
+  }).join('');
+
+  var list = MM_RESULT;
+  if (MM_FILTER !== 'all') list = MM_RESULT.filter(function(x){ return String(x.level) === String(MM_FILTER); });
+
+  var h = '';
+  list.forEach(function(x){
+    var badge = '<span class="lv-badge lv-'+x.level+'">'+(x.level===0?'未':('L'+x.level))+'</span>';
+    var hitTxt = '';
+    var enrich = '';
+    if (x.hit) {
+      hitTxt = '<b>'+esc(x.hit.model||'')+'</b>'
+             + (x.hit.package?' <span style="color:#888">['+esc(x.hit.package)+']</span>':'')
+             + (x.hit.lcsc_code?'<br><span style="color:#ff6b35;font-size:11px">'+esc(x.hit.lcsc_code)+'</span>':'');
+      var fills = [];
+      if (!x.row['物料名称'] && x.hit.name) fills.push('物料名称');
+      if (!x.row['参数描述'] && x.hit.specification) fills.push('参数描述');
+      if (!x.row['品牌'] && x.hit.brand) fills.push('品牌');
+      if (!x.row['物料编码'] && x.hit.material_code) fills.push('物料编码');
+      if (!x.row['立创编号'] && x.hit.lcsc_code) fills.push('立创编号');
+      enrich = fills.length ? '<span style="color:#34a853;font-size:11px">'+fills.join('/')+'</span>' : '<span style="color:#bbb;font-size:11px">已齐</span>';
+    } else {
+      hitTxt = '<span style="color:#ea4335">— 需手工补齐 —</span>';
+      enrich = '<a class="lc-btn" target="_blank" href="https://so.szlcsc.com/global.html?k='+encodeURIComponent(x.model||x.ref)+'">🔍 查立创</a>';
+    }
+    h += '<tr>'
+       + '<td>'+badge+'</td>'
+       + '<td>'+esc(x.ref)+'</td>'
+       + '<td>'+esc(x.model)+'</td>'
+       + '<td>'+esc(x.pkg)+'</td>'
+       + '<td>'+esc(x.lcsc)+'</td>'
+       + '<td>'+hitTxt+'</td>'
+       + '<td>'+enrich+'</td>'
+       + '</tr>';
+  });
+  document.getElementById('mmBody').innerHTML = h || '<tr><td colspan="7" style="text-align:center;color:#999;padding:20px">无数据</td></tr>';
 }
 
 // ==================== 立创查询清单 ====================
@@ -572,17 +842,95 @@ document.getElementById('expBtn').onclick=function(){
   XLSX.utils.book_append_sheet(wb,ws,'对比报告');XLSX.writeFile(wb,'BOM对比报告.xlsx');
 };
 
-// ==================== 格式整理 ====================
+// ==================== 格式整理（带物料库自动补齐） ====================
 function fmt(dir){
   if(!A||!B)return;
-  var tpl=dir==='AB'?A:B, dat=dir==='AB'?B:A, tl=dir==='AB'?'A':'B', dl=dir==='AB'?'B':'A';
-  var rev={};for(var s in tpl.fm)rev[tpl.fm[s]]=s;
-  var hd=tpl.hd.filter(function(h){return h});
-  var rows=[];
-  dat.rows.forEach(function(u){var r=[];hd.forEach(function(h){var s=rev[h];r.push(s&&u[s]!==undefined?u[s]:'')});rows.push(r)});
-  var ws=XLSX.utils.aoa_to_sheet([hd].concat(rows));
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'BOM整理');
-  XLSX.writeFile(wb,dl+'整理后_按'+tl+'格式.xlsx');
+  var tpl = dir==='AB' ? A : B;
+  var dat = dir==='AB' ? B : A;
+  var tl = dir==='AB' ? 'A' : 'B';
+  var dl = dir==='AB' ? 'B' : 'A';
+  var rev = {}; for(var s in tpl.fm) rev[tpl.fm[s]] = s;
+  var hd = tpl.hd.filter(function(h){return h});
+  var rows = [];
+  var enrichStats = {l1:0, l2:0, l3:0, l0:0, filled:0};
+  var enrichDetails = [];
+
+  dat.rows.forEach(function(u, idx){
+    // 克隆一份行数据（按标准字段）
+    var clone = {};
+    for (var k in u) clone[k] = u[k];
+
+    // 三级匹配 + 补齐
+    var emptyBefore = [];
+    ['物料编码','物料名称','参数描述','品牌','立创编号'].forEach(function(f){
+      if (!clone[f]) emptyBefore.push(f);
+    });
+
+    var mr = matchMaterial(clone);
+    if (mr.hit) {
+      enrichRow(clone, mr.hit);
+      var filled = emptyBefore.filter(function(f){ return clone[f]; });
+      if (filled.length) {
+        enrichStats.filled += filled.length;
+        enrichDetails.push({ref: clone['位号']||'', model: clone['型号']||'', level: mr.level, filled: filled});
+      }
+    }
+    if (mr.level === 1) enrichStats.l1++;
+    else if (mr.level === 2) enrichStats.l2++;
+    else if (mr.level === 3) enrichStats.l3++;
+    else enrichStats.l0++;
+
+    // 按模板表头输出
+    var r = [];
+    hd.forEach(function(h){
+      var s = rev[h];
+      r.push(s && clone[s] !== undefined ? clone[s] : '');
+    });
+    rows.push(r);
+  });
+
+  // 增加备注列：匹配等级（可选）
+  var headerWithLevel = hd.slice();
+  var rowsWithLevel = rows.map(function(r, i){
+    return r;
+  });
+
+  // 生成 Excel：sheet1=整理后BOM，sheet2=补齐报告
+  var wb = XLSX.utils.book_new();
+  var ws1 = XLSX.utils.aoa_to_sheet([hd].concat(rows));
+  XLSX.utils.book_append_sheet(wb, ws1, '整理后BOM');
+
+  // 补齐报告 sheet
+  if (dir === 'AB' && materialDB.length) {
+    var report = [['位号','型号','匹配等级','补齐字段']];
+    enrichDetails.forEach(function(d){
+      report.push([d.ref, d.model, 'L'+d.level, d.filled.join(' / ')]);
+    });
+    report.push([]);
+    report.push(['统计']);
+    report.push(['L1 立创精确', enrichStats.l1]);
+    report.push(['L2 型号+封装', enrichStats.l2]);
+    report.push(['L3 规范化容差', enrichStats.l3]);
+    report.push(['未命中', enrichStats.l0]);
+    report.push(['总补齐字段数', enrichStats.filled]);
+    var ws2 = XLSX.utils.aoa_to_sheet(report);
+    XLSX.utils.book_append_sheet(wb, ws2, '补齐报告');
+  }
+
+  XLSX.writeFile(wb, dl+'整理后_按'+tl+'格式.xlsx');
+
+  if (dir === 'AB' && materialDB.length) {
+    alert('✨ 整理完成！\n'
+      + '📊 匹配统计：\n'
+      + '  L1 立创精确：'+enrichStats.l1+'\n'
+      + '  L2 型号+封装：'+enrichStats.l2+'\n'
+      + '  L3 规范化容差：'+enrichStats.l3+'\n'
+      + '  未命中：'+enrichStats.l0+'\n\n'
+      + '🔧 共补齐 '+enrichStats.filled+' 个字段\n'
+      + '📁 输出文件含两个 sheet：整理后BOM + 补齐报告');
+  } else if (dir === 'AB' && !materialDB.length) {
+    alert('⚠️ 物料库为空，仅按 A 格式整理了表头。\n建议先导入器件BOM库，即可自动补齐物料名称/参数/品牌等字段。');
+  }
 }
 document.getElementById('fmtAB').onclick=function(){fmt('AB')};
 document.getElementById('fmtBA').onclick=function(){fmt('BA')};
