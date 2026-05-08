@@ -290,8 +290,9 @@ td.chg{background:#fff3cd;font-weight:bold}
     <div class="mm-pills" id="mmPills"></div>
     <div id="mmBulkBar" style="display:none;margin:8px 0 12px;padding:10px 14px;background:#fff4ef;border-left:3px solid #ff6b35;border-radius:4px;font-size:13px;color:#444">
       <span id="mmBulkInfo"></span>
-      <button id="mmBulkOpen" class="lc-btn" style="margin-left:12px">🚀 批量打开立创搜索</button>
-      <span style="margin-left:8px;color:#999;font-size:11px">（浏览器会拦截多标签，第一次点需允许弹窗）</span>
+      <button id="mmAutoAll" class="lc-btn" style="margin-left:12px;background:#34a853">⚙️ 批量自动生成（电阻/电容）</button>
+      <button id="mmBulkOpen" class="lc-btn" style="margin-left:6px">🚀 批量打开立创</button>
+      <span style="margin-left:8px;color:#999;font-size:11px">（自动生成仅规律型；其它点行内「📋 贴参数」）</span>
     </div>
     <div style="overflow-x:auto">
       <table id="mmTable">
@@ -843,9 +844,10 @@ function analyzeMaterialMatch() {
   MM_RESULT = [];
   var counts = {l1:0, l2:0, l3:0, l0:0};
 
-  B.rows.forEach(function(r){
+  B.rows.forEach(function(r, idx){
     var m = matchMaterial(r);
     MM_RESULT.push({
+      _idx: idx,
       row: r,
       level: m.level,
       hit: m.hit,
@@ -919,6 +921,7 @@ function renderMatchDetail(counts){
       });
       if (blocked > 0) alert('已打开 '+opened+' 个\n被浏览器拦截 '+blocked+' 个\n\n请允许本站弹窗后重试');
     };
+    document.getElementById('mmAutoAll').onclick = batchAutoFillAll;
   } else {
     bulkBar.style.display = 'none';
   }
@@ -950,7 +953,14 @@ function renderMatchDetail(counts){
       var lcHref = lcM
         ? 'https://item.szlcsc.com/' + lcM[0].replace('C','') + '.html'
         : 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(x.model || x.ref);
-      enrich = '<a class="lc-btn" target="_blank" rel="noopener" href="'+lcHref+'">🔍 查立创</a>';
+      // 自动生成（电阻/电容规律可算）
+      var autoTry = autoDescribe(x.model, x.pkg);
+      var autoBtn = autoTry
+        ? '<button class="lc-btn" style="background:#34a853" onclick="autoFillRow('+x._idx+')">⚙️ 自动生成</button>'
+        : '';
+      enrich = '<a class="lc-btn" target="_blank" rel="noopener" href="'+lcHref+'">🔍 查立创</a> '
+             + autoBtn + ' '
+             + '<button class="lc-btn" style="background:#1a73e8" onclick="openPasteDlg('+x._idx+')">📋 贴参数</button>';
     }
     h += '<tr>'
        + '<td>'+badge+'</td>'
@@ -1400,7 +1410,313 @@ var savedDB = localStorage.getItem('material_db');
 if (savedDB) {
   materialDB = JSON.parse(savedDB);
 }
+
+// ==================== 手动补齐库（localStorage） ====================
+// 存结构：{ "MODEL|PKG": {model, package, name, specification, brand, lcsc_code, material_code, unit} }
+var MANUAL_DB = {};
+try { MANUAL_DB = JSON.parse(localStorage.getItem('manual_enrich_db') || '{}'); } catch(e){ MANUAL_DB = {}; }
+
+function manualKey(model, pkg){
+  return (normModel(model) + '|' + normPkg(pkg));
+}
+function saveManualDB(){
+  localStorage.setItem('manual_enrich_db', JSON.stringify(MANUAL_DB));
+  // 合并进 materialDB 供匹配引擎直接用
+  var existing = new Set(materialDB.map(function(m){ return manualKey(m.model, m.package); }));
+  Object.keys(MANUAL_DB).forEach(function(k){
+    if (!existing.has(k)) materialDB.push(MANUAL_DB[k]);
+  });
+}
+// 启动时合并手动库到 materialDB
+(function mergeManualOnBoot(){
+  var existing = new Set(materialDB.map(function(m){ return manualKey(m.model, m.package); }));
+  Object.keys(MANUAL_DB).forEach(function(k){
+    if (!existing.has(k)) materialDB.push(MANUAL_DB[k]);
+  });
+})();
+
+// ==================== 自动生成描述（规律型器件） ====================
+// 返回 {name, specification, brand, type} 或 null
+function autoDescribe(model, pkg){
+  if (!model) return null;
+  var M = String(model).trim().toUpperCase();
+  var P = String(pkg || '').trim().toUpperCase();
+  // 规范封装（从型号或封装字段提取 0201/0402/0603/0805/1206 等）
+  var sizeM = (P + ' ' + M).match(/\b(0201|0402|0603|0805|1206|1210|2010|2512)\b/);
+  var size = sizeM ? sizeM[1] : '';
+  // 也支持 SC/SR 前缀
+  if (!size) {
+    var scM = (P + ' ' + M).match(/S[CR](0201|0402|0603|0805|1206|1210)/);
+    if (scM) size = scM[1];
+  }
+
+  // —— 电阻：型号形如 "10K SR0402" / "100R 0402" / "2K2 0603" / "0R SR0402"
+  var hasResSig = /^\d+(\.\d+)?[KMR](\s|$)/.test(M) || /^0R(\s|$)/.test(M) || /SR\d{4}/.test(P + M);
+  if (hasResSig && size) {
+    var valStr = '';
+    // 0R 单独处理
+    if (/^0R(\s|$)/.test(M)) {
+      valStr = '0Ω';
+    } else {
+      // 匹配 "2K2" 这种紧凑写法（= 2.2K）
+      var compM = M.match(/^(\d+)([KM])(\d+)(\s|$)/);
+      if (compM) {
+        valStr = compM[1] + '.' + compM[3] + compM[2] + 'Ω';
+      } else {
+        // 常规 "10K" / "100R" / "2.2M"
+        var resMatch = M.match(/^(\d+(?:\.\d+)?)([KMR])(\s|$)/);
+        if (resMatch) {
+          var val = resMatch[1], unit = resMatch[2];
+          if (unit === 'K') valStr = val + 'KΩ';
+          else if (unit === 'M') valStr = val + 'MΩ';
+          else valStr = val + 'Ω'; // R = Ω
+        } else {
+          // 纯数字开头 + SR 封装 → 按欧姆
+          var pureM = M.match(/^(\d+(?:\.\d+)?)(\s|$)/);
+          if (pureM) valStr = pureM[1] + 'Ω';
+        }
+      }
+    }
+    if (valStr) {
+      return {
+        name: '贴片电阻',
+        specification: '厚膜电阻 ' + valStr + ',精度：±1%,SMD ' + size,
+        brand: '',
+        type: 'resistor'
+      };
+    }
+  }
+
+  // —— 电容：型号形如 "10uF SC0402" / "100nF 0603" / "470pF SC0201"
+  var capMatch = M.match(/^(\d+(?:\.\d+)?)\s*(UF|NF|PF|μF)\b/);
+  if (capMatch && (size || /S?C\d{4}/.test(P + M))) {
+    if (!size) {
+      var scM2 = (P + M).match(/S?C(\d{4})/);
+      if (scM2) size = scM2[1];
+    }
+    if (size) {
+      var capVal = capMatch[1] + (capMatch[2] === 'μF' ? 'uF' : capMatch[2].toLowerCase().replace('u','u').replace('n','n').replace('p','p'));
+      // 保持原单位大小写风格：uF/nF/pF
+      var unitRaw = capMatch[2] === 'μF' ? 'uF' : (capMatch[2].charAt(0).toLowerCase() + 'F');
+      capVal = capMatch[1] + unitRaw;
+      // 默认材质/电压按常见值
+      var volt = '6.3V', dielectric = 'X5R', tol = '±20%';
+      if (/^\d+(\.\d+)?(PF|NF)$/i.test(capVal.toUpperCase())) { dielectric = 'X7R'; tol = '±10%'; volt = '16V'; }
+      return {
+        name: '陶瓷电容器',
+        specification: 'MLCC ' + capVal + ' ' + tol + ' ' + volt + ' ' + dielectric + ' SMD ' + size,
+        brand: '',
+        type: 'capacitor'
+      };
+    }
+  }
+
+  return null;
+}
+
+// 单行自动生成 → 写入 B 行 + 存手动库
+function autoFillRow(idx){
+  var item = MM_RESULT[idx];
+  if (!item) return;
+  var desc = autoDescribe(item.model, item.pkg);
+  if (!desc) { alert('该型号无法自动生成描述，请用「📋 贴参数」手动录入'); return; }
+  var row = item.row;
+  if (!row['物料名称']) row['物料名称'] = desc.name;
+  if (!row['参数描述']) row['参数描述'] = desc.specification;
+  // 存手动库（方便下次同型号复用）
+  MANUAL_DB[manualKey(item.model, item.pkg)] = {
+    model: item.model,
+    package: item.pkg,
+    name: desc.name,
+    specification: desc.specification,
+    brand: desc.brand || '',
+    lcsc_code: '',
+    material_code: '',
+    unit: 'PCS',
+    _source: 'auto'
+  };
+  saveManualDB();
+  // 重跑匹配刷新 UI
+  analyzeMaterialMatch();
+  alert('✅ 已按 A 风格生成并填入：\n\n'+desc.specification+'\n\n也已存入「手动补齐库」，下次同型号秒命中。');
+}
+
+// ==================== 粘贴立创参数 → 翻译 ====================
+// 从立创商品参数文本抽字段（中文 "xx: yy" / "xx：yy" 每行一条）
+function parseLcscParams(text){
+  var fields = {};
+  if (!text) return fields;
+  text.split(/\r?\n/).forEach(function(line){
+    line = line.trim();
+    if (!line) return;
+    var m = line.match(/^([^:：]{1,20})\s*[:：]\s*(.+)$/);
+    if (m) fields[m[1].trim()] = m[2].trim();
+  });
+  return fields;
+}
+
+// 按字段组合 A 风格参数描述（通用兜底）
+function lcscToSpec(fields, name){
+  // 过滤掉明显无用字段
+  var skip = {'商品目录':1,'商品编号':1,'立创编号':1,'货源':1,'最小包装数量':1,'质量等级':1,'销售单位':1,'起订量':1,'库存':1,'最小订货量':1};
+  var parts = [];
+  Object.keys(fields).forEach(function(k){
+    if (skip[k]) return;
+    if (k === '品牌' || k === '型号' || k === '封装') return; // 这些独立字段
+    parts.push(fields[k]);
+  });
+  return parts.slice(0, 12).join('，'); // 最多取 12 条，避免过长
+}
+
+// 打开粘贴对话框
+function openPasteDlg(idx){
+  var item = MM_RESULT[idx];
+  if (!item) return;
+  var dlg = document.getElementById('pasteDlg');
+  dlg.style.display = 'flex';
+  dlg.dataset.idx = idx;
+  document.getElementById('pdTitle').textContent = '📋 粘贴立创参数 · '+item.model+' '+item.pkg;
+  document.getElementById('pdRef').textContent = '位号：'+item.ref+' · 立创编号：'+(item.lcsc||'无');
+  document.getElementById('pdText').value = '';
+  document.getElementById('pdName').value = '';
+  document.getElementById('pdBrand').value = '';
+  document.getElementById('pdSpec').value = '';
+  document.getElementById('pdPreview').style.display = 'none';
+  // 快链
+  var lcRaw = String(item.lcsc || '').toUpperCase();
+  var lcM = lcRaw.match(/C\d{3,}/);
+  var lcHref = lcM
+    ? 'https://item.szlcsc.com/' + lcM[0].replace('C','') + '.html'
+    : 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(item.model || item.ref);
+  document.getElementById('pdOpenLc').href = lcHref;
+}
+function closePasteDlg(){ document.getElementById('pasteDlg').style.display = 'none'; }
+
+// 文本变更 → 自动解析预览
+function pdParse(){
+  var txt = document.getElementById('pdText').value;
+  var fields = parseLcscParams(txt);
+  var keys = Object.keys(fields);
+  if (keys.length === 0) { document.getElementById('pdPreview').style.display = 'none'; return; }
+  // 自动提取品牌
+  if (fields['品牌'] && !document.getElementById('pdBrand').value) {
+    document.getElementById('pdBrand').value = fields['品牌'];
+  }
+  // 自动生成参数描述
+  if (!document.getElementById('pdSpec').value) {
+    document.getElementById('pdSpec').value = lcscToSpec(fields);
+  }
+  // 物料名称：从"商品目录"/"类别"推断
+  if (!document.getElementById('pdName').value) {
+    document.getElementById('pdName').value = fields['商品目录'] || fields['类别'] || fields['分类'] || '';
+  }
+  // 预览字段表
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+  keys.forEach(function(k){
+    html += '<tr><td style="padding:3px 8px;color:#888;border-bottom:1px solid #eee;white-space:nowrap">'+esc(k)+'</td><td style="padding:3px 8px;border-bottom:1px solid #eee">'+esc(fields[k])+'</td></tr>';
+  });
+  html += '</table>';
+  document.getElementById('pdFields').innerHTML = html;
+  document.getElementById('pdPreview').style.display = 'block';
+}
+
+function pdApply(){
+  var dlg = document.getElementById('pasteDlg');
+  var idx = parseInt(dlg.dataset.idx);
+  var item = MM_RESULT[idx];
+  if (!item) return;
+  var name = document.getElementById('pdName').value.trim();
+  var spec = document.getElementById('pdSpec').value.trim();
+  var brand = document.getElementById('pdBrand').value.trim();
+  if (!spec) { alert('参数描述不能为空'); return; }
+  if (!item.row['物料名称']) item.row['物料名称'] = name;
+  if (!item.row['参数描述']) item.row['参数描述'] = spec;
+  if (!item.row['品牌']) item.row['品牌'] = brand;
+  // 存手动库
+  MANUAL_DB[manualKey(item.model, item.pkg)] = {
+    model: item.model,
+    package: item.pkg,
+    name: name,
+    specification: spec,
+    brand: brand,
+    lcsc_code: item.lcsc || '',
+    material_code: '',
+    unit: 'PCS',
+    _source: 'paste'
+  };
+  saveManualDB();
+  closePasteDlg();
+  analyzeMaterialMatch();
+}
+
+// ==================== 批量自动生成所有可算的 ====================
+function batchAutoFillAll(){
+  var miss = MM_RESULT.filter(function(x){ return x.level === 0; });
+  if (!miss.length) return;
+  var ok = 0;
+  miss.forEach(function(x){
+    var desc = autoDescribe(x.model, x.pkg);
+    if (!desc) return;
+    if (!x.row['物料名称']) x.row['物料名称'] = desc.name;
+    if (!x.row['参数描述']) x.row['参数描述'] = desc.specification;
+    MANUAL_DB[manualKey(x.model, x.pkg)] = {
+      model: x.model, package: x.pkg,
+      name: desc.name, specification: desc.specification, brand: '',
+      lcsc_code: '', material_code: '', unit: 'PCS', _source: 'auto'
+    };
+    ok++;
+  });
+  if (ok > 0) {
+    saveManualDB();
+    analyzeMaterialMatch();
+    alert('✅ 自动补齐 '+ok+' 项（电阻/电容等规律型器件）\n剩下 '+(miss.length-ok)+' 项需要「📋 贴参数」手动录入');
+  } else {
+    alert('本次未命中中没有电阻/电容等规律型器件可自动生成');
+  }
+}
+
 </script>
+<!-- ==================== 粘贴立创参数对话框 ==================== -->
+<div id="pasteDlg" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:10px;padding:20px 24px;max-width:720px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h3 id="pdTitle" style="margin:0;color:#0078b8;font-size:16px">📋 粘贴立创参数</h3>
+      <button onclick="closePasteDlg()" style="background:#eee;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:14px">✕</button>
+    </div>
+    <div id="pdRef" style="color:#888;font-size:12px;margin-bottom:12px"></div>
+    <div style="background:#f0f8ff;padding:10px 12px;border-radius:6px;font-size:12px;color:#555;line-height:1.6;margin-bottom:12px">
+      <b>使用步骤：</b><br>
+      1. 点 <a id="pdOpenLc" href="#" target="_blank" style="color:#0078b8;font-weight:bold">🔍 打开立创商品页 →</a><br>
+      2. 在商品页找到「<b>商品参数</b>」区域，拖蓝 <b>整块参数表</b>（包括"品牌: xxx"、"封装: xxx"等每一行），Ctrl+C 复制<br>
+      3. 粘贴到下面文本框，页面会自动拆出字段、生成 A 风格描述<br>
+      4. 检查/微调后点"✅ 应用填入"
+    </div>
+    <label style="display:block;font-size:12px;color:#666;margin-bottom:4px">① 粘贴立创商品参数（原始文本，每行"字段: 值"）</label>
+    <textarea id="pdText" oninput="pdParse()" style="width:100%;height:140px;padding:10px;border:1px solid #ddd;border-radius:6px;font-family:monospace;font-size:12px;box-sizing:border-box" placeholder="示例：&#10;品牌: 沁恒微(WCH)&#10;封装: SOP-8&#10;接口类型: USB2.0&#10;电源电压: 3.3V/5V&#10;波特率: 50bps~2Mbps&#10;内置时钟: 是"></textarea>
+    <div id="pdPreview" style="display:none;margin-top:12px;padding:10px;background:#fafafa;border-radius:6px">
+      <div style="font-size:12px;color:#666;margin-bottom:6px">🔍 已识别字段：</div>
+      <div id="pdFields"></div>
+    </div>
+    <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <label style="display:block;font-size:12px;color:#666;margin-bottom:4px">② 物料名称</label>
+        <input id="pdName" type="text" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;box-sizing:border-box;font-size:13px" placeholder="如：USB转串口芯片">
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;color:#666;margin-bottom:4px">③ 品牌</label>
+        <input id="pdBrand" type="text" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;box-sizing:border-box;font-size:13px" placeholder="如：沁恒微(WCH)">
+      </div>
+    </div>
+    <div style="margin-top:10px">
+      <label style="display:block;font-size:12px;color:#666;margin-bottom:4px">④ 参数描述（按 A 风格，可手动调整）</label>
+      <textarea id="pdSpec" style="width:100%;height:80px;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box" placeholder="如：USB转串口芯片，SOP-8封装，USB2.0，支持3.3V/5V，波特率50bps~2Mbps"></textarea>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="closePasteDlg()" style="background:#eee;border:none;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:13px">取消</button>
+      <button onclick="pdApply()" style="background:#34a853;color:#fff;border:none;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:13px">✅ 应用填入 &amp; 存入库</button>
+    </div>
+  </div>
+</div>
 <footer class="site-footer">
   <div class="tag">用 科 技 打 开 想 象 力</div>
   <div>© 2026 技象科技 · BOM整理神器 v5.0</div>
