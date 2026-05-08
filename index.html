@@ -165,8 +165,8 @@ td.chg{background:#fff3cd;font-weight:bold}
 
 <!-- 导航 -->
 <div class="nav">
-  <button class="nav-btn active" onclick="showPanel('compare')">🔍 BOM对比</button>
-  <button class="nav-btn" onclick="showPanel('material')">📦 物料编码</button>
+  <button class="nav-btn active" onclick="showPanel('material')">📦 物料编码</button>
+  <button class="nav-btn" onclick="showPanel('compare')">🔍 BOM对比</button>
 </div>
 
 <!-- 全局使用流程 -->
@@ -541,6 +541,11 @@ function loadMaterialTable() {
 document.addEventListener('DOMContentLoaded', function(){
   var s = document.getElementById('matSearch');
   if (s) s.addEventListener('input', loadMaterialTable);
+  // 默认显示物料编码面板（符合使用流程顺序）
+  var cp = document.getElementById('comparePanel');
+  var mp = document.getElementById('materialPanel');
+  if (cp) cp.style.display = 'none';
+  if (mp) { mp.style.display = 'block'; loadMaterialTable(); }
 });
 
 // ==================== 上传 ====================
