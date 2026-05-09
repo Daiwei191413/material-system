@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>BOM整理神器 v1.0.3 - 技象科技</title>
+<title>BOM整理神器 v1.0.4 - 技象科技</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{background:#fff3cd;font-weight:bold}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ BOM整理神器 v1.0.3</h1>
+<h1>⚡ BOM整理神器 v1.0.4</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -917,7 +917,7 @@ function renderMatchDetail(counts){
         var lcRaw = String(x.lcsc || '').toUpperCase();
         var lcM = lcRaw.match(/C\d{3,}/);
         var url = lcM
-          ? 'https://item.szlcsc.com/' + lcM[0].replace('C','') + '.html'
+          ? 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(lcM[0])
           : 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(x.model || x.ref);
         var w = window.open(url, '_blank', 'noopener');
         if (w) opened++; else blocked++;
@@ -954,7 +954,7 @@ function renderMatchDetail(counts){
       var lcRaw = String(x.lcsc || '').toUpperCase();
       var lcM = lcRaw.match(/C\d{3,}/);
       var lcHref = lcM
-        ? 'https://item.szlcsc.com/' + lcM[0].replace('C','') + '.html'
+        ? 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(lcM[0])
         : 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(x.model || x.ref);
       // 自动生成（电阻/电容规律可算）
       var autoTry = autoDescribe(x.model, x.pkg);
@@ -1003,7 +1003,7 @@ document.getElementById('lcBtn').onclick = function() {
     var lm = rawLcsc.match(/C\d{3,}/);
     if (lm) lcscNum = lm[0];
     var lcLink = lcscNum
-      ? 'https://item.szlcsc.com/' + lcscNum.replace('C','') + '.html'
+      ? 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(lcscNum)
       : 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(item.model);
 
     return {
@@ -1589,7 +1589,7 @@ function openPasteDlg(idx){
   var lcRaw = String(item.lcsc || '').toUpperCase();
   var lcM = lcRaw.match(/C\d{3,}/);
   var lcHref = lcM
-    ? 'https://item.szlcsc.com/' + lcM[0].replace('C','') + '.html'
+    ? 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(lcM[0])
     : 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(item.model || item.ref);
   document.getElementById('pdOpenLc').href = lcHref;
 }
@@ -1722,7 +1722,7 @@ function batchAutoFillAll(){
 </div>
 <footer class="site-footer">
   <div class="tag">用 科 技 打 开 想 象 力</div>
-  <div>© 2026 技象科技 · BOM整理神器 v1.0.3</div>
+  <div>© 2026 技象科技 · BOM整理神器 v1.0.4</div>
 </footer>
 </body>
 </html>
