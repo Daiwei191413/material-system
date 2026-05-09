@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>BOM整理神器 v1.0.4 - 技象科技</title>
+<title>BOM整理神器 v1.0.5 - 技象科技</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{background:#fff3cd;font-weight:bold}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ BOM整理神器 v1.0.4</h1>
+<h1>⚡ BOM整理神器 v1.0.5</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -293,9 +293,10 @@ td.chg{background:#fff3cd;font-weight:bold}
     <div class="mm-pills" id="mmPills"></div>
     <div id="mmBulkBar" style="display:none;margin:8px 0 12px;padding:10px 14px;background:#fff4ef;border-left:3px solid #ff6b35;border-radius:4px;font-size:13px;color:#444">
       <span id="mmBulkInfo"></span>
-      <button id="mmAutoAll" class="lc-btn" style="margin-left:12px;background:#34a853">⚙️ 批量自动生成（电阻/电容）</button>
+      <button id="mmFetchAll" class="lc-btn" style="margin-left:12px;background:#ff6b35">⚡ 批量一键补齐（自动拉立创）</button>
+      <button id="mmAutoAll" class="lc-btn" style="margin-left:6px;background:#34a853">⚙️ 批量自动生成（电阻/电容）</button>
       <button id="mmBulkOpen" class="lc-btn" style="margin-left:6px">🚀 批量打开立创</button>
-      <span style="margin-left:8px;color:#999;font-size:11px">（自动生成仅规律型；其它点行内「📋 贴参数」）</span>
+      <span style="margin-left:8px;color:#999;font-size:11px">（推荐先用「⚡ 批量一键补齐」自动拉参数；规律电阻电容用「⚙️ 自动生成」；其它点行内「📋 贴参数」）</span>
     </div>
     <div style="overflow-x:auto">
       <table id="mmTable">
@@ -925,6 +926,7 @@ function renderMatchDetail(counts){
       if (blocked > 0) alert('已打开 '+opened+' 个\n被浏览器拦截 '+blocked+' 个\n\n请允许本站弹窗后重试');
     };
     document.getElementById('mmAutoAll').onclick = batchAutoFillAll;
+    document.getElementById('mmFetchAll').onclick = batchAutoFetchAll;
   } else {
     bulkBar.style.display = 'none';
   }
@@ -956,12 +958,17 @@ function renderMatchDetail(counts){
       var lcHref = lcM
         ? 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(lcM[0])
         : 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(x.model || x.ref);
+      // ⚡ 一键补齐（仅当有 C 编号才显示，走立创代理 Worker）
+      var fetchBtn = lcM
+        ? '<button class="lc-btn" style="background:#ff6b35" data-fetch-idx="'+x._idx+'" onclick="autoFetchRow('+x._idx+')">⚡ 一键补齐</button> '
+        : '';
       // 自动生成（电阻/电容规律可算）
       var autoTry = autoDescribe(x.model, x.pkg);
       var autoBtn = autoTry
         ? '<button class="lc-btn" style="background:#34a853" onclick="autoFillRow('+x._idx+')">⚙️ 自动生成</button>'
         : '';
-      enrich = '<a class="lc-btn" target="_blank" rel="noopener" href="'+lcHref+'">🔍 查立创</a> '
+      enrich = fetchBtn
+             + '<a class="lc-btn" target="_blank" rel="noopener" href="'+lcHref+'">🔍 查立创</a> '
              + autoBtn + ' '
              + '<button class="lc-btn" style="background:#1a73e8" onclick="openPasteDlg('+x._idx+')">📋 贴参数</button>';
     }
@@ -1517,6 +1524,147 @@ function autoDescribe(model, pkg){
   return null;
 }
 
+// ==================== 立创代理 Worker（一键补齐 / 批量补齐） ====================
+var LCSC_WORKER_URL = 'https://lcsc-proxy.steidleyestephani737.workers.dev';
+
+// 把 Worker 返回的 LCSC 数据写入一行 B BOM
+function applyLcscToRow(item, data){
+  if (!data || !data.hit) return false;
+  var row = item.row;
+  // 仅填空字段，不覆盖用户已填值
+  if (!row['物料名称'] && data.productType) row['物料名称'] = data.productType;
+  if (!row['参数描述'] && data.specification) row['参数描述'] = data.specification;
+  if (!row['品牌'] && data.brand) row['品牌'] = data.brand;
+  if (!row['立创编号'] && data.productCode) row['立创编号'] = data.productCode;
+  if (!row['封装'] && data.package) row['封装'] = data.package;
+  if (!row['单位'] && data.unit) row['单位'] = data.unit;
+  // 同步存入 MANUAL_DB（下次同型号秒命中，跨 BOM 持续生效）
+  MANUAL_DB[manualKey(item.model, item.pkg)] = {
+    model: item.model,
+    package: item.pkg || data.package || '',
+    name: data.productType || '',
+    specification: data.specification || '',
+    brand: data.brand || '',
+    lcsc_code: data.productCode || '',
+    material_code: '',
+    unit: data.unit || 'PCS',
+    _source: 'lcsc-worker'
+  };
+  return true;
+}
+
+// 单行：一键拉立创参数自动补齐
+function autoFetchRow(idx){
+  var item = MM_RESULT[idx];
+  if (!item) return;
+  // 提取 C 编号
+  var lcRaw = String(item.lcsc || '').toUpperCase();
+  var lcM = lcRaw.match(/C\d{3,}/);
+  if (!lcM) {
+    alert('该器件没有立创 C 编号，无法自动补齐。\n\n请用「📋 贴参数」手动录入。');
+    return;
+  }
+  var code = lcM[0];
+  // 找到按钮 → 显示 loading
+  var btn = document.querySelector('button[data-fetch-idx="'+idx+'"]');
+  var originalHtml = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ 拉取中...'; }
+
+  fetch(LCSC_WORKER_URL + '/?k=' + encodeURIComponent(code), { mode: 'cors' })
+    .then(function(r){ return r.json(); })
+    .then(function(resp){
+      if (!resp.ok) throw new Error(resp.error || '代理请求失败');
+      if (!resp.data || !resp.data.hit) throw new Error('立创未找到该编号商品');
+      var ok = applyLcscToRow(item, resp.data);
+      if (!ok) throw new Error('数据应用失败');
+      saveManualDB();
+      // 重跑匹配刷 UI
+      analyzeMaterialMatch();
+      // 友好提示
+      var d = resp.data;
+      alert('✅ 已自动填入 '+code+'：\n\n'
+          + '型号：'+(d.productModel||'')+'\n'
+          + '品牌：'+(d.brand||'')+'\n'
+          + '封装：'+(d.package||'')+'\n'
+          + '类目：'+(d.productType||'')+'\n'
+          + '参数：'+(d.specification||'(无)')+'\n\n'
+          + '已存入「手动补齐库」，下次同型号秒命中。');
+    })
+    .catch(function(e){
+      alert('❌ 拉取立创参数失败：' + e.message + '\n\n建议改用「📋 贴参数」手动录入。');
+      if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+    });
+}
+
+// 批量：一键补齐所有未命中（有 C 编号的）
+function batchAutoFetchAll(){
+  var miss = MM_RESULT.filter(function(x){
+    if (x.level !== 0) return false;
+    var raw = String(x.lcsc || '').toUpperCase();
+    return /C\d{3,}/.test(raw);
+  });
+  if (miss.length === 0) {
+    alert('没有可批量补齐的器件\n\n（要求：未命中 + 有立创 C 编号）');
+    return;
+  }
+  if (!confirm('将通过立创代理批量拉取 '+miss.length+' 个器件的参数\n\n预计耗时 '+Math.ceil(miss.length*0.6)+' 秒，确认继续？')) return;
+
+  // 收集 C 编号 + idx 映射
+  var codes = miss.map(function(x){
+    return String(x.lcsc).toUpperCase().match(/C\d{3,}/)[0];
+  });
+  // 显示进度条
+  var bar = document.getElementById('mmBulkInfo');
+  var origInfo = bar ? bar.innerHTML : '';
+  if (bar) bar.innerHTML = '⏳ 正在批量拉取 '+miss.length+' 个器件...';
+
+  // Worker /batch 接口最多 30 个，超过分批
+  var chunks = [];
+  for (var i = 0; i < codes.length; i += 30) chunks.push(codes.slice(i, i+30));
+
+  Promise.all(chunks.map(function(chunk){
+    return fetch(LCSC_WORKER_URL + '/batch?codes=' + chunk.join(','), { mode: 'cors' })
+      .then(function(r){ return r.json(); });
+  })).then(function(allResps){
+    var ok = 0, fail = 0, notHit = 0;
+    var idx = 0;
+    allResps.forEach(function(batch){
+      if (!batch.ok || !batch.results) {
+        // 整批失败：把对应的 miss 项全算 fail
+        var batchSize = batch && batch.results ? batch.results.length : 0;
+        // 估算这批应该有多少（按 chunks 切分时确定的）
+        if (!batchSize) {
+          // 找到没消费到的剩余项，全算 fail（保守估计）
+          fail += Math.min(30, miss.length - idx);
+          idx += Math.min(30, miss.length - idx);
+        }
+        return;
+      }
+      batch.results.forEach(function(r){
+        var item = miss[idx++];
+        if (!item) return;
+        if (r.ok && r.data && r.data.hit) {
+          if (applyLcscToRow(item, r.data)) ok++;
+        } else if (r.ok && r.data && !r.data.hit) {
+          notHit++;
+        } else {
+          fail++;
+        }
+      });
+    });
+    saveManualDB();
+    analyzeMaterialMatch();
+    alert('✅ 批量补齐完成\n\n'
+        + '成功：'+ok+'\n'
+        + '立创未找到：'+notHit+'\n'
+        + '失败：'+fail+'\n\n'
+        + '所有补齐项已存入「手动补齐库」，下次秒命中。');
+  }).catch(function(e){
+    alert('❌ 批量拉取失败：'+e.message);
+    if (bar) bar.innerHTML = origInfo;
+  });
+}
+
 // 单行自动生成 → 写入 B 行 + 存手动库
 function autoFillRow(idx){
   var item = MM_RESULT[idx];
@@ -1722,7 +1870,7 @@ function batchAutoFillAll(){
 </div>
 <footer class="site-footer">
   <div class="tag">用 科 技 打 开 想 象 力</div>
-  <div>© 2026 技象科技 · BOM整理神器 v1.0.4</div>
+  <div>© 2026 技象科技 · BOM整理神器 v1.0.5</div>
 </footer>
 </body>
 </html>
