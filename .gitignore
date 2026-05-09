@@ -6,3 +6,5 @@ __pycache__/
 *.pyc
 .env*
 !.env.example
+cloudflare-worker/.wrangler/
+cloudflare-worker/node_modules/
