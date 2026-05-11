@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V2.0.2</title>
+<title>技象科技研发BOM 整理神器 V2.0.3</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V2.0.2</h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V2.0.3</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1802,7 +1802,7 @@ function batchAutoFetchAll(){
     alert('没有可批量补齐的器件\n\n（要求：未命中 + 有立创 C 编号）');
     return;
   }
-  if (!confirm('将通过立创代理批量拉取 '+miss.length+' 个器件的参数\n\n预计耗时 '+Math.ceil(miss.length*0.6)+' 秒，确认继续？')) return;
+  if (!confirm('将通过立创代理批量拉取 '+miss.length+' 个器件的参数\n\n预计耗时 '+Math.max(3, Math.ceil(miss.length*0.25))+' 秒（3 路并发），确认继续？')) return;
 
   // 收集 C 编号 + idx 映射
   var codes = miss.map(function(x){
@@ -1813,15 +1813,16 @@ function batchAutoFetchAll(){
   var origInfo = bar ? bar.innerHTML : '';
   if (bar) bar.innerHTML = '⏳ 正在批量拉取 '+miss.length+' 个器件...';
 
-  // Worker /batch 接口最多 30 个，超过分批；改用小分片提高首批冷启动可靠性
-  var CHUNK_SIZE = 15;
+  // Worker /batch 接口最多 30 个；用「小分片 + 有限并发」平衡冷启动与吞吐
+  var CHUNK_SIZE = 20;
+  var CONCURRENCY = 3;  // 同时最多 3 批并发，避免 Worker rate-limit
   var chunks = [];
   for (var i = 0; i < codes.length; i += CHUNK_SIZE) chunks.push(codes.slice(i, i+CHUNK_SIZE));
 
   // 单批拉取 + 超时 + 单次重试
   function fetchChunkWithRetry(chunk, attempt){
     var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    var timer = ctl ? setTimeout(function(){ ctl.abort(); }, 20000) : null;
+    var timer = ctl ? setTimeout(function(){ ctl.abort(); }, 25000) : null;
     return fetch(LCSC_WORKER_URL + '/batch?codes=' + chunk.join(','), {
       mode: 'cors',
       signal: ctl ? ctl.signal : undefined
@@ -1832,26 +1833,40 @@ function batchAutoFetchAll(){
     }).catch(function(err){
       if (timer) clearTimeout(timer);
       if (attempt < 2) {
-        // 重试一次，间隔 1s
-        return new Promise(function(res){ setTimeout(res, 1000); })
+        // 重试一次，间隔 1.5s（给 Worker 喘息）
+        return new Promise(function(res){ setTimeout(res, 1500); })
           .then(function(){ return fetchChunkWithRetry(chunk, attempt+1); });
       }
-      // 重试失败：返回伪 batch 让主流程把这批标 fail
+      // 重试失败：返回伪 batch
       return { ok: false, _chunk: chunk, _error: err.message || String(err) };
     });
   }
 
-  // 顺序串行更稳（避免并发触发 Worker rate-limit / cold start 雪崩）
-  var allResps = [];
-  var seq = Promise.resolve();
-  chunks.forEach(function(chunk, ci){
-    seq = seq.then(function(){
-      if (bar) bar.innerHTML = '⏳ 正在批量拉取 '+miss.length+' 个器件（'+(ci+1)+'/'+chunks.length+' 批）...';
-      return fetchChunkWithRetry(chunk, 1).then(function(resp){ allResps.push(resp); });
+  // 有限并发池：保持 CONCURRENCY 个请求同时跑
+  function runPool(jobs, concurrency){
+    return new Promise(function(resolve){
+      var results = new Array(jobs.length);
+      var nextIdx = 0, finished = 0;
+      function spawn(){
+        if (nextIdx >= jobs.length) return;
+        var myIdx = nextIdx++;
+        jobs[myIdx]().then(function(r){
+          results[myIdx] = r;
+          finished++;
+          if (bar) bar.innerHTML = '⏳ 正在批量拉取 '+miss.length+' 个器件（'+finished+'/'+jobs.length+' 批完成）...';
+          if (finished === jobs.length) resolve(results);
+          else spawn();
+        });
+      }
+      for (var k=0; k<Math.min(concurrency, jobs.length); k++) spawn();
     });
+  }
+
+  var jobs = chunks.map(function(chunk){
+    return function(){ return fetchChunkWithRetry(chunk, 1); };
   });
 
-  seq.then(function(){
+  runPool(jobs, CONCURRENCY).then(function(allResps){
     var ok = 0, fail = 0, notHit = 0, failCodes = [];
     var idx = 0;
     allResps.forEach(function(batch){
@@ -2111,7 +2126,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.2 · 开发者：郝戴纬</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.3 · 开发者：郝戴纬</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools.pages.dev</a></div>
 </footer>
 </body>
