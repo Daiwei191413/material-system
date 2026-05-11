@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>BOM整理神器 v1.0.6 - 技象科技</title>
+<title>BOM整理神器 v1.0.7 - 技象科技</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{background:#fff3cd;font-weight:bold}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ BOM整理神器 v1.0.6</h1>
+<h1>⚡ BOM整理神器 v1.0.7</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1707,16 +1707,30 @@ function parseLcscParams(text){
 }
 
 // 按字段组合 A 风格参数描述（通用兜底）
+// 格式对齐 A BOM：「字段名：值」全角冒号 + 空格分隔
+// 示例：连接器类型：板端 射频系列：IPEX 接口类型：内针 端口数量：1 阻抗：50Ω
 function lcscToSpec(fields, name){
   // 过滤掉明显无用字段
-  var skip = {'商品目录':1,'商品编号':1,'立创编号':1,'货源':1,'最小包装数量':1,'质量等级':1,'销售单位':1,'起订量':1,'库存':1,'最小订货量':1};
+  var skip = {'商品目录':1,'商品编号':1,'立创编号':1,'货源':1,'最小包装数量':1,
+              '质量等级':1,'销售单位':1,'起订量':1,'库存':1,'最小订货量':1,
+              '商品毛重':1,'商品净重':1,'生产日期':1,'供应商':1};
+  // 优先级排序（与 worker.js 保持一致）
+  var priority = ['容值','阻值','电感量','精度','额定电压','电压','温度系数',
+                  '功率','电流','正向压降(Vf)','反向耐压','电阻类型',
+                  '连接器类型','射频系列','接口类型','端口数量','阻抗','频率-最大值',
+                  '插针结构','触点数量','间距','公母','安装方式',
+                  '引脚样式','电路结构','接口直径','接口长度/高度','触头材质','工作温度范围'];
   var parts = [];
-  Object.keys(fields).forEach(function(k){
-    if (skip[k]) return;
-    if (k === '品牌' || k === '型号' || k === '封装') return; // 这些独立字段
-    parts.push(fields[k]);
+  var used = {};
+  priority.forEach(function(k){
+    if (fields[k] && !skip[k]) { parts.push(k + '：' + fields[k]); used[k] = 1; }
   });
-  return parts.slice(0, 12).join('，'); // 最多取 12 条，避免过长
+  Object.keys(fields).forEach(function(k){
+    if (used[k] || skip[k]) return;
+    if (k === '品牌' || k === '型号' || k === '封装') return; // 这些独立字段
+    parts.push(k + '：' + fields[k]);
+  });
+  return parts.slice(0, 14).join(' '); // 最多 14 条，全角冒号 + 空格分隔
 }
 
 // 打开粘贴对话框
@@ -1870,7 +1884,7 @@ function batchAutoFillAll(){
 </div>
 <footer class="site-footer">
   <div class="tag">用 科 技 打 开 想 象 力</div>
-  <div>© 2026 技象科技 · BOM整理神器 v1.0.6</div>
+  <div>© 2026 技象科技 · BOM整理神器 v1.0.7</div>
 </footer>
 </body>
 </html>
