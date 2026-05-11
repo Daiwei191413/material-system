@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 v1.0.9</title>
+<title>技象科技研发BOM 整理神器 v1.0.10</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 v1.0.9</h1>
+<h1>⚡ 技象科技研发BOM 整理神器 v1.0.10</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1162,10 +1162,12 @@ document.getElementById('expBtn').onclick=function(){
 
 // 从文件名提取板卡 ERP 和 TP 代号
 // 例：A-01-02-00234-TP5702-18-_V1.0主板_V1.0.xlsx → {erp:"A-01-02-00234", tp:"TP5702-18"}
+// 支持的 TP 格式：TP5702-14 / TP1209-MP36 / TP1506-MS22-Test / TP1207_V2
 function extractBoardInfo(filename) {
   if (!filename) return null;
   var erpMatch = filename.match(/A-\d{2}-\d{2}-\d{5}/);
-  var tpMatch = filename.match(/TP\d+-\d+/);
+  // TP\d+ 后面跟 0-2 段 -或_ 字母数字（覆盖各种历史命名）
+  var tpMatch = filename.match(/TP\d+(?:[-_][A-Za-z0-9]+){0,2}/);
   return {
     erp: erpMatch ? erpMatch[0] : null,
     tp: tpMatch ? tpMatch[0] : null
@@ -1545,7 +1547,7 @@ function fmt(dir){
           replacePairs.push({regex: /A-\d{2}-\d{2}-\d{5}/g, to: bInfo.erp});
         }
         if (bInfo.tp) {
-          replacePairs.push({regex: /TP\d+-\d+/g, to: bInfo.tp});
+          replacePairs.push({regex: /TP\d+(?:[-_][A-Za-z0-9]+){0,2}/g, to: bInfo.tp});
         }
       }
       patchAndDownloadXlsx(A._raw, rows, enrichStats, enrichDetails, dl, tl, hd, replacePairs);
@@ -2066,7 +2068,7 @@ function batchAutoFillAll(){
 </div>
 <footer class="site-footer">
   <div class="tag">用 科 技 打 开 想 象 力</div>
-  <div>© 2026 技象科技 · 研发BOM 整理神器 v1.0.9</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 v1.0.10</div>
 </footer>
 </body>
 </html>
