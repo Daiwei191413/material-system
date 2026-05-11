@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 v1.0.8</title>
+<title>技象科技研发BOM 整理神器 v1.0.9</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 v1.0.8</h1>
+<h1>⚡ 技象科技研发BOM 整理神器 v1.0.9</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1273,18 +1273,24 @@ function patchAndDownloadXlsx(rawArrayBuffer, dataRows, enrichStats, enrichDetai
             if (snIdx >= 0 && (row[snIdx] === '' || row[snIdx] === null || row[snIdx] === undefined)) {
               row[snIdx] = i + 1;
             }
-            // 行内每个 cell 加边框样式（仅有内容的数据行）
+            // 行内每个 cell 加边框样式（含空格子，让整行看起来是完整表格）
             var sAttr = (window.__BOM_BORDER_STYLE_ID >= 0) ? ' s="'+window.__BOM_BORDER_STYLE_ID+'"' : '';
-            var cells = row.map(function(v, c){
-              if (v === '' || v === null || v === undefined) return '';
+            // 用模板表头数量决定本行总列数（templateHeaders 是 hd）
+            var totalCols = (templateHeaders || row).length;
+            var cells = [];
+            for (var c = 0; c < totalCols; c++) {
+              var v = row[c];
               var addr = colLetter(c) + rowNum;
-              if (typeof v === 'number' && !isNaN(v)) {
-                return '<c r="'+addr+'"'+sAttr+'><v>'+v+'</v></c>';
+              if (v === '' || v === null || v === undefined) {
+                // 空 cell 也输出，只带样式不带值，这样边框生效
+                cells.push('<c r="'+addr+'"'+sAttr+'/>');
+              } else if (typeof v === 'number' && !isNaN(v)) {
+                cells.push('<c r="'+addr+'"'+sAttr+'><v>'+v+'</v></c>');
+              } else {
+                cells.push('<c r="'+addr+'"'+sAttr+' t="inlineStr"><is><t>'+xmlEscape(v)+'</t></is></c>');
               }
-              // inline string，避免 sharedStrings 冲突
-              return '<c r="'+addr+'"'+sAttr+' t="inlineStr"><is><t>'+xmlEscape(v)+'</t></is></c>';
-            }).join('');
-            return '<row r="'+rowNum+'">'+cells+'</row>';
+            }
+            return '<row r="'+rowNum+'">'+cells.join('')+'</row>';
           }).join('');
 
           var newSheetData = '<sheetData>' + keepRows.join('') + newRowsXml + '</sheetData>';
@@ -1301,15 +1307,19 @@ function patchAndDownloadXlsx(rawArrayBuffer, dataRows, enrichStats, enrichDetai
           zip.file(sheetPath, newSheetXml);
 
           // 3.2) 板卡信息字符串替换（封面页 + 单板BOM 表头）
-          // 在 sharedStrings.xml 和所有 sheet XML 的 inline string 里做全局替换
+          // 用正则模式替换：任何 TP\d+-\d+ 都改为 B 的 TP 代号；任何 A-\d{2}-\d{2}-\d{5} 都改为 B 的 ERP
+          // 这样不管 A 内部写的是 TP5702-14 还是 TP5702-18，统一覆盖
           var replacePromise = Promise.resolve();
           if (replacePairs && replacePairs.length) {
             function doReplace(text) {
               replacePairs.forEach(function(p){
-                if (!p.from || !p.to) return;
-                // 转义正则特殊字符
-                var escFrom = p.from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                text = text.replace(new RegExp(escFrom, 'g'), p.to);
+                if (!p.to) return;
+                if (p.regex) {
+                  text = text.replace(p.regex, p.to);
+                } else if (p.from) {
+                  var escFrom = p.from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                  text = text.replace(new RegExp(escFrom, 'g'), p.to);
+                }
               });
               return text;
             }
@@ -1322,16 +1332,17 @@ function patchAndDownloadXlsx(rawArrayBuffer, dataRows, enrichStats, enrichDetai
                 });
               });
             }
-            // 替换所有 sheet 的 inline strings（重新读 sheetPath，因为前面刚写过）
-            // 这里只替换封面 sheet1.xml 即可（单板BOM 数据已是我们新生成的）
-            var coverFile = zip.file('xl/worksheets/sheet1.xml');
-            if (coverFile && sheetPath !== 'xl/worksheets/sheet1.xml') {
+            // 替换所有 sheet 的 inline strings（封面 + 其他可能的 sheet）
+            var allSheets = Object.keys(zip.files).filter(function(fn){
+              return /^xl\/worksheets\/sheet\d+\.xml$/.test(fn) && fn !== sheetPath;
+            });
+            allSheets.forEach(function(sp){
               replacePromise = replacePromise.then(function(){
-                return coverFile.async('string').then(function(cx){
-                  zip.file('xl/worksheets/sheet1.xml', doReplace(cx));
+                return zip.file(sp).async('string').then(function(cx){
+                  zip.file(sp, doReplace(cx));
                 });
               });
-            }
+            });
           }
 
           // 4) 追加"补齐报告"sheet
@@ -1526,17 +1537,15 @@ function fmt(dir){
   if (dir === 'AB' && A._raw && typeof JSZip !== 'undefined') {
     try {
       // 计算板卡信息替换对（A → B）
-      var aInfo = extractBoardInfo(A._fn || '');
+      // 用正则模式覆盖：A 内部可能写的是任意 TP\d+-\d+ 或 A-xx-xx-xxxxx，统一替换为 B 的
       var bInfo = extractBoardInfo(B._fn || '');
       var replacePairs = [];
-      if (aInfo && bInfo) {
-        // ERP 直接替换
-        if (aInfo.erp && bInfo.erp && aInfo.erp !== bInfo.erp) {
-          replacePairs.push({from: aInfo.erp, to: bInfo.erp});
+      if (bInfo) {
+        if (bInfo.erp) {
+          replacePairs.push({regex: /A-\d{2}-\d{2}-\d{5}/g, to: bInfo.erp});
         }
-        // TP 代号替换（这样 TP5702-18主板PCBA → TP5702-14主板PCBA、TP5702-18主板 → TP5702-14主板 都覆盖）
-        if (aInfo.tp && bInfo.tp && aInfo.tp !== bInfo.tp) {
-          replacePairs.push({from: aInfo.tp, to: bInfo.tp});
+        if (bInfo.tp) {
+          replacePairs.push({regex: /TP\d+-\d+/g, to: bInfo.tp});
         }
       }
       patchAndDownloadXlsx(A._raw, rows, enrichStats, enrichDetails, dl, tl, hd, replacePairs);
@@ -2057,7 +2066,7 @@ function batchAutoFillAll(){
 </div>
 <footer class="site-footer">
   <div class="tag">用 科 技 打 开 想 象 力</div>
-  <div>© 2026 技象科技 · 研发BOM 整理神器 v1.0.8</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 v1.0.9</div>
 </footer>
 </body>
 </html>
