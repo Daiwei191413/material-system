@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 v1.0.10</title>
+<title>技象科技研发BOM 整理神器 v2.0.0</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 v1.0.10</h1>
+<h1>⚡ 技象科技研发BOM 整理神器 v2.0.0</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1559,8 +1559,8 @@ function fmt(dir){
           replacePairs.push({regex: /TP\d+(?:[-_][A-Za-z0-9]+){0,2}/g, to: bInfo.tp});
         }
       }
-      // 生成新文件名：B BOM + 清洗后的 B 原文件名
-      var outFilename = 'B BOM ' + cleanBomFilename(B._fn || '') + '.xlsx';
+      // 生成新文件名：清洗后的 B 原文件名
+      var outFilename = cleanBomFilename(B._fn || 'BOM') + '.xlsx';
       patchAndDownloadXlsx(A._raw, rows, enrichStats, enrichDetails, dl, tl, hd, replacePairs, outFilename);
       return;
     } catch (err) {
@@ -2079,7 +2079,7 @@ function batchAutoFillAll(){
 </div>
 <footer class="site-footer">
   <div class="tag">用 科 技 打 开 想 象 力</div>
-  <div>© 2026 技象科技 · 研发BOM 整理神器 v1.0.10</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 v2.0.0</div>
 </footer>
 </body>
 </html>
