@@ -8,3 +8,5 @@ __pycache__/
 !.env.example
 cloudflare-worker/.wrangler/
 cloudflare-worker/node_modules/
+.env.cloudflare
+_deploy/
