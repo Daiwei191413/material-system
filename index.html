@@ -549,14 +549,18 @@ function clearMaterialData() {
   alert('物料库已清空');
 }
 
-// 一键修复参数描述格式：把所有 | 分隔的旧数据刷成空格分隔
+// 一键修复参数描述格式：把所有非标准分隔的旧数据刷成 ", " 逗号分隔
 function cleanAllSpecs() {
   var fixedDB = 0, fixedManual = 0;
   // 1. 修 materialDB（导入的物料库）
   materialDB.forEach(function(m){
-    if (m.specification && m.specification.indexOf('|') >= 0) {
-      m.specification = cleanSpec(m.specification);
-      fixedDB++;
+    if (m.specification) {
+      var before = m.specification;
+      var after = cleanSpec(before);
+      if (after !== before) {
+        m.specification = after;
+        fixedDB++;
+      }
     }
   });
   if (fixedDB) {
@@ -567,15 +571,19 @@ function cleanAllSpecs() {
   if (typeof MANUAL_DB === 'object' && MANUAL_DB) {
     Object.keys(MANUAL_DB).forEach(function(k){
       var v = MANUAL_DB[k];
-      if (v && v.specification && v.specification.indexOf('|') >= 0) {
-        v.specification = cleanSpec(v.specification);
-        fixedManual++;
+      if (v && v.specification) {
+        var before = v.specification;
+        var after = cleanSpec(before);
+        if (after !== before) {
+          v.specification = after;
+          fixedManual++;
+        }
       }
     });
     if (fixedManual && typeof saveManualDB === 'function') saveManualDB();
   }
   loadMaterialTable();
-  alert('✨ 修复完成！\n\n物料库：'+fixedDB+' 条\n手动补齐库：'+fixedManual+' 条\n\n下次导出 BOM 即按 A 标准格式（空格分隔）输出。');
+  alert('✨ 修复完成！\n\n物料库：'+fixedDB+' 条\n手动补齐库：'+fixedManual+' 条\n\n下次导出 BOM 即按 A 标准格式输出：\n字段A：值A, 字段B：值B, 字段C：值C');
 }
 
 function loadMaterialTable() {
@@ -824,24 +832,24 @@ function matchMaterial(row){
   return {level:0, hit:null};
 }
 
-// 净化参数描述：把历史脏数据（| 分隔 / 半角:）规范成 A BOM 标准（空格分隔 + 全角：）
-// 兼容三种已知历史格式：
-//   "连接器类型:Type-C | 触点数量:16P | 公母:母"        → "连接器类型：Type-C 触点数量：16P 公母：母"
-//   "连接器类型:Type-C|触点数量:16P|公母:母"             → "连接器类型：Type-C 触点数量：16P 公母：母"
-//   "电感值:47nH,精度:±5%,直流电阻(DCR):1.08Ω"          → 不动（逗号是合法格式之一）
-//   "厚膜电阻 0Ω,精度：±1%, SMD 0402"                   → 不动
+// 净化参数描述：统一成 A BOM 标准（字段：值, 字段：值 逗号分隔）
+// 处理三种已知输入：
+//   "连接器类型:Type-C | 触点数量:16P | 公母:母"      → "连接器类型：Type-C, 触点数量：16P, 公母：母"
+//   "最大输入电压: 18V 输出电压: 3.3V 输出电流：500mA"  → "最大输入电压：18V, 输出电压：3.3V, 输出电流：500mA"
+//   "MLCC 10uF ±20% 6.3V X5R SMD 0603"                 → 不动（紧凑格式无字段名）
 function cleanSpec(s){
   if (!s) return s;
   s = String(s);
-  // 只有当包含 | 才认为是脏数据，需要替换
-  if (s.indexOf('|') < 0 && s.indexOf('｜') < 0) return s;
-  // 1. 全角 ｜ 统一成半角 |
-  s = s.replace(/｜/g, '|');
-  // 2. | 两侧空白先压缩，然后把 | 替换成单个空格
-  s = s.replace(/\s*\|\s*/g, ' ');
-  // 3. 把半角冒号替换为全角冒号（仅在"汉字/字母:值"模式下，避免影响时间/比例等）
-  //    用 lookbehind 不兼容旧浏览器，改用全局替换 + 还原 URL/比例的方式
+  // 1. 全角 ｜→ 半角 | ； | 统一替换为 ", "
+  s = s.replace(/｜/g, '|').replace(/\s*\|\s*/g, ', ');
+  // 2. 半角 : → 全角 ：（仅在汉字/字母/括号后，避免误伤比例/时间等）
   s = s.replace(/([\u4e00-\u9fa5A-Za-z\)）])\s*:\s*/g, '$1：');
+  // 3. 如存在 ≥2 个"字段：值"结构，在"值 空格 字段名：" 中间插入 ", "
+  //    前瞻允许字段名中间含一个空格（如"工作温度 ："）
+  var colonCount = (s.match(/：/g) || []).length;
+  if (colonCount >= 2) {
+    s = s.replace(/([^,，\s])\s+(?=\S+?\s?：)/g, '$1, ');
+  }
   // 4. 折叠多余空格
   s = s.replace(/\s{2,}/g, ' ').trim();
   return s;
@@ -864,6 +872,8 @@ function enrichRow(row, hit){
       row[p[0]] = (p[0] === '参数描述') ? cleanSpec(hit[p[1]]) : hit[p[1]];
     }
   });
+  // 已有的参数描述也兜底净化一次（消除历史 | 分隔脏数据）
+  if (row['参数描述']) row['参数描述'] = cleanSpec(row['参数描述']);
   return row;
 }
 
@@ -1788,7 +1798,7 @@ function lcscToSpec(fields, name){
     if (k === '品牌' || k === '型号' || k === '封装') return; // 这些独立字段
     parts.push(k + '：' + fields[k]);
   });
-  return parts.slice(0, 14).join(' '); // 最多 14 条，全角冒号 + 空格分隔
+  return parts.slice(0, 14).join(', '); // 最多 14 条，字段间用 ", " 分隔
 }
 
 // 打开粘贴对话框

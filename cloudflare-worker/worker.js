@@ -7,7 +7,7 @@
  *       GET /batch?codes=C431542,C1523,C25744   (逗号分隔，最多 30 个)
  *       GET /health
  * 
- * 版本：v1.0.6（参数描述格式对齐 A BOM：全角冒号+空格分隔）
+ * 版本：v1.0.6（参数描述格式对齐 A BOM：字段：值, 字段：值 逗号分隔）
  * 部署：wrangler deploy
  * 作者：开发助理 (hdv_dev_bot) for 戴纬哥 · 技象科技
  */
@@ -102,7 +102,8 @@ function parseLcsc(html, query) {
   };
 
   // 组装"参数描述"：paramLinkedMap 按常见优先级排序后拼接
-  // 格式对齐 A BOM：全角冒号 + 空格分隔（如"连接器类型：板端 射频系列：IPEX"）
+  // 格式对齐 A BOM：「字段名：值, 字段名：值」全角冒号 + ", " 逗号分隔
+  // 示例："连接器类型：板端, 射频系列：IPEX, 接口类型：内针"
   const priority = ['容值', '阻值', '电感量', '精度', '额定电压', '电压', '温度系数',
     '功率', '电流', '正向压降(Vf)', '反向耐压', '电阻类型',
     '连接器类型', '插针结构', '触点数量', '间距', '公母',
@@ -117,7 +118,7 @@ function parseLcsc(html, query) {
     if (!used.has(k) && v) parts.push(`${k}：${v}`);
   }
   if (parts.length) {
-    out.specification = parts.join(' ');
+    out.specification = parts.join(', ');
   } else if (out.remark) {
     out.specification = out.remark;
   } else {
