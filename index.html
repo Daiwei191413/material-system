@@ -326,6 +326,7 @@ td.chg{background:#fff3cd;font-weight:bold}
     <div class="bar" style="justify-content:flex-start">
       <button class="btn btn-blue" id="btnImportMat">📥 导入物料库 Excel</button>
       <button class="btn btn-green" onclick="exportMaterialData()">📤 导出物料库</button>
+      <button class="btn" style="background:#9c27b0;color:#fff" onclick="cleanAllSpecs()">✨ 一键修复参数格式</button>
       <button class="btn btn-orange" onclick="clearMaterialData()">🗑️ 清空数据</button>
     </div>
   </div>
@@ -546,6 +547,35 @@ function clearMaterialData() {
   localStorage.removeItem('material_db_updated');
   loadMaterialTable();
   alert('物料库已清空');
+}
+
+// 一键修复参数描述格式：把所有 | 分隔的旧数据刷成空格分隔
+function cleanAllSpecs() {
+  var fixedDB = 0, fixedManual = 0;
+  // 1. 修 materialDB（导入的物料库）
+  materialDB.forEach(function(m){
+    if (m.specification && m.specification.indexOf('|') >= 0) {
+      m.specification = cleanSpec(m.specification);
+      fixedDB++;
+    }
+  });
+  if (fixedDB) {
+    localStorage.setItem('material_db', JSON.stringify(materialDB));
+    localStorage.setItem('material_db_updated', new Date().toLocaleString('zh-CN'));
+  }
+  // 2. 修 MANUAL_DB（一键补齐 / 粘贴录入的库）
+  if (typeof MANUAL_DB === 'object' && MANUAL_DB) {
+    Object.keys(MANUAL_DB).forEach(function(k){
+      var v = MANUAL_DB[k];
+      if (v && v.specification && v.specification.indexOf('|') >= 0) {
+        v.specification = cleanSpec(v.specification);
+        fixedManual++;
+      }
+    });
+    if (fixedManual && typeof saveManualDB === 'function') saveManualDB();
+  }
+  loadMaterialTable();
+  alert('✨ 修复完成！\n\n物料库：'+fixedDB+' 条\n手动补齐库：'+fixedManual+' 条\n\n下次导出 BOM 即按 A 标准格式（空格分隔）输出。');
 }
 
 function loadMaterialTable() {
@@ -794,6 +824,29 @@ function matchMaterial(row){
   return {level:0, hit:null};
 }
 
+// 净化参数描述：把历史脏数据（| 分隔 / 半角:）规范成 A BOM 标准（空格分隔 + 全角：）
+// 兼容三种已知历史格式：
+//   "连接器类型:Type-C | 触点数量:16P | 公母:母"        → "连接器类型：Type-C 触点数量：16P 公母：母"
+//   "连接器类型:Type-C|触点数量:16P|公母:母"             → "连接器类型：Type-C 触点数量：16P 公母：母"
+//   "电感值:47nH,精度:±5%,直流电阻(DCR):1.08Ω"          → 不动（逗号是合法格式之一）
+//   "厚膜电阻 0Ω,精度：±1%, SMD 0402"                   → 不动
+function cleanSpec(s){
+  if (!s) return s;
+  s = String(s);
+  // 只有当包含 | 才认为是脏数据，需要替换
+  if (s.indexOf('|') < 0 && s.indexOf('｜') < 0) return s;
+  // 1. 全角 ｜ 统一成半角 |
+  s = s.replace(/｜/g, '|');
+  // 2. | 两侧空白先压缩，然后把 | 替换成单个空格
+  s = s.replace(/\s*\|\s*/g, ' ');
+  // 3. 把半角冒号替换为全角冒号（仅在"汉字/字母:值"模式下，避免影响时间/比例等）
+  //    用 lookbehind 不兼容旧浏览器，改用全局替换 + 还原 URL/比例的方式
+  s = s.replace(/([\u4e00-\u9fa5A-Za-z\)）])\s*:\s*/g, '$1：');
+  // 4. 折叠多余空格
+  s = s.replace(/\s{2,}/g, ' ').trim();
+  return s;
+}
+
 // 补齐：把 hit 的字段回填到 row（不覆盖已有非空字段）
 function enrichRow(row, hit){
   var fields = [
@@ -806,7 +859,10 @@ function enrichRow(row, hit){
     ['单位','unit']
   ];
   fields.forEach(function(p){
-    if (!row[p[0]] && hit[p[1]]) row[p[0]] = hit[p[1]];
+    if (!row[p[0]] && hit[p[1]]) {
+      // 参数描述字段做格式净化
+      row[p[0]] = (p[0] === '参数描述') ? cleanSpec(hit[p[1]]) : hit[p[1]];
+    }
   });
   return row;
 }
@@ -1335,6 +1391,8 @@ function fmt(dir){
   dat.rows.forEach(function(u, idx){
     var clone = {};
     for (var k in u) clone[k] = u[k];
+    // 净化原始参数描述（消除历史 | 分隔脏数据）
+    if (clone['参数描述']) clone['参数描述'] = cleanSpec(clone['参数描述']);
 
     var emptyBefore = [];
     ['物料编码','物料名称','参数描述','品牌','立创编号'].forEach(function(f){
