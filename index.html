@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V2.0.1</title>
+<title>技象科技研发BOM 整理神器 V2.0.2</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V2.0.1</h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V2.0.2</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1813,25 +1813,55 @@ function batchAutoFetchAll(){
   var origInfo = bar ? bar.innerHTML : '';
   if (bar) bar.innerHTML = '⏳ 正在批量拉取 '+miss.length+' 个器件...';
 
-  // Worker /batch 接口最多 30 个，超过分批
+  // Worker /batch 接口最多 30 个，超过分批；改用小分片提高首批冷启动可靠性
+  var CHUNK_SIZE = 15;
   var chunks = [];
-  for (var i = 0; i < codes.length; i += 30) chunks.push(codes.slice(i, i+30));
+  for (var i = 0; i < codes.length; i += CHUNK_SIZE) chunks.push(codes.slice(i, i+CHUNK_SIZE));
 
-  Promise.all(chunks.map(function(chunk){
-    return fetch(LCSC_WORKER_URL + '/batch?codes=' + chunk.join(','), { mode: 'cors' })
-      .then(function(r){ return r.json(); });
-  })).then(function(allResps){
-    var ok = 0, fail = 0, notHit = 0;
+  // 单批拉取 + 超时 + 单次重试
+  function fetchChunkWithRetry(chunk, attempt){
+    var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function(){ ctl.abort(); }, 20000) : null;
+    return fetch(LCSC_WORKER_URL + '/batch?codes=' + chunk.join(','), {
+      mode: 'cors',
+      signal: ctl ? ctl.signal : undefined
+    }).then(function(r){
+      if (timer) clearTimeout(timer);
+      if (!r.ok) throw new Error('HTTP '+r.status);
+      return r.json();
+    }).catch(function(err){
+      if (timer) clearTimeout(timer);
+      if (attempt < 2) {
+        // 重试一次，间隔 1s
+        return new Promise(function(res){ setTimeout(res, 1000); })
+          .then(function(){ return fetchChunkWithRetry(chunk, attempt+1); });
+      }
+      // 重试失败：返回伪 batch 让主流程把这批标 fail
+      return { ok: false, _chunk: chunk, _error: err.message || String(err) };
+    });
+  }
+
+  // 顺序串行更稳（避免并发触发 Worker rate-limit / cold start 雪崩）
+  var allResps = [];
+  var seq = Promise.resolve();
+  chunks.forEach(function(chunk, ci){
+    seq = seq.then(function(){
+      if (bar) bar.innerHTML = '⏳ 正在批量拉取 '+miss.length+' 个器件（'+(ci+1)+'/'+chunks.length+' 批）...';
+      return fetchChunkWithRetry(chunk, 1).then(function(resp){ allResps.push(resp); });
+    });
+  });
+
+  seq.then(function(){
+    var ok = 0, fail = 0, notHit = 0, failCodes = [];
     var idx = 0;
     allResps.forEach(function(batch){
       if (!batch.ok || !batch.results) {
-        // 整批失败：把对应的 miss 项全算 fail
-        var batchSize = batch && batch.results ? batch.results.length : 0;
-        // 估算这批应该有多少（按 chunks 切分时确定的）
-        if (!batchSize) {
-          // 找到没消费到的剩余项，全算 fail（保守估计）
-          fail += Math.min(30, miss.length - idx);
-          idx += Math.min(30, miss.length - idx);
+        // 整批失败
+        var chunkSize = (batch._chunk && batch._chunk.length) || Math.min(CHUNK_SIZE, miss.length - idx);
+        for (var k=0; k<chunkSize; k++){
+          var it = miss[idx++];
+          if (it) failCodes.push(String(it.lcsc || '').toUpperCase());
+          fail++;
         }
         return;
       }
@@ -1844,18 +1874,21 @@ function batchAutoFetchAll(){
           notHit++;
         } else {
           fail++;
+          failCodes.push(String(item.lcsc || '').toUpperCase());
         }
       });
     });
     saveManualDB();
     analyzeMaterialMatch();
-    alert('✅ 批量补齐完成\n\n'
+    var msg = '✅ 批量补齐完成\n\n'
         + '成功：'+ok+'\n'
         + '立创未找到：'+notHit+'\n'
-        + '失败：'+fail+'\n\n'
-        + '所有补齐项已存入「手动补齐库」，下次秒命中。');
+        + '失败：'+fail;
+    if (failCodes.length) msg += '\n\n失败编号：'+failCodes.slice(0,8).join(', ')+(failCodes.length>8?' ...':'');
+    msg += '\n\n所有成功项已存入「手动补齐库」，下次秒命中。';
+    alert(msg);
   }).catch(function(e){
-    alert('❌ 批量拉取失败：'+e.message);
+    alert('❌ 批量拉取失败：'+(e && e.message ? e.message : e)+'\n\n建议：1) 检查网络  2) 稍后重试  3) 用「📋 贴参数」手动录入');
     if (bar) bar.innerHTML = origInfo;
   });
 }
@@ -2078,7 +2111,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.1 · 开发者：郝戴纬</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.2 · 开发者：郝戴纬</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools.pages.dev</a></div>
 </footer>
 </body>
