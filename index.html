@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 v1.0.7</title>
+<title>技象科技研发BOM 整理神器 v1.0.8</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 v1.0.7</h1>
+<h1>⚡ 技象科技研发BOM 整理神器 v1.0.8</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1159,7 +1159,20 @@ document.getElementById('expBtn').onclick=function(){
 // ==================== xlsx 原地改造（保留封面 LOGO + 表头 + 样式）====================
 // 用 JSZip 解开 A.xlsx → 只改 sheet2.xml 的数据行 + 追加补齐报告 sheet → 重新打包
 // 所有其他文件（封面 sheet1、LOGO 图片、drawings、styles、theme、sharedStrings）原封不动
-function patchAndDownloadXlsx(rawArrayBuffer, dataRows, enrichStats, enrichDetails, dlLabel, tlLabel, templateHeaders){
+
+// 从文件名提取板卡 ERP 和 TP 代号
+// 例：A-01-02-00234-TP5702-18-_V1.0主板_V1.0.xlsx → {erp:"A-01-02-00234", tp:"TP5702-18"}
+function extractBoardInfo(filename) {
+  if (!filename) return null;
+  var erpMatch = filename.match(/A-\d{2}-\d{2}-\d{5}/);
+  var tpMatch = filename.match(/TP\d+-\d+/);
+  return {
+    erp: erpMatch ? erpMatch[0] : null,
+    tp: tpMatch ? tpMatch[0] : null
+  };
+}
+
+function patchAndDownloadXlsx(rawArrayBuffer, dataRows, enrichStats, enrichDetails, dlLabel, tlLabel, templateHeaders, replacePairs){
   return JSZip.loadAsync(rawArrayBuffer).then(function(zip){
     // 1) 读 workbook.xml 找出 BOM sheet 对应的 sheetN.xml
     return zip.file('xl/workbook.xml').async('string').then(function(wbXml){
@@ -1184,6 +1197,42 @@ function patchAndDownloadXlsx(rawArrayBuffer, dataRows, enrichStats, enrichDetai
 
         // 3) 读 BOM sheet XML
         return zip.file(sheetPath).async('string').then(function(sheetXml){
+          // 3.1) 注入边框样式到 styles.xml（如果还没注入）
+          // 返回 promise，链式继续
+          return zip.file('xl/styles.xml').async('string').then(function(stylesXml){
+            var borderStyleId = -1;  // 待会儿数据行 cell 用 s="..."
+
+            // 检查是否已注入过我们的边框（避免重复）
+            var marker = '<!--BOM_BORDER_INJECTED-->';
+            if (stylesXml.indexOf(marker) >= 0) {
+              // 已注入，从注释里读 ID
+              var idMatch = stylesXml.match(/<!--BOM_BORDER_INJECTED:(\d+)-->/);
+              if (idMatch) borderStyleId = parseInt(idMatch[1], 10);
+            } else {
+              // 注入一个新的 border + cellXfs
+              // (a) 在 <borders count="N"> 末尾追加一个四边细黑边
+              var newBorderXml = '<border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom></border>';
+              var bordersMatch = stylesXml.match(/<borders\s+count="(\d+)">([\s\S]*?)<\/borders>/);
+              var newBorderId = 0;
+              if (bordersMatch) {
+                newBorderId = parseInt(bordersMatch[1], 10);
+                var newBordersBlock = '<borders count="'+(newBorderId+1)+'">' + bordersMatch[2] + newBorderXml + '</borders>';
+                stylesXml = stylesXml.replace(bordersMatch[0], newBordersBlock);
+              }
+              // (b) 在 <cellXfs count="N"> 末尾追加一个 xf 引用新 border
+              var newXfXml = '<xf numFmtId="0" fontId="0" fillId="0" borderId="'+newBorderId+'" xfId="0" applyBorder="1"/>';
+              var xfsMatch = stylesXml.match(/<cellXfs\s+count="(\d+)">([\s\S]*?)<\/cellXfs>/);
+              if (xfsMatch) {
+                borderStyleId = parseInt(xfsMatch[1], 10);
+                var newXfsBlock = '<cellXfs count="'+(borderStyleId+1)+'">' + xfsMatch[2] + newXfXml + '</cellXfs>';
+                stylesXml = stylesXml.replace(xfsMatch[0], newXfsBlock);
+                // 写入 marker（注释放在文件开头紧跟 xml 声明后）
+                stylesXml = stylesXml.replace(/(<\?xml[^?]*\?>)/, '$1<!--BOM_BORDER_INJECTED:'+borderStyleId+'-->');
+                zip.file('xl/styles.xml', stylesXml);
+              }
+            }
+            // 暴露给后面的数据行生成代码用
+            window.__BOM_BORDER_STYLE_ID = borderStyleId;
           // 提取 sheetData 内的 row
           var sheetDataMatch = sheetXml.match(/<sheetData>([\s\S]*?)<\/sheetData>/);
           if (!sheetDataMatch) throw new Error('BOM sheet 缺 sheetData 节点');
@@ -1224,14 +1273,16 @@ function patchAndDownloadXlsx(rawArrayBuffer, dataRows, enrichStats, enrichDetai
             if (snIdx >= 0 && (row[snIdx] === '' || row[snIdx] === null || row[snIdx] === undefined)) {
               row[snIdx] = i + 1;
             }
+            // 行内每个 cell 加边框样式（仅有内容的数据行）
+            var sAttr = (window.__BOM_BORDER_STYLE_ID >= 0) ? ' s="'+window.__BOM_BORDER_STYLE_ID+'"' : '';
             var cells = row.map(function(v, c){
               if (v === '' || v === null || v === undefined) return '';
               var addr = colLetter(c) + rowNum;
               if (typeof v === 'number' && !isNaN(v)) {
-                return '<c r="'+addr+'"><v>'+v+'</v></c>';
+                return '<c r="'+addr+'"'+sAttr+'><v>'+v+'</v></c>';
               }
               // inline string，避免 sharedStrings 冲突
-              return '<c r="'+addr+'" t="inlineStr"><is><t>'+xmlEscape(v)+'</t></is></c>';
+              return '<c r="'+addr+'"'+sAttr+' t="inlineStr"><is><t>'+xmlEscape(v)+'</t></is></c>';
             }).join('');
             return '<row r="'+rowNum+'">'+cells+'</row>';
           }).join('');
@@ -1249,8 +1300,45 @@ function patchAndDownloadXlsx(rawArrayBuffer, dataRows, enrichStats, enrichDetai
 
           zip.file(sheetPath, newSheetXml);
 
+          // 3.2) 板卡信息字符串替换（封面页 + 单板BOM 表头）
+          // 在 sharedStrings.xml 和所有 sheet XML 的 inline string 里做全局替换
+          var replacePromise = Promise.resolve();
+          if (replacePairs && replacePairs.length) {
+            function doReplace(text) {
+              replacePairs.forEach(function(p){
+                if (!p.from || !p.to) return;
+                // 转义正则特殊字符
+                var escFrom = p.from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                text = text.replace(new RegExp(escFrom, 'g'), p.to);
+              });
+              return text;
+            }
+            // 替换 sharedStrings.xml（如果有）
+            var ssFile = zip.file('xl/sharedStrings.xml');
+            if (ssFile) {
+              replacePromise = replacePromise.then(function(){
+                return ssFile.async('string').then(function(ss){
+                  zip.file('xl/sharedStrings.xml', doReplace(ss));
+                });
+              });
+            }
+            // 替换所有 sheet 的 inline strings（重新读 sheetPath，因为前面刚写过）
+            // 这里只替换封面 sheet1.xml 即可（单板BOM 数据已是我们新生成的）
+            var coverFile = zip.file('xl/worksheets/sheet1.xml');
+            if (coverFile && sheetPath !== 'xl/worksheets/sheet1.xml') {
+              replacePromise = replacePromise.then(function(){
+                return coverFile.async('string').then(function(cx){
+                  zip.file('xl/worksheets/sheet1.xml', doReplace(cx));
+                });
+              });
+            }
+          }
+
           // 4) 追加"补齐报告"sheet
-          return appendReportSheet(zip, enrichStats, enrichDetails);
+          return replacePromise.then(function(){
+            return appendReportSheet(zip, enrichStats, enrichDetails);
+          });
+          });  // 闭合 styles.xml then
         });
       });
     }).then(function(){
@@ -1273,8 +1361,9 @@ function patchAndDownloadXlsx(rawArrayBuffer, dataRows, enrichStats, enrichDetai
           + '  L3 规范化容差：'+enrichStats.l3+'\n'
           + '  未命中：'+enrichStats.l0+'\n\n'
           + '🔧 共补齐 '+enrichStats.filled+' 个字段\n'
-          + '📁 输出：封面（含 LOGO）+ 单板BOM（原样表头）+ 补齐报告\n\n'
-          + '💡 请打开文件修改封面上的板卡名/ERP/版本号');
+          + '📦 单位已统一为 PCS，数据行已加边框\n'
+          + '🏷️ 板卡名/ERP 已按 B 文件名自动替换\n'
+          + '📁 输出：封面（含 LOGO）+ 单板BOM + 补齐报告');
       } else {
         alert('⚠️ 物料库为空，已按 A 模板整理格式但未补齐字段。\n建议先导入器件BOM库。');
       }
@@ -1403,6 +1492,8 @@ function fmt(dir){
     for (var k in u) clone[k] = u[k];
     // 净化原始参数描述（消除历史 | 分隔脏数据）
     if (clone['参数描述']) clone['参数描述'] = cleanSpec(clone['参数描述']);
+    // 强制单位为 PCS（按 A BOM 标准）
+    clone['单位'] = 'PCS';
 
     var emptyBefore = [];
     ['物料编码','物料名称','参数描述','品牌','立创编号'].forEach(function(f){
@@ -1434,7 +1525,21 @@ function fmt(dir){
   // ========== 方案 A：AB 方向且 A 有原始字节 → JSZip 原地改 xlsx，保留封面 LOGO + 表头 + 样式 ==========
   if (dir === 'AB' && A._raw && typeof JSZip !== 'undefined') {
     try {
-      patchAndDownloadXlsx(A._raw, rows, enrichStats, enrichDetails, dl, tl, hd);
+      // 计算板卡信息替换对（A → B）
+      var aInfo = extractBoardInfo(A._fn || '');
+      var bInfo = extractBoardInfo(B._fn || '');
+      var replacePairs = [];
+      if (aInfo && bInfo) {
+        // ERP 直接替换
+        if (aInfo.erp && bInfo.erp && aInfo.erp !== bInfo.erp) {
+          replacePairs.push({from: aInfo.erp, to: bInfo.erp});
+        }
+        // TP 代号替换（这样 TP5702-18主板PCBA → TP5702-14主板PCBA、TP5702-18主板 → TP5702-14主板 都覆盖）
+        if (aInfo.tp && bInfo.tp && aInfo.tp !== bInfo.tp) {
+          replacePairs.push({from: aInfo.tp, to: bInfo.tp});
+        }
+      }
+      patchAndDownloadXlsx(A._raw, rows, enrichStats, enrichDetails, dl, tl, hd, replacePairs);
       return;
     } catch (err) {
       console.error('模板 JSZip 复现失败，降级：', err);
@@ -1952,7 +2057,7 @@ function batchAutoFillAll(){
 </div>
 <footer class="site-footer">
   <div class="tag">用 科 技 打 开 想 象 力</div>
-  <div>© 2026 技象科技 · 研发BOM 整理神器 v1.0.7</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 v1.0.8</div>
 </footer>
 </body>
 </html>
