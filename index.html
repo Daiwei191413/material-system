@@ -1174,7 +1174,16 @@ function extractBoardInfo(filename) {
   };
 }
 
-function patchAndDownloadXlsx(rawArrayBuffer, dataRows, enrichStats, enrichDetails, dlLabel, tlLabel, templateHeaders, replacePairs){
+// 清洗 B 文件名：去扩展名 + 去"立创BOM/嘉立创BOM/立创BOMxls"等后缀
+function cleanBomFilename(filename) {
+  if (!filename) return 'BOM';
+  var name = filename.replace(/\.[^.]+$/, '');  // 去扩展名
+  name = name.replace(/[\s_-]*(?:嘉)?立创BOM(?:xls)?$/i, '');  // 去末尾立创BOM
+  name = name.replace(/[\s_-]+$/, '');  // 去末尾分隔符
+  return name || 'BOM';
+}
+
+function patchAndDownloadXlsx(rawArrayBuffer, dataRows, enrichStats, enrichDetails, dlLabel, tlLabel, templateHeaders, replacePairs, outFilename){
   return JSZip.loadAsync(rawArrayBuffer).then(function(zip){
     // 1) 读 workbook.xml 找出 BOM sheet 对应的 sheetN.xml
     return zip.file('xl/workbook.xml').async('string').then(function(wbXml){
@@ -1361,7 +1370,7 @@ function patchAndDownloadXlsx(rawArrayBuffer, dataRows, enrichStats, enrichDetai
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
       a.href = url;
-      a.download = dlLabel + '整理后_按' + tlLabel + '格式（含封面）.xlsx';
+      a.download = outFilename || (dlLabel + '整理后_按' + tlLabel + '格式（含封面）.xlsx');
       document.body.appendChild(a);
       a.click();
       setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
@@ -1550,7 +1559,9 @@ function fmt(dir){
           replacePairs.push({regex: /TP\d+(?:[-_][A-Za-z0-9]+){0,2}/g, to: bInfo.tp});
         }
       }
-      patchAndDownloadXlsx(A._raw, rows, enrichStats, enrichDetails, dl, tl, hd, replacePairs);
+      // 生成新文件名：B BOM + 清洗后的 B 原文件名
+      var outFilename = 'B BOM ' + cleanBomFilename(B._fn || '') + '.xlsx';
+      patchAndDownloadXlsx(A._raw, rows, enrichStats, enrichDetails, dl, tl, hd, replacePairs, outFilename);
       return;
     } catch (err) {
       console.error('模板 JSZip 复现失败，降级：', err);
