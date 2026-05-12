@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V1.0.0</title>
+<title>技象科技研发BOM 整理神器 V1.0.1</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V1.0.0</h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V1.0.1</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -971,6 +971,39 @@ function detectMaterialType(row){
   if (/电感|inductor|磁珠|ferrite|共模|滤波/i.test(name)) return 'inductor';
   if (/^\d+(\.\d+)?\s*(NH|UH|MH)/i.test(model)) return 'inductor';
   return 'other';
+}
+
+// ==================== A 标准型号规范化 ====================
+// 规则（来自 A BOM 实际样本）：
+//   电容：{容值} SC{封装}    例如 1nF SC0402、2.2uF SC0402
+//   电阻：{阻值} SR{封装}    例如 10K SR0402、0R SR0402
+// 严格规则：
+//   - 已含 SC/SR 后缀 → 跳过（避免重复拼接）
+//   - 品类非电容/电阻 → 保留原样（电感/磁珠/IC 等本次不动）
+//   - 封装取不到 → 保留原样（不编造）
+//   - 原型号为空 → 保留空
+function standardizeModel(row){
+  var model = String(row['型号'] || '').trim();
+  if (!model) return model;
+
+  // 已含 SC/SR + 3-4 位数字后缀 → 认为已规范，跳过
+  if (/\b(SC|SR)\d{3,4}\b/i.test(model)) return model;
+
+  var type = detectMaterialType(row);
+  if (type !== 'capacitor' && type !== 'resistor') return model;
+
+  var size = extractSize(row);
+  if (!size) return model;  // 缺封装，保留原样
+
+  // 电阻特殊：纯数字阻值（如 "100" → "100Ω" 的纯数字）保留；"0" 统一成 "0R"
+  var cleanModel = model;
+  if (type === 'resistor') {
+    // 纯 "0" 规范成 "0R"（A 样本里 0 欧姆写作 0R）
+    if (/^0$/.test(cleanModel)) cleanModel = '0R';
+  }
+
+  var prefix = (type === 'capacitor') ? 'SC' : 'SR';
+  return cleanModel + ' ' + prefix + size;
 }
 
 // 转 A 风格 · 电容：MLCC {容值} {精度} {电压} {介质} SMD {封装}
@@ -1786,6 +1819,12 @@ function fmt(dir){
     // 确保即使未命中库、但已有 spec（来自立创/手填）也按 A BOM 输出
     if (clone['参数描述']) clone['参数描述'] = toAStyleSpec(clone['参数描述'], clone);
 
+    // A 标准型号规范化（电容加 SC/电阻加 SR + 封装后缀）
+    // 放在参数描述之后，避免影响上游对"型号"的解析
+    if (dir === 'AB') {
+      clone['型号'] = standardizeModel(clone);
+    }
+
     var r = [];
     hd.forEach(function(h){
       var s = rev[h];
@@ -2378,7 +2417,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.0 · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.1 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools.pages.dev</a></div>
 </footer>
 </body>

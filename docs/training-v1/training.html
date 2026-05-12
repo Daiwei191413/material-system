@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>BOM 整理神器 V1.0.0 使用说明</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+    color: #222;
+    line-height: 1.65;
+    font-size: 11.5pt;
+    margin: 0;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 3px solid #0078b8;
+    padding-bottom: 10px;
+    margin-bottom: 16px;
+  }
+  .brand .logo { height: 48px; }
+  .brand .meta { text-align: right; font-size: 10pt; color: #666; }
+  .brand .meta b { color: #0078b8; font-size: 12pt; }
+
+  h1 {
+    font-size: 22pt;
+    color: #0078b8;
+    margin: 8px 0 4px;
+  }
+  h1 small { font-size: 12pt; color: #666; font-weight: normal; margin-left: 8px; }
+  h2 {
+    font-size: 14pt;
+    color: #0078b8;
+    border-left: 4px solid #0078b8;
+    padding-left: 10px;
+    margin: 22px 0 10px;
+  }
+  h3 { font-size: 12pt; margin: 14px 0 6px; color: #005a8a; }
+
+  .lead {
+    background: #f0f7fb;
+    border-left: 3px solid #0078b8;
+    padding: 10px 14px;
+    margin: 12px 0 18px;
+    font-size: 11pt;
+    color: #333;
+  }
+  .lead a { color: #0078b8; text-decoration: none; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0 12px;
+    font-size: 10.5pt;
+  }
+  th, td {
+    border: 1px solid #dbe3eb;
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: #f0f7fb;
+    color: #0078b8;
+    font-weight: 600;
+  }
+
+  ol, ul { margin: 6px 0 10px; padding-left: 22px; }
+  li { margin: 3px 0; }
+
+  .step {
+    display: flex;
+    gap: 12px;
+    background: #fafbfc;
+    border: 1px solid #e4e9ee;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 8px 0;
+  }
+  .step .n {
+    flex: 0 0 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #0078b8;
+    color: #fff;
+    text-align: center;
+    line-height: 32px;
+    font-weight: 700;
+  }
+  .step .body { flex: 1; }
+  .step h3 { margin: 0 0 2px; color: #222; font-size: 11.5pt; }
+  .step p { margin: 2px 0; font-size: 10.5pt; color: #555; }
+
+  .kbd {
+    display: inline-block;
+    background: #eef2f5;
+    border: 1px solid #cfd7df;
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-family: Menlo, Consolas, monospace;
+    font-size: 10pt;
+    color: #005a8a;
+  }
+  .tag { background: #0078b8; color: #fff; padding: 1px 6px; border-radius: 3px; font-size: 9.5pt; }
+  .tag.warn { background: #e67e22; }
+  .tag.ok { background: #1abc9c; }
+
+  .tip {
+    background: #fff8e1;
+    border-left: 3px solid #f39c12;
+    padding: 8px 12px;
+    margin: 10px 0;
+    font-size: 10.5pt;
+  }
+
+  .footer {
+    margin-top: 20px;
+    padding-top: 10px;
+    border-top: 1px solid #e4e9ee;
+    font-size: 9.5pt;
+    color: #888;
+    text-align: center;
+  }
+  .no-break { page-break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<div class="brand">
+  <img src="assets/logo.jpg" class="logo" alt="技象科技">
+  <div class="meta">
+    <b>研发 BOM 整理神器 V1.0.0</b><br>
+    使用说明 · 2026
+  </div>
+</div>
+
+<h1>⚡ BOM 整理神器 <small>快速上手</small></h1>
+
+<div class="lead">
+  一款浏览器端的 BOM 对比 + 自动补齐工具，用来把"客户/开发给的乱格式 BOM"统一整理成公司标准格式，
+  不用装任何软件，打开即用：<br>
+  🔗 <a href="https://techphant-bom-tools.pages.dev">https://techphant-bom-tools.pages.dev</a>
+</div>
+
+<h2>① 它能做什么</h2>
+<ul>
+  <li><b>BOM 对比</b>：上传两份 BOM，自动找出差异（字段变更/独有物料）并标红</li>
+  <li><b>一键整理</b>：按 A 模板的标准格式整理 B，自动补齐物料名称、参数描述、品牌等字段</li>
+  <li><b>物料库沉淀</b>：导入的物料自动存浏览器，下次打开免重复导入；A BOM 上传后新料也会自动进库</li>
+  <li><b>立创联动</b>：带立创编号的物料一键拉真实参数（厂家/封装/规格）</li>
+  <li><b>输出 Excel</b>：整理后直接下载，可提交客户或归档</li>
+</ul>
+
+<h2>② 基本操作（3 步走）</h2>
+
+<div class="step no-break">
+  <div class="n">1</div>
+  <div class="body">
+    <h3>导入物料库（只需第一次）</h3>
+    <p>进入 <span class="kbd">📦 物料编码</span> 页 → 点 <span class="tag">📥 导入物料库 Excel</span> → 选择公司的 <b>器件BOM库.xlsx</b>。</p>
+    <p>导入后数据持久化在浏览器里，下次打开不用再导。页面会显示"已加载 XXX 条物料"。</p>
+  </div>
+</div>
+
+<div class="step no-break">
+  <div class="n">2</div>
+  <div class="body">
+    <h3>上传两份 BOM</h3>
+    <p>切到 <span class="kbd">🔍 BOM对比</span> 页，分别上传：</p>
+    <p>· <b>BOM A（基准版本）</b>：作为输出标准的模板，通常是公司内部标准 BOM</p>
+    <p>· <b>BOM B（对比版本）</b>：需要整理/核对的来料 BOM</p>
+    <p>支持 <span class="kbd">.xlsx / .xls / .csv</span>。A 上传后里面的新物料会<b>自动增量入库</b>（按型号+封装去重，已有不覆盖）。</p>
+  </div>
+</div>
+
+<div class="step no-break">
+  <div class="n">3</div>
+  <div class="body">
+    <h3>对比 + 整理 + 导出</h3>
+    <p>点 <span class="tag">🔍 开始对比</span> 查看差异总览和明细；确认无误后点 <span class="tag" style="background:#9b59b6">✨ 按A格式整理B</span>，
+    系统会用物料库 + 立创数据自动补齐字段，输出一份 <b>标准格式 Excel</b>，文件名会自动清洗（去掉"立创BOM"等后缀）。</p>
+  </div>
+</div>
+
+<h2>③ 界面速查</h2>
+
+<table>
+  <thead>
+    <tr><th style="width:160px">按钮</th><th>用途</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>📥 导入物料库 Excel</td><td>手动导入公司器件 BOM 库（首次使用必做）</td></tr>
+    <tr><td>📤 导出物料库</td><td>把当前物料库导出备份，换电脑时用</td></tr>
+    <tr><td>✨ 一键修复参数格式</td><td>把老数据里不规范的参数描述批量净化成标准 A 格式</td></tr>
+    <tr><td>🗑️ 清空数据</td><td>清空本地物料库（谨慎操作，不可恢复）</td></tr>
+    <tr><td>🔍 开始对比</td><td>上传完 A/B 后点它，看差异报告</td></tr>
+    <tr><td>📥 导出报告</td><td>把对比差异导成 Excel，方便走评审</td></tr>
+    <tr><td>✨ 按A格式整理B</td><td><b>核心功能</b>：按 A 模板整理 B 并补齐参数</td></tr>
+    <tr><td>🛒 立创查询清单</td><td>对未命中物料批量拉立创真实参数</td></tr>
+  </tbody>
+</table>
+
+<h2>④ 三级匹配策略</h2>
+<div class="lead" style="margin-top:6px">
+  物料从 A 整理到输出时，系统按"<b>精度优先</b>"逐级尝试匹配物料库：
+</div>
+<table>
+  <thead><tr><th style="width:80px">等级</th><th style="width:180px">依据</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td><span class="tag">L1</span></td><td>立创编号精确匹配</td><td>最高优先级，立创编号一致直接命中</td></tr>
+    <tr><td><span class="tag">L2</span></td><td>型号 + 封装 复合键</td><td>没立创号时用"型号+封装"双字段配对</td></tr>
+    <tr><td><span class="tag">L3</span></td><td>规范化型号容差</td><td>型号前缀/后缀差异容错，仅在封装兼容时生效</td></tr>
+    <tr><td><span class="tag warn">未命中</span></td><td>—</td><td>系统不会编造，保留原始描述让你人工补齐或走"批量一键补齐"拉立创</td></tr>
+  </tbody>
+</table>
+
+<h2>⑤ 参数描述规则（精度优先·不编造）</h2>
+<ul>
+  <li>电容/电阻的 <b>精度、电压、介质、功率</b> 必须来自 <b>BOM 库</b> 或 <b>立创实际数据</b>，缺任一字段 → 保留原始描述，不兜底猜</li>
+  <li>容值/阻值可从型号回退（比如 <span class="kbd">10K</span>、<span class="kbd">100NF</span> 这种型号自带信息）</li>
+  <li>功率只做单位换算（<span class="kbd">62.5mW → 1/16W</span>），不按封装"默认假设"</li>
+  <li>输出格式示例：<span class="kbd">MLCC 1.2pF ±0.1pF 50V NPO SMD 0402</span></li>
+</ul>
+
+<h2>⑥ 常见问题</h2>
+<table>
+  <thead><tr><th style="width:220px">问题</th><th>解决办法</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>页面看到的版本号不是 V1.0.0</td>
+      <td>按 <span class="kbd">Ctrl + F5</span> 强刷一次（浏览器缓存）</td>
+    </tr>
+    <tr>
+      <td>点「一键补齐」报 "Failed to fetch"</td>
+      <td>刷新页面重试；持续失败联系 David.hao</td>
+    </tr>
+    <tr>
+      <td>清空数据后物料库空了</td>
+      <td>之前导出过备份就用 <b>导入物料库 Excel</b> 恢复；没备份只能重新导</td>
+    </tr>
+    <tr>
+      <td>某物料一直未命中</td>
+      <td>先看"匹配详情"里缺什么字段；有立创编号的点「批量一键补齐」；没立创编号的去立创搜一下手动贴参数</td>
+    </tr>
+    <tr>
+      <td>整理后某字段是空的</td>
+      <td>说明 BOM 库 + 立创都没提供这个字段的数据，工具不编造，请人工核对补齐</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="tip">
+  <b>小建议：</b>物料库用得越多越准。第一次用可以先把公司最新的 <b>器件BOM库.xlsx</b> 导一次，
+  之后每处理一份新 A BOM 都会自动沉淀新物料，下次匹配命中率会越来越高。
+</div>
+
+<div class="footer">
+  © 2026 技象科技 · 研发BOM 整理神器 V1.0.0 · 开发：David.hao · 反馈请联系技术团队
+</div>
+
+</body>
+</html>
