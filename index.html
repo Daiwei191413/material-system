@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V2.0.3</title>
+<title>技象科技研发BOM 整理神器 V2.0.4</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V2.0.3</h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V2.0.4</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -855,6 +855,177 @@ function cleanSpec(s){
   return s;
 }
 
+// ==================== A BOM 风格参数描述 转换器 ====================
+// 把"字段：值, 字段：值"格式反解析成对象
+function parseSpecFields(s){
+  if (!s) return {};
+  s = cleanSpec(s);
+  var obj = {};
+  // 按 ", " 分隔，每段取 "字段名：值"
+  s.split(/\s*,\s*/).forEach(function(seg){
+    var m = seg.match(/^([^：:]+?)\s*[：:]\s*(.+)$/);
+    if (m) obj[m[1].trim()] = m[2].trim();
+  });
+  return obj;
+}
+
+// 从 row 提取封装（去除 SC/SR/LED 前缀）
+function extractSize(row){
+  var p = String(row['封装'] || '').toUpperCase();
+  var m = p.match(/(0201|0402|0603|0805|1206|1210|2010|2512)/);
+  if (m) return m[1];
+  // 从型号兜底
+  var mod = String(row['型号'] || '').toUpperCase();
+  m = mod.match(/(0201|0402|0603|0805|1206|1210|2010|2512)/);
+  return m ? m[1] : '';
+}
+
+// 判断物料类型（电容/电阻/电感/其他）
+function detectMaterialType(row){
+  var name = String(row['物料名称'] || '').toLowerCase();
+  var model = String(row['型号'] || '').toUpperCase();
+  // 电容（含 MLCC、贴片电容、铝电解、钽电容等）
+  if (/电容|capacitor|mlcc/i.test(name)) return 'capacitor';
+  if (/^\d+(\.\d+)?\s*(UF|NF|PF|μF)/i.test(model)) return 'capacitor';
+  // 电阻（含厚膜、薄膜、贴片电阻等）
+  if (/电阻|resistor/i.test(name)) return 'resistor';
+  if (/^(\d+(?:\.\d+)?[KMR](\s|$)|0R(\s|$))/.test(model)) return 'resistor';
+  // 电感（含磁珠、电感、共模等都按电感格式）
+  if (/电感|inductor|磁珠|ferrite|共模|滤波/i.test(name)) return 'inductor';
+  if (/^\d+(\.\d+)?\s*(NH|UH|MH)/i.test(model)) return 'inductor';
+  return 'other';
+}
+
+// 转 A 风格 · 电容：MLCC {容值} {精度} {电压} {介质} SMD {封装}
+function aStyleCapacitor(fields, row){
+  var size = extractSize(row);
+  if (!size) return null;
+  var cap = fields['容值'] || fields['电容值'] || '';
+  if (!cap) {
+    // 从型号回退
+    var m = String(row['型号'] || '').match(/(\d+(?:\.\d+)?\s*(?:UF|NF|PF|μF))/i);
+    if (m) cap = m[1].replace(/\s+/g, '').replace(/μ/g, 'u').replace(/UF$/i, 'uF').replace(/NF$/i, 'nF').replace(/PF$/i, 'pF');
+  }
+  if (!cap) return null;
+  // 单位规范化
+  cap = cap.replace(/UF$/i, 'uF').replace(/NF$/i, 'nF').replace(/PF$/i, 'pF').replace(/μ/g, 'u');
+  var tol = fields['精度'] || fields['容差'] || '±10%';
+  var volt = fields['额定电压'] || fields['电压'] || '50V';
+  var diel = fields['温度系数'] || fields['介质材料'] || fields['介质'] || '';
+  if (!diel) {
+    // 按容值范围猜介质：pF→NPO，nF/uF小→X7R，uF大→X5R
+    if (/PF/i.test(cap)) diel = 'NPO';
+    else if (/UF/i.test(cap)) diel = 'X5R';
+    else diel = 'X7R';
+  }
+  return 'MLCC ' + cap + ' ' + tol + ' ' + volt + ' ' + diel + ' SMD ' + size;
+}
+
+// 转 A 风格 · 电阻：厚膜电阻 {阻值} {精度} {功率} SMD {封装}
+function aStyleResistor(fields, row){
+  var size = extractSize(row);
+  if (!size) return null;
+  var rval = fields['阻值'] || fields['电阻值'] || '';
+  if (!rval) {
+    // 从型号回退："10K"→10KΩ，"100R"→100Ω，"2K2"→2.2KΩ
+    var M = String(row['型号'] || '').toUpperCase().trim();
+    if (/^0R(\s|$)/.test(M)) rval = '0Ω';
+    else {
+      var compM = M.match(/^(\d+)([KM])(\d+)(\s|$)/); // 2K2 → 2.2K
+      if (compM) rval = compM[1] + '.' + compM[3] + compM[2] + 'Ω';
+      else {
+        var rm = M.match(/^(\d+(?:\.\d+)?)([KMR])(\s|$)/);
+        if (rm) {
+          var v = rm[1], u = rm[2];
+          if (u === 'K') rval = v + 'KΩ';
+          else if (u === 'M') rval = v + 'MΩ';
+          else rval = v + 'Ω';
+        }
+      }
+    }
+  }
+  if (!rval) return null;
+  // 单位规范化（kΩ → KΩ，没Ω加Ω）
+  rval = rval.replace(/k(?=Ω|$)/g, 'K').replace(/m(?=Ω|$)/g, 'M');
+  if (!/Ω/.test(rval)) rval += 'Ω';
+  var tol = fields['精度'] || '±1%';
+  // 功率：62.5mW → 1/16W；100mW → 1/10W；250mW → 1/4W
+  var power = fields['功率'] || '1/16W';
+  if (/62\.5\s*mW/i.test(power)) power = '1/16W';
+  else if (/100\s*mW/i.test(power)) power = '1/10W';
+  else if (/125\s*mW/i.test(power)) power = '1/8W';
+  else if (/250\s*mW/i.test(power)) power = '1/4W';
+  else if (/500\s*mW/i.test(power)) power = '1/2W';
+  // 0402→1/16W, 0603→1/10W, 0805→1/8W 兜底
+  if (!fields['功率']) {
+    if (size === '0402') power = '1/16W';
+    else if (size === '0603') power = '1/10W';
+    else if (size === '0805') power = '1/8W';
+  }
+  return '厚膜电阻 ' + rval + ' ' + tol + ' ' + power + ' SMD ' + size;
+}
+
+// 转 A 风格 · 电感：电感值：{}, 精度：{}, 额定电流：{}, 直流电阻(DCR)：{}, 封装：{}, Q值：{}
+// 兼容磁珠（用阻抗替代电感值、RDC 替代 DCR）
+function aStyleInductor(fields, row){
+  var parts = [];
+  var name = String(row['物料名称'] || '');
+  var isFerrite = /磁珠|ferrite/i.test(name);
+  // 主参数：电感值 / 阻抗（磁珠）
+  var L = fields['电感值'] || fields['电感量'] || '';
+  if (!L) {
+    var m = String(row['型号'] || '').match(/(\d+(?:\.\d+)?\s*(?:NH|UH|MH))/i);
+    if (m) L = m[1].replace(/\s+/g, '').replace(/NH$/i, 'nH').replace(/UH$/i, 'uH').replace(/MH$/i, 'mH');
+  }
+  // 磁珠从 spec 里找 "120Ω@100MHz" 这种
+  if (!L && isFerrite) {
+    var imp = fields['阻抗'] || fields['阻抗@频率'] || '';
+    if (!imp) {
+      var impM = String(row['参数描述'] || '').match(/(\d+(?:\.\d+)?\s*Ω\s*@\s*\d+\s*MHz)/i);
+      if (impM) imp = impM[1].replace(/\s+/g, '');
+    }
+    if (imp) parts.push('阻抗：' + imp);
+  } else if (L) {
+    parts.push('电感值：' + L);
+  }
+  // 精度（兼容 误差/容差）
+  var tol = fields['精度'] || fields['容差'] || fields['误差'] || '';
+  if (tol) parts.push('精度：' + tol);
+  // 额定电流
+  if (fields['额定电流']) parts.push('额定电流：' + fields['额定电流']);
+  // 饱和电流
+  if (fields['饱和电流(Isat)'] || fields['饱和电流']) parts.push('饱和电流(Isat)：' + (fields['饱和电流(Isat)'] || fields['饱和电流']));
+  // 直流电阻（兼容 DCR/RDC）
+  var dcr = fields['直流电阻(DCR)'] || fields['直流电阻(RDC)'] || fields['直流电阻'] || fields['DCR'] || fields['RDC'] || '';
+  if (dcr) {
+    var dcrLabel = isFerrite ? '直流电阻(RDC)' : '直流电阻(DCR)';
+    parts.push(dcrLabel + '：' + dcr);
+  }
+  // 封装
+  var size = extractSize(row);
+  if (size) parts.push('封装：' + size);
+  // Q 值（仅电感，磁珠不需要）
+  if (!isFerrite && (fields['Q值'] || fields['品质因数'])) {
+    parts.push('Q值：' + (fields['Q值'] || fields['品质因数']));
+  }
+  // 类型（绕线/环形/叠层）
+  if (fields['类型']) parts.push('类型：' + fields['类型']);
+  return parts.length >= 2 ? parts.join(', ') : null;
+}
+
+// 主入口：把任意参数描述转成 A BOM 风格（电容/电阻/电感按紧凑式，其它保留原样）
+function toAStyleSpec(spec, row){
+  if (!spec || !row) return spec;
+  var type = detectMaterialType(row);
+  if (type === 'other') return cleanSpec(spec);
+  var fields = parseSpecFields(spec);
+  var aStyle = null;
+  if (type === 'capacitor') aStyle = aStyleCapacitor(fields, row);
+  else if (type === 'resistor') aStyle = aStyleResistor(fields, row);
+  else if (type === 'inductor') aStyle = aStyleInductor(fields, row);
+  return aStyle || cleanSpec(spec);
+}
+
 // 补齐：把 hit 的字段回填到 row（不覆盖已有非空字段）
 function enrichRow(row, hit){
   var fields = [
@@ -874,6 +1045,8 @@ function enrichRow(row, hit){
   });
   // 已有的参数描述也兜底净化一次（消除历史 | 分隔脏数据）
   if (row['参数描述']) row['参数描述'] = cleanSpec(row['参数描述']);
+  // 关键：电容/电阻/电感转 A 风格紧凑式
+  if (row['参数描述']) row['参数描述'] = toAStyleSpec(row['参数描述'], row);
   return row;
 }
 
@@ -1536,6 +1709,10 @@ function fmt(dir){
     else if (mr.level === 3) enrichStats.l3++;
     else enrichStats.l0++;
 
+    // 最终兜底：电容/电阻/电感参数描述转 A 风格紧凑式
+    // 确保即使未命中库、但已有 spec（来自立创/手填）也按 A BOM 输出
+    if (clone['参数描述']) clone['参数描述'] = toAStyleSpec(clone['参数描述'], clone);
+
     var r = [];
     hd.forEach(function(h){
       var s = rev[h];
@@ -1733,12 +1910,14 @@ function applyLcscToRow(item, data){
   if (!row['立创编号'] && data.productCode) row['立创编号'] = data.productCode;
   if (!row['封装'] && data.package) row['封装'] = data.package;
   if (!row['单位'] && data.unit) row['单位'] = data.unit;
+  // 关键：把参数描述转 A 风格紧凑式（电容/电阻/电感）
+  if (row['参数描述']) row['参数描述'] = toAStyleSpec(row['参数描述'], row);
   // 同步存入 MANUAL_DB（下次同型号秒命中，跨 BOM 持续生效）
   MANUAL_DB[manualKey(item.model, item.pkg)] = {
     model: item.model,
     package: item.pkg || data.package || '',
     name: data.productType || '',
-    specification: data.specification || '',
+    specification: row['参数描述'] || data.specification || '',
     brand: data.brand || '',
     lcsc_code: data.productCode || '',
     material_code: '',
@@ -2126,7 +2305,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.3 · 开发者：郝戴纬</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.4 · 开发者：郝戴纬</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools.pages.dev</a></div>
 </footer>
 </body>
