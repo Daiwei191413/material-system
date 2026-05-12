@@ -7,7 +7,7 @@
  *       GET /batch?codes=C431542,C1523,C25744   (逗号分隔，最多 30 个)
  *       GET /health
  * 
- * 版本：v1.0.6（参数描述格式对齐 A BOM：字段：值, 字段：值 逗号分隔）
+ * 版本：v1.0.7（CORS 白名单增加 techphant-bom-tools.pages.dev 及预览分支）
  * 部署：wrangler deploy
  * 作者：开发助理 (hdv_dev_bot) for 戴纬哥 · 技象科技
  */
@@ -16,6 +16,7 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 
 // 允许跨域的域名白名单
 const ALLOWED_ORIGINS = [
+  'https://techphant-bom-tools.pages.dev',
   'https://daiwei191413.github.io',
   'http://localhost:8765',
   'http://127.0.0.1:8765',
@@ -23,8 +24,16 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:3000',
 ];
 
+// 通配后缀（CF Pages 预览分支：xxx.techphant-bom-tools.pages.dev）
+const ALLOWED_ORIGIN_SUFFIXES = [
+  '.techphant-bom-tools.pages.dev',
+];
+
 const CORS_HEADERS_FACTORY = (origin) => {
-  const allow = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  // 精确匹配或后缀匹配（支持 CF Pages 预览分支）
+  var isAllowed = ALLOWED_ORIGINS.includes(origin) ||
+                  ALLOWED_ORIGIN_SUFFIXES.some(function(suf){ return origin.endsWith(suf); });
+  const allow = isAllowed ? origin : ALLOWED_ORIGINS[0];
   return {
     'Access-Control-Allow-Origin': allow,
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
