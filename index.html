@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V2.0.6</title>
+<title>技象科技研发BOM 整理神器 V2.0.7</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V2.0.6</h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V2.0.7</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -205,7 +205,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
       <div class="step">
         <div class="step-num">2</div>
         <h4>上传两份 BOM</h4>
-        <p>在「🔍 BOM对比」页上传 <b>A（模板）</b> 和 <b>B（待整理）</b>。A 的字段格式就是输出的标准格式。</p>
+        <p>在「🔍 BOM对比」页上传 <b>A（模板）</b> 和 <b>B（待整理）</b>。A 的字段格式就是输出的标准格式。<br><span style="color:#1ABC9C;font-weight:600">✨ A 上传后会自动把新物料增量入库（按型号+封装去重，已有不覆盖）</span></p>
         <span class="go" onclick="showPanelDirect('compare')">→ 去上传</span>
       </div>
       <div class="step">
@@ -629,6 +629,56 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 
 // ==================== 上传 ====================
+// A BOM 上传后自动入库：把 A 中"型号+封装"在物料库不存在的物料追加进库
+// 原则：增量合并，不覆盖已有，避免 A 里的脏数据冲掉历史良好记录
+function autoImportFromBom(parsed, sourceName){
+  if (!parsed || !parsed.rows || !parsed.rows.length) return {added:0, skipped:0};
+  var seen = {};
+  materialDB.forEach(function(m){
+    var k = ((m.model||'')+'|'+(m.package||'')).toLowerCase();
+    if (k !== '|') seen[k] = true;
+  });
+  var added = 0, skipped = 0, invalid = 0;
+  parsed.rows.forEach(function(r){
+    var model = (r['型号'] || '').toString().trim();
+    var pkg = (r['封装'] || '').toString().trim();
+    var name = (r['物料名称'] || '').toString().trim();
+    var spec = (r['参数描述'] || '').toString().trim();
+    // 净化参数描述（与手动导入一致）
+    if (spec) spec = cleanSpec(spec);
+    // 关键字段缺失则跳过
+    if (!model && !pkg) { invalid++; return; }
+    if (!model || (!name && !spec)) { invalid++; return; }
+    var k = (model+'|'+pkg).toLowerCase();
+    if (seen[k]) { skipped++; return; }
+    // 立创编号严格只从立创编号列取（与手动导入逻辑一致）
+    var rawLcsc = (r['立创编号'] || '').toString().trim();
+    var lcscClean = '';
+    var lm = rawLcsc.toUpperCase().match(/C\d{3,}/);
+    if (lm) lcscClean = lm[0];
+    materialDB.push({
+      idx: materialDB.length + 1,
+      lcsc_code: lcscClean,
+      model: model,
+      package: pkg,
+      name: name,
+      specification: spec,
+      brand: (r['品牌'] || '').toString().trim(),
+      material_code: (r['物料编码'] || '').toString().trim(),
+      unit: (r['单位'] || 'PCS').toString().trim(),
+      _source: 'bom-auto:' + (sourceName || 'A'),
+      _imported_at: new Date().toLocaleString('zh-CN')
+    });
+    seen[k] = true;
+    added++;
+  });
+  if (added > 0) {
+    saveMaterialDB();
+    loadMaterialTable();
+  }
+  return {added: added, skipped: skipped, invalid: invalid, total: parsed.rows.length};
+}
+
 function bindUpload(btnId,boxId,msgId,fmId,side){
   document.getElementById(btnId).addEventListener('click',function(e){
     e.stopPropagation();
@@ -651,6 +701,15 @@ function bindUpload(btnId,boxId,msgId,fmId,side){
             // 检测数据起始行（hi+1），存模板信息
             A._dataStartRow = p._hi;  // 列头所在行（0-based）
             A._bomSheetName = p._sn;
+            // 关键：A BOM 自动增量入库（不覆盖、按型号+封装去重）
+            try {
+              var imp = autoImportFromBom(p, f.name);
+              if (imp.added > 0) {
+                showAutoImportToast('✨ A BOM 已自动入库 ' + imp.added + ' 条新物料（库内已有 ' + imp.skipped + ' 条跳过）');
+              }
+            } catch(impErr) {
+              console.warn('A BOM 自动入库失败：', impErr);
+            }
           }else{
             B=p;B._fn=f.name
           }
@@ -672,6 +731,24 @@ function bindUpload(btnId,boxId,msgId,fmId,side){
 }
 bindUpload('btnA','boxA','msgA','fmA','A');
 bindUpload('btnB','boxB','msgB','fmB','B');
+
+// 轻量级吐司提示（不打断 alert，3 秒自动消失）
+function showAutoImportToast(msg){
+  var existing = document.getElementById('autoImpToast');
+  if (existing) existing.parentNode.removeChild(existing);
+  var t = document.createElement('div');
+  t.id = 'autoImpToast';
+  t.style.cssText = 'position:fixed;top:80px;right:20px;background:linear-gradient(135deg,#1ABC9C,#16a085);color:#fff;padding:12px 20px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15);font-size:14px;z-index:10000;max-width:360px;line-height:1.5;animation:slideIn 0.3s ease-out';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function(){
+    if (t.parentNode) {
+      t.style.transition = 'opacity 0.4s';
+      t.style.opacity = '0';
+      setTimeout(function(){ if (t.parentNode) t.parentNode.removeChild(t); }, 400);
+    }
+  }, 4000);
+}
 
 // ==================== 解析BOM ====================
 function parse(wb){
@@ -2301,7 +2378,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.6 · 开发者：郝戴纬</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.7 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools.pages.dev</a></div>
 </footer>
 </body>
