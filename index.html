@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V1.0.3</title>
+<title>技象科技研发BOM 整理神器 V1.0.4</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V1.0.3</h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V1.0.4</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1087,52 +1087,75 @@ function aStyleResistor(fields, row){
   return '厚膜电阻 ' + rval + ' ' + tol + ' ' + power + ' SMD ' + size;
 }
 
-// 转 A 风格 · 电感：电感值：{}, 精度：{}, 额定电流：{}, 直流电阻(DCR)：{}, 封装：{}, Q值：{}
-// 兼容磁珠（用阻抗替代电感值、RDC 替代 DCR）
+// 转 A 风格 · 电感/磁珠（A BOM 紧凑式，中文逗号、无字段名前缀）
+// 电感：{物料名称}，{电感值}，{封装}，{精度}，{额定电流}
+//   例：绕线电感，22nH，0402，±5%，310mA
+//   例：贴片电感，1nH，0402，1A（精度缺省省略）
+// 磁珠：磁珠，{阻抗}，直流电阻{DCR}，额定电流{电流}，{封装}封装
+//   例：磁珠，120欧@100MHz，直流电阻160mΩ，额定电流700mA，0201封装
 function aStyleInductor(fields, row){
-  var parts = [];
-  var name = String(row['物料名称'] || '');
-  var isFerrite = /磁珠|ferrite/i.test(name);
-  // 主参数：电感值 / 阻抗（磁珠）
+  var name = String(row['物料名称'] || '').trim();
+  var isFerrite = /磁珠|ferrite|bead/i.test(name);
+
+  // 归一化阻抗：120Ω@100MHz / 120 Ω @100MHz → 120欧@100MHz（A BOM 用"欧"不是"Ω"）
+  function normImp(s){
+    if (!s) return '';
+    return String(s).replace(/\s+/g,'').replace(/Ω/g, '欧').replace(/OHM/gi,'欧');
+  }
+
+  // 归一化电感值：22NH → 22nH
+  function normL(s){
+    if (!s) return '';
+    return String(s).replace(/\s+/g,'').replace(/NH$/i,'nH').replace(/UH$/i,'uH').replace(/MH$/i,'mH').replace(/PH$/i,'pH');
+  }
+
+  var size = extractSize(row);
+
+  if (isFerrite) {
+    // 阻抗
+    var imp = fields['阻抗'] || fields['阻抗@频率'] || fields['阻抗@100MHz'] || '';
+    if (!imp) {
+      var m = String(row['参数描述'] || '').match(/(\d+(?:\.\d+)?\s*(?:Ω|欧)\s*@\s*\d+\s*[MK]?Hz)/i);
+      if (m) imp = m[1];
+    }
+    imp = normImp(imp);
+    // DCR（磁珠字段名常为"直流电阻"或"RDC"）
+    var dcr = fields['直流电阻(RDC)'] || fields['直流电阻'] || fields['RDC'] || fields['DCR'] || '';
+    dcr = String(dcr).replace(/\s+/g,'');
+    // 额定电流
+    var ir = String(fields['额定电流'] || '').replace(/\s+/g,'');
+
+    var parts = ['磁珠'];
+    if (imp) parts.push(imp);
+    if (dcr) parts.push('直流电阻' + dcr);
+    if (ir)  parts.push('额定电流' + ir);
+    if (size) parts.push(size + '封装');
+    // 至少要有"磁珠"+ 2 个字段才算数
+    return parts.length >= 3 ? parts.join('，') : null;
+  }
+
+  // 电感
   var L = fields['电感值'] || fields['电感量'] || '';
   if (!L) {
-    var m = String(row['型号'] || '').match(/(\d+(?:\.\d+)?\s*(?:NH|UH|MH))/i);
-    if (m) L = m[1].replace(/\s+/g, '').replace(/NH$/i, 'nH').replace(/UH$/i, 'uH').replace(/MH$/i, 'mH');
+    var mm = String(row['型号'] || '').match(/(\d+(?:\.\d+)?\s*(?:NH|UH|MH|PH))/i);
+    if (mm) L = mm[1];
   }
-  // 磁珠从 spec 里找 "120Ω@100MHz" 这种
-  if (!L && isFerrite) {
-    var imp = fields['阻抗'] || fields['阻抗@频率'] || '';
-    if (!imp) {
-      var impM = String(row['参数描述'] || '').match(/(\d+(?:\.\d+)?\s*Ω\s*@\s*\d+\s*MHz)/i);
-      if (impM) imp = impM[1].replace(/\s+/g, '');
-    }
-    if (imp) parts.push('阻抗：' + imp);
-  } else if (L) {
-    parts.push('电感值：' + L);
-  }
-  // 精度（兼容 误差/容差）
+  L = normL(L);
+
   var tol = fields['精度'] || fields['容差'] || fields['误差'] || '';
-  if (tol) parts.push('精度：' + tol);
-  // 额定电流
-  if (fields['额定电流']) parts.push('额定电流：' + fields['额定电流']);
-  // 饱和电流
-  if (fields['饱和电流(Isat)'] || fields['饱和电流']) parts.push('饱和电流(Isat)：' + (fields['饱和电流(Isat)'] || fields['饱和电流']));
-  // 直流电阻（兼容 DCR/RDC）
-  var dcr = fields['直流电阻(DCR)'] || fields['直流电阻(RDC)'] || fields['直流电阻'] || fields['DCR'] || fields['RDC'] || '';
-  if (dcr) {
-    var dcrLabel = isFerrite ? '直流电阻(RDC)' : '直流电阻(DCR)';
-    parts.push(dcrLabel + '：' + dcr);
-  }
-  // 封装
-  var size = extractSize(row);
-  if (size) parts.push('封装：' + size);
-  // Q 值（仅电感，磁珠不需要）
-  if (!isFerrite && (fields['Q值'] || fields['品质因数'])) {
-    parts.push('Q值：' + (fields['Q值'] || fields['品质因数']));
-  }
-  // 类型（绕线/环形/叠层）
-  if (fields['类型']) parts.push('类型：' + fields['类型']);
-  return parts.length >= 2 ? parts.join(', ') : null;
+  tol = String(tol).replace(/\s+/g,'');
+  var ir2 = String(fields['额定电流'] || '').replace(/\s+/g,'');
+
+  // 物料名称前缀（绕线电感 / 贴片电感 / 叠层电感 等），缺省用"电感"
+  var prefix = name || '电感';
+
+  var ps = [prefix];
+  if (L) ps.push(L);
+  if (size) ps.push(size);
+  if (tol) ps.push(tol);
+  if (ir2) ps.push(ir2);
+  // 至少要有 L 或 size 才认为有信息
+  return (L || size) ? ps.join('，') : null;
 }
 
 // 主入口：把任意参数描述转成 A BOM 风格（电容/电阻/电感按紧凑式，其它保留原样）
@@ -2439,7 +2462,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.3 · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.4 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools.pages.dev</a></div>
 </footer>
 </body>
