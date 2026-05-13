@@ -1175,20 +1175,22 @@ function toAStyleSpec(spec, row){
 function enrichRow(row, hit){
   var fields = [
     ['物料编码','material_code'],
-    ['物料名称','name'],
-    ['参数描述','specification'],
     ['品牌','brand'],
     ['立创编号','lcsc_code'],
     ['封装','package'],
     ['单位','unit']
   ];
   fields.forEach(function(p){
-    if (!row[p[0]] && hit[p[1]]) {
-      // 参数描述字段做格式净化
-      row[p[0]] = (p[0] === '参数描述') ? cleanSpec(hit[p[1]]) : hit[p[1]];
-    }
+    if (!row[p[0]] && hit[p[1]]) row[p[0]] = hit[p[1]];
   });
-  // 厂家料号（用于电感参数描述 + 磁珠型号的 A 风格替换）
+  // 电感/磁珠：物料名称 + 参数描述都用立创值覆盖（B BOM 常写"功率电感"，A BOM 标准是"绕线电感"；描述常缺精度/电流/DCR）
+  // 其他类型：仅填空，不覆盖（保持精度优先原则）
+  var isInductive = isFerrite(row) || detectMaterialType(row) === 'inductor';
+  if (hit.name && (isInductive || !row['物料名称'])) row['物料名称'] = hit.name;
+  if (hit.specification && (isInductive || !row['参数描述'])) {
+    row['参数描述'] = cleanSpec(hit.specification);
+  }
+  // 厂家料号（用于电感/磁珠型号的 A 风格替换）
   if (hit.mfg_part) row['_mfgPart'] = hit.mfg_part;
   // 已有的参数描述也兜底净化一次（消除历史 | 分隔脏数据）
   if (row['参数描述']) row['参数描述'] = cleanSpec(row['参数描述']);
@@ -2058,14 +2060,21 @@ function applyLcscToRow(item, data){
   if (!data || !data.hit) return false;
   var row = item.row;
   // 仅填空字段，不覆盖用户已填值
-  if (!row['物料名称'] && data.productType) row['物料名称'] = data.productType;
-  if (!row['参数描述'] && data.specification) row['参数描述'] = data.specification;
   if (!row['品牌'] && data.brand) row['品牌'] = data.brand;
   if (!row['立创编号'] && data.productCode) row['立创编号'] = data.productCode;
   if (!row['封装'] && data.package) row['封装'] = data.package;
   if (!row['单位'] && data.unit) row['单位'] = data.unit;
-  // 保存厂家料号（用于电感参数描述 + 磁珠型号的 A 风格替换）
+  // 保存厂家料号（用于电感/磁珠型号的 A 风格替换）
   if (data.productModel) row['_mfgPart'] = data.productModel;
+  // 电感/磁珠：物料名称 + 参数描述都用立创覆盖（B BOM"功率电感"→A BOM"绕线电感"；描述常缺精度/电流/DCR）
+  // 其他类型：仅填空，保持精度优先
+  var isInductive = isFerrite(row) || detectMaterialType(row) === 'inductor';
+  if (data.productType && (isInductive || !row['物料名称'])) {
+    row['物料名称'] = data.productType;
+  }
+  if (data.specification && (isInductive || !row['参数描述'])) {
+    row['参数描述'] = data.specification;
+  }
   // 关键：把参数描述转 A 风格紧凑式（电容/电阻/电感）
   if (row['参数描述']) row['参数描述'] = toAStyleSpec(row['参数描述'], row);
   // 同步存入 MANUAL_DB（下次同型号秒命中，跨 BOM 持续生效）
