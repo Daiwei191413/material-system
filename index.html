@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V1.0.1</title>
+<title>技象科技研发BOM 整理神器 V1.0.2</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V1.0.1</h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V1.0.2</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -973,36 +973,53 @@ function detectMaterialType(row){
   return 'other';
 }
 
+// 是否磁珠（独立判断，不修改 detectMaterialType 主分类）
+function isFerrite(row){
+  var name = String(row['物料名称'] || '').toLowerCase();
+  if (/磁珠|ferrite|bead/i.test(name)) return true;
+  // 从型号兜底（BLM/MMZ/HBL 等磁珠常见前缀）
+  var model = String(row['型号'] || '').toUpperCase();
+  if (/^(BLM|MMZ|HBL|MPZ|BL|FB)/i.test(model)) return true;
+  return false;
+}
+
 // ==================== A 标准型号规范化 ====================
 // 规则（来自 A BOM 实际样本）：
 //   电容：{容值} SC{封装}    例如 1nF SC0402、2.2uF SC0402
 //   电阻：{阻值} SR{封装}    例如 10K SR0402、0R SR0402
+//   电感：{电感值} SL{封装}  例如 22nH SL0402、2.2uH SL0603
+//   磁珠：厂家料号           例如 BLM03PX121SN1D（仅当 _mfgPart 有值时替换）
 // 严格规则：
-//   - 已含 SC/SR 后缀 → 跳过（避免重复拼接）
-//   - 品类非电容/电阻 → 保留原样（电感/磁珠/IC 等本次不动）
+//   - 已含 SC/SR/SL 后缀 → 跳过（避免重复拼接）
+//   - 品类非电容/电阻/电感 → 保留原样
+//   - 磁珠：有厂家料号才替换，没有保留原样
 //   - 封装取不到 → 保留原样（不编造）
 //   - 原型号为空 → 保留空
 function standardizeModel(row){
   var model = String(row['型号'] || '').trim();
+
+  // 磁珠：用厂家料号替换型号
+  if (isFerrite(row)) {
+    var mfg = String(row['_mfgPart'] || '').trim();
+    return mfg || model;  // 没厂家料号就保留原型号
+  }
+
   if (!model) return model;
 
-  // 已含 SC/SR + 3-4 位数字后缀 → 认为已规范，跳过
-  if (/\b(SC|SR)\d{3,4}\b/i.test(model)) return model;
+  // 已含 SC/SR/SL + 3-4 位数字后缀 → 认为已规范，跳过
+  if (/\b(SC|SR|SL)\d{3,4}\b/i.test(model)) return model;
 
   var type = detectMaterialType(row);
-  if (type !== 'capacitor' && type !== 'resistor') return model;
+  if (type !== 'capacitor' && type !== 'resistor' && type !== 'inductor') return model;
 
   var size = extractSize(row);
   if (!size) return model;  // 缺封装，保留原样
 
-  // 电阻特殊：纯数字阻值（如 "100" → "100Ω" 的纯数字）保留；"0" 统一成 "0R"
+  // 电阻特殊：纯 "0" → "0R"（A 样本规范）
   var cleanModel = model;
-  if (type === 'resistor') {
-    // 纯 "0" 规范成 "0R"（A 样本里 0 欧姆写作 0R）
-    if (/^0$/.test(cleanModel)) cleanModel = '0R';
-  }
+  if (type === 'resistor' && /^0$/.test(cleanModel)) cleanModel = '0R';
 
-  var prefix = (type === 'capacitor') ? 'SC' : 'SR';
+  var prefix = (type === 'capacitor') ? 'SC' : (type === 'resistor' ? 'SR' : 'SL');
   return cleanModel + ' ' + prefix + size;
 }
 
@@ -1149,6 +1166,8 @@ function enrichRow(row, hit){
       row[p[0]] = (p[0] === '参数描述') ? cleanSpec(hit[p[1]]) : hit[p[1]];
     }
   });
+  // 厂家料号（用于电感参数描述 + 磁珠型号的 A 风格替换）
+  if (hit.mfg_part) row['_mfgPart'] = hit.mfg_part;
   // 已有的参数描述也兜底净化一次（消除历史 | 分隔脏数据）
   if (row['参数描述']) row['参数描述'] = cleanSpec(row['参数描述']);
   // 关键：电容/电阻/电感转 A 风格紧凑式
@@ -1819,9 +1838,14 @@ function fmt(dir){
     // 确保即使未命中库、但已有 spec（来自立创/手填）也按 A BOM 输出
     if (clone['参数描述']) clone['参数描述'] = toAStyleSpec(clone['参数描述'], clone);
 
-    // A 标准型号规范化（电容加 SC/电阻加 SR + 封装后缀）
+    // A 标准型号规范化 + 电感/磁珠 A 风格字段对调
     // 放在参数描述之后，避免影响上游对"型号"的解析
     if (dir === 'AB') {
+      // 电感：参数描述 = 厂家料号（如 LQW15AN22NJ00D）
+      // 磁珠：型号 = 厂家料号，参数描述保持阻抗文本不变
+      if (!isFerrite(clone) && detectMaterialType(clone) === 'inductor' && clone['_mfgPart']) {
+        clone['参数描述'] = clone['_mfgPart'];
+      }
       clone['型号'] = standardizeModel(clone);
     }
 
@@ -2022,6 +2046,8 @@ function applyLcscToRow(item, data){
   if (!row['立创编号'] && data.productCode) row['立创编号'] = data.productCode;
   if (!row['封装'] && data.package) row['封装'] = data.package;
   if (!row['单位'] && data.unit) row['单位'] = data.unit;
+  // 保存厂家料号（用于电感参数描述 + 磁珠型号的 A 风格替换）
+  if (data.productModel) row['_mfgPart'] = data.productModel;
   // 关键：把参数描述转 A 风格紧凑式（电容/电阻/电感）
   if (row['参数描述']) row['参数描述'] = toAStyleSpec(row['参数描述'], row);
   // 同步存入 MANUAL_DB（下次同型号秒命中，跨 BOM 持续生效）
@@ -2034,6 +2060,7 @@ function applyLcscToRow(item, data){
     lcsc_code: data.productCode || '',
     material_code: '',
     unit: data.unit || 'PCS',
+    mfg_part: data.productModel || '',
     _source: 'lcsc-worker'
   };
   return true;
@@ -2417,7 +2444,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.1 · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.2 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools.pages.dev</a></div>
 </footer>
 </body>
