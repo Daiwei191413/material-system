@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V1.0.2</title>
+<title>技象科技研发BOM 整理神器 V1.0.3</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V1.0.2</h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V1.0.3</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -985,41 +985,40 @@ function isFerrite(row){
 
 // ==================== A 标准型号规范化 ====================
 // 规则（来自 A BOM 实际样本）：
-//   电容：{容值} SC{封装}    例如 1nF SC0402、2.2uF SC0402
+//   电容：{容值} SC{封装}    例如 1nF SC0402
 //   电阻：{阻值} SR{封装}    例如 10K SR0402、0R SR0402
-//   电感：{电感值} SL{封装}  例如 22nH SL0402、2.2uH SL0603
+//   电感：厂家料号           例如 LQW15AN22NJ00D（仅当 _mfgPart 有值时替换）
 //   磁珠：厂家料号           例如 BLM03PX121SN1D（仅当 _mfgPart 有值时替换）
 // 严格规则：
-//   - 已含 SC/SR/SL 后缀 → 跳过（避免重复拼接）
-//   - 品类非电容/电阻/电感 → 保留原样
-//   - 磁珠：有厂家料号才替换，没有保留原样
-//   - 封装取不到 → 保留原样（不编造）
+//   - 已含 SC/SR 后缀（电容电阻）→ 跳过
+//   - 电感/磁珠：有厂家料号才替换，没有保留原样
+//   - 封装取不到（电容电阻）→ 保留原样（不编造）
 //   - 原型号为空 → 保留空
 function standardizeModel(row){
   var model = String(row['型号'] || '').trim();
+  var type = detectMaterialType(row);
 
-  // 磁珠：用厂家料号替换型号
-  if (isFerrite(row)) {
+  // 电感 + 磁珠：优先用厂家料号替换
+  if (isFerrite(row) || type === 'inductor') {
     var mfg = String(row['_mfgPart'] || '').trim();
     return mfg || model;  // 没厂家料号就保留原型号
   }
 
   if (!model) return model;
 
-  // 已含 SC/SR/SL + 3-4 位数字后缀 → 认为已规范，跳过
-  if (/\b(SC|SR|SL)\d{3,4}\b/i.test(model)) return model;
+  // 已含 SC/SR 后缀 → 认为已规范，跳过
+  if (/\b(SC|SR)\d{3,4}\b/i.test(model)) return model;
 
-  var type = detectMaterialType(row);
-  if (type !== 'capacitor' && type !== 'resistor' && type !== 'inductor') return model;
+  if (type !== 'capacitor' && type !== 'resistor') return model;
 
   var size = extractSize(row);
   if (!size) return model;  // 缺封装，保留原样
 
-  // 电阻特殊：纯 "0" → "0R"（A 样本规范）
+  // 电阻特殊：纯 "0" → "0R"
   var cleanModel = model;
   if (type === 'resistor' && /^0$/.test(cleanModel)) cleanModel = '0R';
 
-  var prefix = (type === 'capacitor') ? 'SC' : (type === 'resistor' ? 'SR' : 'SL');
+  var prefix = (type === 'capacitor') ? 'SC' : 'SR';
   return cleanModel + ' ' + prefix + size;
 }
 
@@ -1838,14 +1837,10 @@ function fmt(dir){
     // 确保即使未命中库、但已有 spec（来自立创/手填）也按 A BOM 输出
     if (clone['参数描述']) clone['参数描述'] = toAStyleSpec(clone['参数描述'], clone);
 
-    // A 标准型号规范化 + 电感/磁珠 A 风格字段对调
+    // A 标准型号规范化（电容/电阻加后缀；电感/磁珠用厂家料号）
     // 放在参数描述之后，避免影响上游对"型号"的解析
+    // 注：电感/磁珠的"参数描述"保持 B BOM 原样，不替换
     if (dir === 'AB') {
-      // 电感：参数描述 = 厂家料号（如 LQW15AN22NJ00D）
-      // 磁珠：型号 = 厂家料号，参数描述保持阻抗文本不变
-      if (!isFerrite(clone) && detectMaterialType(clone) === 'inductor' && clone['_mfgPart']) {
-        clone['参数描述'] = clone['_mfgPart'];
-      }
       clone['型号'] = standardizeModel(clone);
     }
 
@@ -2444,7 +2439,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.2 · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.3 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools.pages.dev</a></div>
 </footer>
 </body>
