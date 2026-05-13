@@ -1161,6 +1161,12 @@ function aStyleInductor(fields, row){
 // 主入口：把任意参数描述转成 A BOM 风格（电容/电阻/电感按紧凑式，其它保留原样）
 function toAStyleSpec(spec, row){
   if (!spec || !row) return spec;
+  // 幂等性检查：已是 A 风格 → 原样返回，避免二次转换丢字段
+  //   电容：以 "MLCC " 开头
+  //   电阻：以 "厚膜电阻 " / "薄膜电阻 " 开头
+  //   电感/磁珠：含中文逗号且不含冒号（字段：值 结构必带冒号）
+  if (/^(MLCC|厚膜电阻|薄膜电阻)\s/.test(spec)) return spec;
+  if (/，/.test(spec) && !/[：:]/.test(spec)) return spec;
   var type = detectMaterialType(row);
   if (type === 'other') return cleanSpec(spec);
   var fields = parseSpecFields(spec);
