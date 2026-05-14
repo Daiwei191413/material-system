@@ -1165,12 +1165,19 @@ function aStyleInductor(fields, row){
 // 主入口：把任意参数描述转成 A BOM 风格（电容/电阻/电感按紧凑式，其它保留原样）
 function toAStyleSpec(spec, row){
   if (!spec || !row) return spec;
-  // 幂等性检查：已是 A 风格 → 原样返回，避免二次转换丢字段
+  // 幂等性检查：已是完整 A 风格 → 原样返回，避免二次转换丢字段
   //   电容：以 "MLCC " 开头
   //   电阻：以 "厚膜电阻 " / "薄膜电阻 " 开头
-  //   电感/磁珠：含中文逗号且不含冒号（字段：值 结构必带冒号）
+  //   电感：含中文逗号 + 无冒号 + 至少4段（如"绕线电感，22nH，0402，±5%，310mA"）
+  //   磁珠：含"直流电阻" + 中文逗号（如"磁珠，120欧@100MHz，直流电阻160mΩ，额定电流700mA，0201封装"）
   if (/^(MLCC|厚膜电阻|薄膜电阻)\s/.test(spec)) return spec;
-  if (/，/.test(spec) && !/[：:]/.test(spec)) return spec;
+  if (/，/.test(spec) && !/[：:]/.test(spec)) {
+    var segments = spec.split('，').length;
+    // 磁珠：含"直流电阻"关键词说明已完整转换
+    if (/直流电阻/.test(spec)) return spec;
+    // 电感：至少4段才算完整（物料名+电感值+封装+精度或电流）
+    if (segments >= 4) return spec;
+  }
   var type = detectMaterialType(row);
   if (type === 'other') return cleanSpec(spec);
   var fields = parseSpecFields(spec);
