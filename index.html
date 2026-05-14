@@ -231,6 +231,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
     <h3>📄 BOM A（基准版本）</h3>
     <p>支持 xlsx / xls / csv</p>
     <button class="file-btn" id="btnA">选择文件</button>
+    <input type="file" id="fileA" accept=".xlsx,.xls,.csv" style="display:none">
     <div class="info" id="msgA"></div>
     <div class="fmap" id="fmA"></div>
   </div>
@@ -238,6 +239,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
     <h3>📄 BOM B（对比版本）</h3>
     <p>支持 xlsx / xls / csv</p>
     <button class="file-btn" id="btnB">选择文件</button>
+    <input type="file" id="fileB" accept=".xlsx,.xls,.csv" style="display:none">
     <div class="info" id="msgB"></div>
     <div class="fmap" id="fmB"></div>
   </div>
@@ -680,53 +682,55 @@ function autoImportFromBom(parsed, sourceName){
 }
 
 function bindUpload(btnId,boxId,msgId,fmId,side){
-  document.getElementById(btnId).addEventListener('click',function(e){
+  var inpId = 'file' + side;  // fileA / fileB（静态 input，避免被扩展拦截动态创建）
+  var btn = document.getElementById(btnId);
+  var inp = document.getElementById(inpId);
+  if (!btn || !inp) {
+    console.error('[bindUpload] 找不到元素', btnId, inpId);
+    return;
+  }
+  btn.addEventListener('click', function(e){
     e.stopPropagation();
-    var inp=document.createElement('input');
-    inp.type='file';
-    inp.accept='.xlsx,.xls,.csv';
-    inp.onchange=function(){
-      var f=inp.files[0];
-      if(!f)return;
-      var rd=new FileReader();
-      rd.onload=function(ev){
-        try{
-          var wb=XLSX.read(ev.target.result,{type:'array'});
-          var p=parse(wb);
-          if(side==='A'){
-            A=p;A._fn=f.name;
-            // 保留 A 的原始字节用于模板复现（封面+表头原样保留）
-            A._raw = new Uint8Array(ev.target.result);
-            A._wb = wb;
-            // 检测数据起始行（hi+1），存模板信息
-            A._dataStartRow = p._hi;  // 列头所在行（0-based）
-            A._bomSheetName = p._sn;
-            // 关键：A BOM 自动增量入库（不覆盖、按型号+封装去重）
-            try {
-              var imp = autoImportFromBom(p, f.name);
-              if (imp.added > 0) {
-                showAutoImportToast('✨ A BOM 已自动入库 ' + imp.added + ' 条新物料（库内已有 ' + imp.skipped + ' 条跳过）');
-              }
-            } catch(impErr) {
-              console.warn('A BOM 自动入库失败：', impErr);
-            }
-          }else{
-            B=p;B._fn=f.name
-          }
-          document.getElementById(boxId).classList.add('ok');
-          document.getElementById(msgId).textContent='✅ '+f.name+'（'+p.rows.length+'条物料）';
-          var fm=document.getElementById(fmId);
-          var h='';for(var k in p.fm)h+=k+' ← '+p.fm[k]+'<br>';
-          fm.innerHTML=h;fm.style.display='block';
-          document.getElementById('goBtn').disabled=!(A&&B);
-        }catch(err){
-          alert('解析失败：'+err.message);
-          console.error(err);
-        }
-      };
-      rd.readAsArrayBuffer(f);
-    };
+    inp.value = '';  // 清空，确保选同名文件也能触发 change
     inp.click();
+  });
+  inp.addEventListener('change', function(){
+    var f = inp.files && inp.files[0];
+    if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function(ev){
+      try {
+        var wb = XLSX.read(ev.target.result, {type:'array'});
+        var p = parse(wb);
+        if (side === 'A') {
+          A = p; A._fn = f.name;
+          A._raw = new Uint8Array(ev.target.result);
+          A._wb = wb;
+          A._dataStartRow = p._hi;
+          A._bomSheetName = p._sn;
+          try {
+            var imp = autoImportFromBom(p, f.name);
+            if (imp.added > 0) {
+              showAutoImportToast('✨ A BOM 已自动入库 ' + imp.added + ' 条新物料（库内已有 ' + imp.skipped + ' 条跳过）');
+            }
+          } catch(impErr) {
+            console.warn('A BOM 自动入库失败：', impErr);
+          }
+        } else {
+          B = p; B._fn = f.name;
+        }
+        document.getElementById(boxId).classList.add('ok');
+        document.getElementById(msgId).textContent = '✅ ' + f.name + '（' + p.rows.length + '条物料）';
+        var fm = document.getElementById(fmId);
+        var h = ''; for (var k in p.fm) h += k + ' ← ' + p.fm[k] + '<br>';
+        fm.innerHTML = h; fm.style.display = 'block';
+        document.getElementById('goBtn').disabled = !(A && B);
+      } catch(err) {
+        alert('解析失败：' + err.message);
+        console.error(err);
+      }
+    };
+    rd.readAsArrayBuffer(f);
   });
 }
 bindUpload('btnA','boxA','msgA','fmA','A');
