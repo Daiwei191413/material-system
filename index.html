@@ -668,6 +668,7 @@ function autoImportFromBom(parsed, sourceName){
       brand: (r['品牌'] || '').toString().trim(),
       material_code: (r['物料编码'] || '').toString().trim(),
       unit: (r['单位'] || 'PCS').toString().trim(),
+      mfg_part: model,  // A BOM 型号列就是厂家料号，存入 mfg_part 供电感/磁珠型号替换
       _source: 'bom-auto:' + (sourceName || 'A'),
       _imported_at: new Date().toLocaleString('zh-CN')
     });
@@ -1870,6 +1871,30 @@ function fmt(dir){
         enrichDetails.push({ref: clone['位号']||'', model: clone['型号']||'', level: mr.level, filled: filled});
       }
     }
+
+    // AB 方向：位号反查 A BOM，用 A 的数据补齐电感/磁珠的型号、物料名称、参数描述
+    // 场景：B BOM 型号写"22nH"，A BOM 同位号写"LQW15AN22NJ00D" + "绕线电感" + 完整参数
+    if (dir === 'AB' && tpl && tpl.rows) {
+      var bRef = String(clone['位号'] || '').trim();
+      if (bRef) {
+        var aRow = null;
+        for (var ai = 0; ai < tpl.rows.length; ai++) {
+          if (String(tpl.rows[ai]['位号'] || '').trim() === bRef) { aRow = tpl.rows[ai]; break; }
+        }
+        if (aRow) {
+          var isInd = isFerrite(clone) || isFerrite(aRow) || detectMaterialType(clone) === 'inductor' || detectMaterialType(aRow) === 'inductor';
+          if (isInd) {
+            // 型号：A BOM 的型号就是厂家料号
+            if (aRow['型号']) clone['_mfgPart'] = String(aRow['型号']).trim();
+            // 物料名称：优先用 A 的（"绕线电感"比 B 的"功率电感"更标准）
+            if (aRow['物料名称']) clone['物料名称'] = String(aRow['物料名称']).trim();
+            // 参数描述：A 的更完整（含精度/电流/DCR）
+            if (aRow['参数描述']) clone['参数描述'] = cleanSpec(String(aRow['参数描述']).trim());
+          }
+        }
+      }
+    }
+
     if (mr.level === 1) enrichStats.l1++;
     else if (mr.level === 2) enrichStats.l2++;
     else if (mr.level === 3) enrichStats.l3++;
