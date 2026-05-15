@@ -18,12 +18,12 @@
  * KV 绑定：
  *   LCSC_CACHE      元器件数据缓存，TTL 7 天
  *
- * 版本：v1.0.8（底层切换至立创官方 OpenAPI，HMAC-SHA256 签名；对外契约不变）
+ * 版本：v1.0.9（JLC API 调用增加 50s 超时 + 1 次重试，治国内→CF→JLC 链路抖动；对外契约不变）
  * 部署：cd cloudflare-worker && export CLOUDFLARE_API_TOKEN=xxx && npx wrangler deploy
  * 作者：开发助理 (hdv_dev_bot) for 戴纬哥 · 技象科技
  */
 
-const VERSION = 'v1.0.8';
+const VERSION = 'v1.0.9';
 const JLC_BASE = 'https://open-api.jlc.com';
 const JLC_PATH = '/smtOpenApi/smtComponent/selectComponentInfoByCodes';
 const CACHE_TTL = 7 * 86400; // 7 天
@@ -94,34 +94,68 @@ async function buildAuthHeader(env, method, path, body) {
 
 // ==================== JLC API 调用 ====================
 
-async function jlcQuery(codes, env) {
-  if (!env.JLC_ACCESS_KEY || !env.JLC_SECRET_KEY || !env.JLC_APP_ID) {
-    throw new Error('立创签名密钥未配置（需 wrangler secret 设置 JLC_ACCESS_KEY/JLC_SECRET_KEY/JLC_APP_ID）');
-  }
+// 单次 fetch（带 AbortController 超时）
+async function jlcFetchOnce(codes, env, timeoutMs) {
   const bodyObj = { componentCodeList: codes };
   // 关键：签名用的 body 必须和发送的 body 一字节不差，所以这里固定 separators
   const body = JSON.stringify(bodyObj);
   const auth = await buildAuthHeader(env, 'POST', JLC_PATH, body);
 
-  const resp = await fetch(JLC_BASE + JLC_PATH, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Accept': 'application/json',
-      'Authorization': auth,
-    },
-    body,
-  });
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const resp = await fetch(JLC_BASE + JLC_PATH, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Accept': 'application/json',
+        'Authorization': auth,
+      },
+      body,
+      signal: ctl.signal,
+    });
 
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`立创 API HTTP ${resp.status}: ${text.slice(0, 200)}`);
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`立创 API HTTP ${resp.status}: ${text.slice(0, 200)}`);
+    }
+    const json = await resp.json();
+    if (!json.success) {
+      throw new Error(`立创 API 业务失败: code=${json.code} message=${json.message} errorCode=${json.errorCode}`);
+    }
+    return json.data || [];
+  } finally {
+    clearTimeout(timer);
   }
-  const json = await resp.json();
-  if (!json.success) {
-    throw new Error(`立创 API 业务失败: code=${json.code} message=${json.message} errorCode=${json.errorCode}`);
+}
+
+async function jlcQuery(codes, env) {
+  if (!env.JLC_ACCESS_KEY || !env.JLC_SECRET_KEY || !env.JLC_APP_ID) {
+    throw new Error('立创签名密钥未配置（需 wrangler secret 设置 JLC_ACCESS_KEY/JLC_SECRET_KEY/JLC_APP_ID）');
   }
-  return json.data || [];
+
+  // 重试策略：第 1 次 50s 超时，失败后立即第 2 次再赌一把
+  // 注意：每次重试都会重新签名（timestamp/nonce 全新），避免签名过期
+  const ATTEMPTS = [
+    { timeout: 50000, label: 'attempt-1' },
+    { timeout: 50000, label: 'attempt-2' },
+  ];
+  let lastErr = null;
+  for (let i = 0; i < ATTEMPTS.length; i++) {
+    try {
+      return await jlcFetchOnce(codes, env, ATTEMPTS[i].timeout);
+    } catch (e) {
+      lastErr = e;
+      const msg = String(e && e.message || e);
+      // 业务错误（HTTP 200 但 success=false）不重试 —— 那是真的查不到
+      if (msg.includes('业务失败')) throw e;
+      // 其他（超时/网络/HTTP 5xx）继续重试
+      if (i < ATTEMPTS.length - 1) {
+        await new Promise((r) => setTimeout(r, 500)); // 500ms 缓冲
+      }
+    }
+  }
+  throw lastErr || new Error('JLC API 查询失败');
 }
 
 // ==================== 字段映射 JLC → 兼容输出 ====================
