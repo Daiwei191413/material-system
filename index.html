@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V1.0.4</title>
+<title>技象科技研发BOM 整理神器 V1.0.5</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V1.0.4</h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V1.0.5</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -2200,16 +2200,32 @@ function batchAutoFetchAll(){
   var origInfo = bar ? bar.innerHTML : '';
   if (bar) bar.innerHTML = '⏳ 正在批量拉取 '+miss.length+' 个器件...';
 
-  // Worker /batch 接口最多 30 个；用「小分片 + 有限并发」平衡冷启动与吞吐
+  // Worker /batch 接口最多 30 个；小分片+有限并发平衡冷启动与吞吐
   var CHUNK_SIZE = 20;
-  var CONCURRENCY = 3;  // 同时最多 3 批并发，避免 Worker rate-limit
+  var CONCURRENCY = 3;
+  var TIMEOUT_BATCH = 12000;       // 12s（国际链路真的断开 12s 也连不上，早断早重试）
+  var TIMEOUT_SINGLE = 8000;       // 8s（单颗兜底超时更短）
+  var MAX_BATCH_ATTEMPTS = 3;      // batch 最多 3 次尝试
+  var BATCH_BACKOFF = [0, 2000, 5000];  // 退避：立即/2s/5s
   var chunks = [];
   for (var i = 0; i < codes.length; i += CHUNK_SIZE) chunks.push(codes.slice(i, i+CHUNK_SIZE));
 
-  // 单批拉取 + 超时 + 单次重试
-  function fetchChunkWithRetry(chunk, attempt){
+  // 进度统计
+  var stats = { batchOK: 0, batchRetry: 0, batchFail: 0, singleOK: 0, singleFail: 0 };
+  function refreshBar(extra){
+    if (!bar) return;
+    var line1 = '⏳ 拉取 '+miss.length+' 个器件 '
+              + '（'+(stats.batchOK+stats.batchFail)+'/'+chunks.length+' 批完成';
+    if (stats.batchRetry) line1 += '，重试 '+stats.batchRetry+' 次';
+    line1 += '）';
+    if (extra) line1 += ' ' + extra;
+    bar.innerHTML = line1;
+  }
+
+  // 单批拉取（带超时+指数退避重试）
+  function fetchChunk(chunk, attempt){
     var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    var timer = ctl ? setTimeout(function(){ ctl.abort(); }, 25000) : null;
+    var timer = ctl ? setTimeout(function(){ ctl.abort(); }, TIMEOUT_BATCH) : null;
     return fetch(LCSC_WORKER_URL + '/batch?codes=' + chunk.join(','), {
       mode: 'cors',
       signal: ctl ? ctl.signal : undefined
@@ -2219,17 +2235,35 @@ function batchAutoFetchAll(){
       return r.json();
     }).catch(function(err){
       if (timer) clearTimeout(timer);
-      if (attempt < 2) {
-        // 重试一次，间隔 1.5s（给 Worker 喘息）
-        return new Promise(function(res){ setTimeout(res, 1500); })
-          .then(function(){ return fetchChunkWithRetry(chunk, attempt+1); });
+      if (attempt < MAX_BATCH_ATTEMPTS) {
+        // 网络/超时类错误重试（TypeError/AbortError 都走这里）
+        stats.batchRetry++;
+        refreshBar('（网络抖动，第 '+(attempt+1)+' 次尝试...）');
+        return new Promise(function(res){ setTimeout(res, BATCH_BACKOFF[attempt]); })
+          .then(function(){ return fetchChunk(chunk, attempt+1); });
       }
-      // 重试失败：返回伪 batch
       return { ok: false, _chunk: chunk, _error: err.message || String(err) };
     });
   }
 
-  // 有限并发池：保持 CONCURRENCY 个请求同时跑
+  // 单颗兜底（batch 失败后，单颗用 /?k= 接口再赌一把）
+  function fetchSingle(code){
+    var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function(){ ctl.abort(); }, TIMEOUT_SINGLE) : null;
+    return fetch(LCSC_WORKER_URL + '/?k=' + encodeURIComponent(code), {
+      mode: 'cors',
+      signal: ctl ? ctl.signal : undefined
+    }).then(function(r){
+      if (timer) clearTimeout(timer);
+      if (!r.ok) throw new Error('HTTP '+r.status);
+      return r.json();
+    }).catch(function(err){
+      if (timer) clearTimeout(timer);
+      return { ok: false, _code: code, _error: err.message || String(err) };
+    });
+  }
+
+  // 有限并发池
   function runPool(jobs, concurrency){
     return new Promise(function(resolve){
       var results = new Array(jobs.length);
@@ -2240,7 +2274,6 @@ function batchAutoFetchAll(){
         jobs[myIdx]().then(function(r){
           results[myIdx] = r;
           finished++;
-          if (bar) bar.innerHTML = '⏳ 正在批量拉取 '+miss.length+' 个器件（'+finished+'/'+jobs.length+' 批完成）...';
           if (finished === jobs.length) resolve(results);
           else spawn();
         });
@@ -2249,36 +2282,79 @@ function batchAutoFetchAll(){
     });
   }
 
-  var jobs = chunks.map(function(chunk){
-    return function(){ return fetchChunkWithRetry(chunk, 1); };
+  // 第一阶段：batch 并发拉取
+  var batchJobs = chunks.map(function(chunk){
+    return function(){
+      return fetchChunk(chunk, 1).then(function(r){
+        if (r.ok && r.results) stats.batchOK++; else stats.batchFail++;
+        refreshBar();
+        return r;
+      });
+    };
   });
 
-  runPool(jobs, CONCURRENCY).then(function(allResps){
-    var ok = 0, fail = 0, notHit = 0, failCodes = [];
-    var idx = 0;
-    allResps.forEach(function(batch){
+  runPool(batchJobs, CONCURRENCY).then(function(allResps){
+    // 把 batch 结果摊平成 [code → resultObj] 映射（用 r.data.query 作为键）
+    var resultByCode = {};
+    var failedCodes = [];   // 待兜底的编号
+    allResps.forEach(function(batch, bi){
+      var thisChunk = chunks[bi];
       if (!batch.ok || !batch.results) {
-        // 整批失败
-        var chunkSize = (batch._chunk && batch._chunk.length) || Math.min(CHUNK_SIZE, miss.length - idx);
-        for (var k=0; k<chunkSize; k++){
-          var it = miss[idx++];
-          if (it) failCodes.push(String(it.lcsc || '').toUpperCase());
-          fail++;
-        }
+        // 整批失败：所有 code 都进兜底队列
+        thisChunk.forEach(function(c){ failedCodes.push(c); });
         return;
       }
+      // 标记 batch 内已收到响应的 code
+      var seen = {};
       batch.results.forEach(function(r){
-        var item = miss[idx++];
-        if (!item) return;
-        if (r.ok && r.data && r.data.hit) {
-          if (applyLcscToRow(item, r.data)) ok++;
-        } else if (r.ok && r.data && !r.data.hit) {
-          notHit++;
-        } else {
-          fail++;
-          failCodes.push(String(item.lcsc || '').toUpperCase());
+        if (!r || !r.data || !r.data.query) return;
+        var realCode = r.data.query;
+        seen[realCode] = true;
+        if (r.ok && r.data.hit) {
+          resultByCode[realCode] = r.data;
+        } else if (r.ok && !r.data.hit) {
+          resultByCode[realCode] = { _notHit: true };
         }
       });
+      // 这批里没收到响应的 code → 进兜底
+      thisChunk.forEach(function(c){
+        if (!seen[c] && !resultByCode[c]) failedCodes.push(c);
+      });
+    });
+
+    // 第二阶段：单颗兜底（如果有失败）
+    if (failedCodes.length === 0) return Promise.resolve(resultByCode);
+    refreshBar('（剩 '+failedCodes.length+' 颗单独重试中...）');
+    var singleJobs = failedCodes.map(function(code){
+      return function(){
+        return fetchSingle(code).then(function(resp){
+          if (resp && resp.ok && resp.data && resp.data.hit) {
+            resultByCode[code] = resp.data;
+            stats.singleOK++;
+          } else if (resp && resp.ok && resp.data && !resp.data.hit) {
+            resultByCode[code] = { _notHit: true };
+            stats.singleOK++;
+          } else {
+            stats.singleFail++;
+          }
+          refreshBar('（剩 '+(failedCodes.length-stats.singleOK-stats.singleFail)+' 颗单独重试中...）');
+        });
+      };
+    });
+    return runPool(singleJobs, 4).then(function(){ return resultByCode; });
+  }).then(function(resultByCode){
+    // 第三阶段：把结果应用到 miss 列表
+    var ok = 0, notHit = 0, fail = 0, failCodes = [];
+    miss.forEach(function(item){
+      var code = String(item.lcsc).toUpperCase().match(/C\d{3,}/)[0];
+      var data = resultByCode[code];
+      if (data && data._notHit) {
+        notHit++;
+      } else if (data && data.hit) {
+        if (applyLcscToRow(item, data)) ok++; else { fail++; failCodes.push(code); }
+      } else {
+        fail++; failCodes.push(code);
+      }
     });
     saveManualDB();
     analyzeMaterialMatch();
@@ -2286,8 +2362,12 @@ function batchAutoFetchAll(){
         + '成功：'+ok+'\n'
         + '立创未找到：'+notHit+'\n'
         + '失败：'+fail;
+    if (stats.batchRetry || stats.singleOK) {
+      msg += '\n（其中 batch 重试 '+stats.batchRetry+' 次，单颗兜底救回 '+stats.singleOK+' 颗）';
+    }
     if (failCodes.length) msg += '\n\n失败编号：'+failCodes.slice(0,8).join(', ')+(failCodes.length>8?' ...':'');
     msg += '\n\n所有成功项已存入「手动补齐库」，下次秒命中。';
+    if (bar) bar.innerHTML = origInfo;
     alert(msg);
   }).catch(function(e){
     alert('❌ 批量拉取失败：'+(e && e.message ? e.message : e)+'\n\n建议：1) 检查网络  2) 稍后重试  3) 用「📋 贴参数」手动录入');
@@ -2513,7 +2593,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.4 · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.5 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools.pages.dev</a></div>
 </footer>
 </body>
