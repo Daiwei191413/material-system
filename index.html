@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V1.0.6</title>
+<title>技象科技研发BOM 整理神器 V1.0.5</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V1.0.6</h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V1.0.5</h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -2097,33 +2097,6 @@ function autoDescribe(model, pkg){
 // ==================== 立创代理 Worker（一键补齐 / 批量补齐） ====================
 var LCSC_WORKER_URL = 'https://lcsc-proxy.steidleyestephani737.workers.dev';
 
-// V1.0.6：失败器件持久化重试队列（治国内→workers.dev 抖动）
-// 设计：
-//   1. 进队 = 第一次批量拉取后还失败的 code 列表（去重）
-//   2. 出队 = 单颗 fetchSingle 成功 / 立创确认未找到
-//   3. 页面加载时若发现队列非空，5 秒后启动后台 ticker 自动救援
-//   4. 救援间隔 8s → 15s → 30s 三轮，每轮 2 路并发，避免给 CF 加压
-var LCSC_RETRY_KEY = 'lcsc_retry_queue';
-function loadRetryQueue(){
-  try { var s = localStorage.getItem(LCSC_RETRY_KEY); return s ? JSON.parse(s) : []; }
-  catch(e){ return []; }
-}
-function saveRetryQueue(arr){
-  try { localStorage.setItem(LCSC_RETRY_KEY, JSON.stringify(arr || [])); } catch(e){}
-}
-function pushRetryQueue(codes){
-  if (!codes || !codes.length) return;
-  var q = loadRetryQueue();
-  var seen = {}; q.forEach(function(c){ seen[c]=1; });
-  codes.forEach(function(c){ if (c && !seen[c]) { q.push(c); seen[c]=1; } });
-  saveRetryQueue(q);
-}
-function removeFromRetryQueue(codes){
-  if (!codes || !codes.length) return;
-  var rm = {}; codes.forEach(function(c){ rm[c]=1; });
-  saveRetryQueue(loadRetryQueue().filter(function(c){ return !rm[c]; }));
-}
-
 // 把 Worker 返回的 LCSC 数据写入一行 B BOM
 function applyLcscToRow(item, data){
   if (!data || !data.hit) return false;
@@ -2230,10 +2203,10 @@ function batchAutoFetchAll(){
   // Worker /batch 接口最多 30 个；小分片+有限并发平衡冷启动与吞吐
   var CHUNK_SIZE = 20;
   var CONCURRENCY = 3;
-  var TIMEOUT_BATCH = 60000;       // 60s（国内→workers.dev 抖动，给 Worker v1.0.9 内部 50s 重试留余量）
-  var TIMEOUT_SINGLE = 30000;      // 30s（单颗兜底）
-  var MAX_BATCH_ATTEMPTS = 5;      // batch 最多 5 次尝试
-  var BATCH_BACKOFF = [0, 2000, 5000, 10000, 20000];  // 退避：立即/2s/5s/10s/20s
+  var TIMEOUT_BATCH = 12000;       // 12s（国际链路真的断开 12s 也连不上，早断早重试）
+  var TIMEOUT_SINGLE = 8000;       // 8s（单颗兜底超时更短）
+  var MAX_BATCH_ATTEMPTS = 3;      // batch 最多 3 次尝试
+  var BATCH_BACKOFF = [0, 2000, 5000];  // 退避：立即/2s/5s
   var chunks = [];
   for (var i = 0; i < codes.length; i += CHUNK_SIZE) chunks.push(codes.slice(i, i+CHUNK_SIZE));
 
@@ -2372,23 +2345,17 @@ function batchAutoFetchAll(){
   }).then(function(resultByCode){
     // 第三阶段：把结果应用到 miss 列表
     var ok = 0, notHit = 0, fail = 0, failCodes = [];
-    var doneCodes = [];   // 本轮已彻底完成的 code（成功 or 立创确认未找到）→ 出队
     miss.forEach(function(item){
       var code = String(item.lcsc).toUpperCase().match(/C\d{3,}/)[0];
       var data = resultByCode[code];
       if (data && data._notHit) {
         notHit++;
-        doneCodes.push(code);
       } else if (data && data.hit) {
-        if (applyLcscToRow(item, data)) { ok++; doneCodes.push(code); }
-        else { fail++; failCodes.push(code); }
+        if (applyLcscToRow(item, data)) ok++; else { fail++; failCodes.push(code); }
       } else {
         fail++; failCodes.push(code);
       }
     });
-    // V1.0.6：失败的进持久化重试队列，成功/未找到的出队
-    removeFromRetryQueue(doneCodes);
-    pushRetryQueue(failCodes);
     saveManualDB();
     analyzeMaterialMatch();
     var msg = '✅ 批量补齐完成\n\n'
@@ -2398,142 +2365,15 @@ function batchAutoFetchAll(){
     if (stats.batchRetry || stats.singleOK) {
       msg += '\n（其中 batch 重试 '+stats.batchRetry+' 次，单颗兜底救回 '+stats.singleOK+' 颗）';
     }
-    if (failCodes.length) {
-      msg += '\n\n失败编号：'+failCodes.slice(0,8).join(', ')+(failCodes.length>8?' ...':'');
-      msg += '\n\n⏳ '+failCodes.length+' 颗已进入后台重试队列，将在 8 秒后自动重试，刷新页面也会续跑。';
-    }
+    if (failCodes.length) msg += '\n\n失败编号：'+failCodes.slice(0,8).join(', ')+(failCodes.length>8?' ...':'');
     msg += '\n\n所有成功项已存入「手动补齐库」，下次秒命中。';
     if (bar) bar.innerHTML = origInfo;
     alert(msg);
-    // 启动后台救援（如果队列有货）
-    if (failCodes.length) scheduleBackgroundRetry(8000);
   }).catch(function(e){
     alert('❌ 批量拉取失败：'+(e && e.message ? e.message : e)+'\n\n建议：1) 检查网络  2) 稍后重试  3) 用「📋 贴参数」手动录入');
     if (bar) bar.innerHTML = origInfo;
   });
 }
-
-// ==================== V1.0.6 后台救援队列 ====================
-// 背景：国内→Cloudflare workers.dev 经常 ERR_CONNECTION_TIMED_OUT，
-//      与其让用户手动点重试，不如把失败 code 持久化到 localStorage，
-//      后台 ticker 自动逐颗救援，刷新/关页面再回来也能续跑。
-
-var _bgRetryRunning = false;
-var _bgRetryTimer = null;
-
-function scheduleBackgroundRetry(delayMs){
-  if (_bgRetryTimer) { clearTimeout(_bgRetryTimer); _bgRetryTimer = null; }
-  _bgRetryTimer = setTimeout(runBackgroundRetry, delayMs || 8000);
-}
-
-function runBackgroundRetry(){
-  if (_bgRetryRunning) return;
-  var queue = loadRetryQueue();
-  if (!queue.length) { updateBgRetryHint(); return; }
-  _bgRetryRunning = true;
-  updateBgRetryHint('⏳ 后台救援中：剩 '+queue.length+' 颗 ...');
-
-  // 一轮跑完队列里所有 code，2 路并发，单颗 30s 超时
-  var idx = 0, recovered = 0, failedThisRound = [];
-  function next(){
-    if (idx >= queue.length) return Promise.resolve();
-    var code = queue[idx++];
-    var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    var timer = ctl ? setTimeout(function(){ ctl.abort(); }, 30000) : null;
-    return fetch(LCSC_WORKER_URL + '/?k=' + encodeURIComponent(code), {
-      mode: 'cors',
-      signal: ctl ? ctl.signal : undefined
-    }).then(function(r){
-      if (timer) clearTimeout(timer);
-      if (!r.ok) throw new Error('HTTP '+r.status);
-      return r.json();
-    }).then(function(resp){
-      if (resp && resp.ok && resp.data) {
-        // 应用到 MM_RESULT 中匹配的行
-        var applied = false;
-        if (typeof MM_RESULT !== 'undefined' && MM_RESULT) {
-          for (var k = 0; k < MM_RESULT.length; k++) {
-            var it = MM_RESULT[k];
-            if (it.level !== 0) continue;
-            var raw = String(it.lcsc || '').toUpperCase();
-            var m = raw.match(/C\d{3,}/);
-            if (m && m[0] === code) {
-              if (resp.data.hit) {
-                if (applyLcscToRow(it, resp.data)) { applied = true; recovered++; }
-              } else {
-                applied = true; recovered++;  // 立创确认未找到也算"完成"
-              }
-              break;
-            }
-          }
-        }
-        if (applied || (resp.data && !resp.data.hit)) {
-          removeFromRetryQueue([code]);
-          updateBgRetryHint('⏳ 后台救援中：剩 '+(queue.length - idx)+' 颗（本轮已救回 '+recovered+'）');
-        } else {
-          // 当前页面没有匹配 row（用户可能换了 BOM），保留在队列等下次
-          failedThisRound.push(code);
-        }
-      } else {
-        failedThisRound.push(code);
-      }
-    }).catch(function(){
-      if (timer) clearTimeout(timer);
-      failedThisRound.push(code);
-    }).then(function(){
-      // 串行：避免给 CF 加压
-      return new Promise(function(r){ setTimeout(r, 500); });
-    }).then(next);
-  }
-
-  next().then(function(){
-    _bgRetryRunning = false;
-    if (recovered > 0) {
-      saveManualDB();
-      try { analyzeMaterialMatch(); } catch(e){}
-    }
-    var remaining = loadRetryQueue();
-    if (remaining.length > 0) {
-      // 还有失败的，下一轮间隔翻倍（最多 5 分钟）
-      var nextDelay = Math.min(300000, (window._bgRetryDelay || 15000) * 2);
-      window._bgRetryDelay = nextDelay;
-      updateBgRetryHint('⏳ 后台救援暂歇：剩 '+remaining.length+' 颗，'+Math.round(nextDelay/1000)+'s 后再试');
-      scheduleBackgroundRetry(nextDelay);
-    } else {
-      window._bgRetryDelay = 15000;  // 重置
-      updateBgRetryHint('✅ 后台救援完成，所有失败器件已处理');
-      setTimeout(updateBgRetryHint, 5000);  // 5s 后清提示
-    }
-  });
-}
-
-function updateBgRetryHint(text){
-  var hint = document.getElementById('bgRetryHint');
-  if (!hint) {
-    // 第一次创建：贴在 mmBulkInfo 旁边
-    var bar = document.getElementById('mmBulkInfo');
-    if (!bar || !bar.parentNode) return;
-    hint = document.createElement('div');
-    hint.id = 'bgRetryHint';
-    hint.style.cssText = 'margin-top:6px;padding:6px 10px;background:#fff7e6;border:1px solid #ffd591;border-radius:4px;color:#d46b08;font-size:13px;display:none';
-    bar.parentNode.insertBefore(hint, bar.nextSibling);
-  }
-  if (text) {
-    hint.textContent = text;
-    hint.style.display = 'block';
-  } else {
-    hint.style.display = 'none';
-  }
-}
-
-// 页面加载时检查队列：如果有积压，5 秒后启动救援（不打扰用户即时操作）
-window.addEventListener('load', function(){
-  var q = loadRetryQueue();
-  if (q.length > 0) {
-    updateBgRetryHint('⏳ 检测到 '+q.length+' 颗器件上次拉取失败，5 秒后自动重试...');
-    scheduleBackgroundRetry(5000);
-  }
-});
 
 // 单行自动生成 → 写入 B 行 + 存手动库
 function autoFillRow(idx){
@@ -2753,7 +2593,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.6 · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.5 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools.pages.dev</a></div>
 </footer>
 </body>
