@@ -343,13 +343,13 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
         <thead>
           <tr>
             <th>#</th>
-            <th>立创编号</th>
-            <th>型号</th>
-            <th>封装</th>
-            <th>物料名称</th>
-            <th>参数描述</th>
-            <th>品牌</th>
             <th>物料编码</th>
+            <th>物料名称</th>
+            <th>型号</th>
+            <th>参数描述</th>
+            <th>封装</th>
+            <th>品牌</th>
+            <th>立创编号</th>
           </tr>
         </thead>
         <tbody id="matTableBody">
@@ -607,13 +607,13 @@ function loadMaterialTable() {
   list.slice(0, 500).forEach(function(m){
     h += '<tr>'
        + '<td>'+m.idx+'</td>'
-       + '<td><b style="color:#ff6b35">'+esc(m.lcsc_code||'')+'</b></td>'
-       + '<td>'+esc(m.model||'')+'</td>'
-       + '<td>'+esc(m.package||'')+'</td>'
+       + '<td><b style="color:#ff6b35">'+esc(m.material_code||'')+'</b></td>'
        + '<td>'+esc(m.name||'')+'</td>'
+       + '<td>'+esc(m.model||'')+'</td>'
        + '<td style="color:#666;font-size:11px">'+esc(m.specification||'')+'</td>'
+       + '<td>'+esc(m.package||'')+'</td>'
        + '<td>'+esc(m.brand||'')+'</td>'
-       + '<td style="color:#888">'+esc(m.material_code||'')+'</td>'
+       + '<td style="color:#888">'+esc(m.lcsc_code||'')+'</td>'
        + '</tr>';
   });
   if (list.length > 500) h += '<tr><td colspan="8" style="text-align:center;color:#888">共 '+list.length+' 条，仅显示前 500 条，请用搜索缩小范围</td></tr>';
