@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V2.0.4-dev</title>
+<title>技象科技研发BOM 整理神器 V2.0.5-dev</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V2.0.4-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V2.0.5-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -758,11 +758,9 @@ function openLcscSearch(idx) {
 
   // 默认 query：comment（已经是规范化后的型号或容值）
   var defaultQ = o.comment || '';
-  // 默认 pkg：只在三位四位封装数字（0402/0603/0805/1206）才带，复杂封装不传
-  var defaultPkg = '';
-  if (o.footprint && /^\d{4}$/.test(String(o.footprint).trim())) {
-    defaultPkg = String(o.footprint).trim();
-  }
+  // 默认 pkg：从 footprint 里提取常见 4 位封装数字
+  // 兼容 "0805" / "SC0402" / "C0805" / "MOLEX-1206" / "0805 (2012)" 等
+  var defaultPkg = extractStdPkg(o.footprint);
 
   // 先建浮层（只建一次）
   var modal = document.getElementById('lcscSearchModal');
@@ -981,6 +979,24 @@ function strictMatchPkg(spec, pkg) {
   var escP = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   var re = new RegExp('(^|[^A-Z0-9])' + escP + '($|[^A-Z0-9])');
   return re.test(s);
+}
+
+// 从 footprint 字符串里提取标准 4 位封装码（贴片）
+// 兼容 "0805" / "SC0402" / "C0805" / "MOLEX-1206" / "0805 (2012)" / "R_0603" 等
+// 仅识别白名单封装：01005/0201/0402/0603/0805/1008/1206/1210/1812/2010/2512
+// 提不到就返回空串（不强行匹配，避免误伤异形封装）
+function extractStdPkg(footprint) {
+  if (!footprint) return '';
+  var s = String(footprint).toUpperCase();
+  // 白名单按长度从长到短匹配，避免 0201 误匹配 10201
+  var whitelist = ['01005', '0201', '0402', '0603', '0805', '1008', '1206', '1210', '1812', '2010', '2512'];
+  for (var i = 0; i < whitelist.length; i++) {
+    var code = whitelist[i];
+    // 边界：前后必须不是数字
+    var re = new RegExp('(^|[^0-9])' + code + '($|[^0-9])');
+    if (re.test(s)) return code;
+  }
+  return '';
 }
 
 // 按品牌分组渲染候选表
@@ -3563,7 +3579,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.4-dev · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.5-dev · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v2.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v2.pages.dev</a> <span style="color:#F4D03F;font-weight:600">(DEV)</span></div>
 </footer>
 </body>
