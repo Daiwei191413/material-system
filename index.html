@@ -594,8 +594,13 @@ function runConvert(rows) {
   CONV_OUT = [];
 
   // 1. 列名归一 + 拆位号
+  // 分组规则：
+  //   - 电容（封装 SC*/C*/CAP）：同封装 + 同容值 就合并，不管耐压
+  //     → 100nF / 100nF/50V / 100nF/25V 在 0402 下汇成一组，位号全合并
+  //     → comment 取最完整的那个（带耐压优先），匹配引擎仍能拿到精确版本
+  //   - 其他（电阻/电感/IC/连接器）：原现状，normVal 含耐压一起做 key
   var rawRefCount = 0;
-  var byKey = {};  // key = normalized(value) + '|' + normPkg(fp)
+  var byKey = {};  // key = groupKey(normVal, fp)
   rows.forEach(function(r){
     var c = pickConvCol(r);
     if (!c.value && !c.ref) return;
@@ -604,12 +609,42 @@ function runConvert(rows) {
     rawRefCount += refs.length;
     // 规范化值（带封装提示）
     var normVal = normalizeValue(c.value, c.fp) || c.value;
-    var key = normVal + '||' + normPkg(c.fp || '');
+    var fpUpper = (c.fp || '').toString().toUpperCase();
+    var isCap = /^SC\d|^C\d|CAP/.test(fpUpper);
+    // 电容用主值（去耐压）做 key，其他用 normVal 全量
+    var keyVal = isCap ? String(normVal).split('/')[0].trim() : normVal;
+    var key = keyVal + '||' + normPkg(c.fp || '');
     if (!byKey[key]) {
-      byKey[key] = { comment: normVal, footprint: c.fp || '', refs: [], rawValues: [] };
+      byKey[key] = { comment: normVal, footprint: c.fp || '', refs: [], rawValues: [], _commentVotes: {} };
     }
     byKey[key].refs = byKey[key].refs.concat(refs);
     if (byKey[key].rawValues.indexOf(c.value) < 0) byKey[key].rawValues.push(c.value);
+    // 投票统计：每行按 ref 数加权，记录每个 normVal 出现的"票数"
+    var votes = byKey[key]._commentVotes;
+    votes[normVal] = (votes[normVal] || 0) + Math.max(refs.length, 1);
+  });
+
+  // 合并完成后挑选赢家 comment：带耐压优先 → 票数多 → 字符串更长
+  // 例：[100nF×3, 100nF/50V×1, 100nF/25V×2]
+  //   先在带耐压的里挑（候选 = [100nF/50V, 100nF/25V]）→ 票数多的 100nF/25V 赢
+  // 例：[100nF×3]（没人写耐压）→ 直接用 100nF
+  Object.keys(byKey).forEach(function(k){
+    var grp = byKey[k];
+    var votes = grp._commentVotes || {};
+    var candidates = Object.keys(votes);
+    var withVoltage = candidates.filter(function(v){ return v.indexOf('/') >= 0; });
+    var pool = withVoltage.length > 0 ? withVoltage : candidates;
+    var winner = grp.comment;
+    var bestVote = -1;
+    pool.forEach(function(v){
+      var cur = votes[v];
+      if (cur > bestVote || (cur === bestVote && v.length > winner.length)) {
+        bestVote = cur;
+        winner = v;
+      }
+    });
+    grp.comment = winner;
+    delete grp._commentVotes;
   });
 
   // 2. 合并 + 三级匹配 + DNP 剔除
