@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V2.0.3-dev</title>
+<title>技象科技研发BOM 整理神器 V2.0.4-dev</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V2.0.3-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V2.0.4-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -786,7 +786,7 @@ function openLcscSearch(idx) {
       + '      <button type="button" id="lcscSearchBtn" onclick="runLcscSearchByBrand()" style="padding:6px 16px;background:#0078b8;color:white;border:0;border-radius:4px;font-size:13px;cursor:pointer;">搜索</button>'
       + '    </div>'
       + '    <div style="margin-top:6px;color:#999;font-size:12px;">'
-      + '提示：电容自动搜「村田×3 / 三星×3 / 风华×3」；电感「村田×5 / 顺络×5」；电阻「厚声×3 / 国巨×3」；其他器件取前 3 条。'
+      + '提示：以「型号 + 封装」为基准严格匹配，电容村田/三星/风华各 3 款、电感村田/顺络各 5 款、电阻厚声/国巨各 3 款、其他器件取前 3 条；候选不足以实际数为准（不放宽封装）。'
       + '</div>'
       + '  </div>'
       + '  <div id="lcscSearchBody" style="flex:1;overflow-y:auto;padding:0 18px;">'
@@ -945,33 +945,54 @@ function runLcscSearchByBrand() {
     plan.brands.forEach(function(b, i){
       var data = results[i];
       var rawItems = (data && data.ok && data.items) ? data.items : [];
-      var picked = rawItems.slice(0, b.n);
+      // 硬过滤：封装必须严格包含，不够就不够（不放宽）
+      var strict = pkg ? rawItems.filter(function(it){
+        return strictMatchPkg(it.componentSpecification, pkg);
+      }) : rawItems;
+      var picked = strict.slice(0, b.n);
       // 搜索接口品牌字段经常返空，用品牌计划里的中文名顶上
       picked.forEach(function(it){ if (!it.componentBrand) it.componentBrand = b.name; });
       groups.push({
-        brand:  b.name,
-        items:  picked,
-        total:  (data && data.totalRows) || 0,
-        cached: !!(data && data.cached)
+        brand:    b.name,
+        items:    picked,
+        wantN:    b.n,
+        strictN:  strict.length,    // 严格过滤后总数
+        rawN:     rawItems.length,  // 接口原始返回数
+        total:    (data && data.totalRows) || 0,
+        cached:   !!(data && data.cached)
       });
     });
-    renderLcscBrandResults(groups, plan.label);
+    renderLcscBrandResults(groups, plan.label, pkg);
   });
 
   _LCSC_SEARCH_PAGE = 1;
   _LCSC_SEARCH_HAS_NEXT = false;
 }
 
+// 严格封装匹配：spec 必须以非数字边界包含 pkg
+// 0805 能匹配 "0805" / "0805(2012 公制)"，但不能匹配 "10805" 或 "0805X"
+function strictMatchPkg(spec, pkg) {
+  if (!pkg) return true;
+  var s = String(spec || '').toUpperCase();
+  var p = String(pkg).toUpperCase();
+  if (!s) return false;
+  // 用边界正则：前后必须是 非字母数字 或 开头/结尾
+  // 转义 pkg 里可能出现的特殊字符
+  var escP = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  var re = new RegExp('(^|[^A-Z0-9])' + escP + '($|[^A-Z0-9])');
+  return re.test(s);
+}
+
 // 按品牌分组渲染候选表
-function renderLcscBrandResults(groups, planLabel) {
+function renderLcscBrandResults(groups, planLabel, pkgFilter) {
   var body = document.getElementById('lcscSearchBody');
   var allItems = [];
   groups.forEach(function(g){ allItems = allItems.concat(g.items); });
 
   if (allItems.length === 0) {
     body.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">'
-      + '指定品牌都没找到候选<br>'
-      + '<button type="button" onclick="runLcscSearch(1)" style="margin-top:10px;padding:6px 14px;font-size:12px;background:#0078b8;color:white;border:0;border-radius:3px;cursor:pointer;">改成全网搜</button>'
+      + '指定品牌 + 封装「' + esc(pkgFilter || '不限') + '」没找到候选<br>'
+      + '<button type="button" onclick="runLcscSearch(1)" style="margin-top:10px;padding:6px 14px;font-size:12px;background:#0078b8;color:white;border:0;border-radius:3px;cursor:pointer;">改成全网搜（不限品牌、不限封装）</button>'
       + '</div>';
     document.getElementById('lcscSearchMeta').innerHTML = esc(planLabel) + ' · 共 0 条';
     document.getElementById('lcscPagePrev').style.display = 'none';
@@ -992,14 +1013,28 @@ function renderLcscBrandResults(groups, planLabel) {
   var globalIdx = 0;
   groups.forEach(function(g){
     if (g.items.length === 0) {
+      // 区分两种空：品牌没搜到（rawN=0） vs 封装严格过滤干掉了（rawN>0 但 strictN=0）
+      var emptyMsg;
+      if (g.rawN === 0) {
+        emptyMsg = '品牌没搜到候选';
+      } else if (g.strictN === 0 && pkgFilter) {
+        emptyMsg = '品牌有 ' + g.rawN + ' 条候选但封装都不是「' + pkgFilter + '」';
+      } else {
+        emptyMsg = '本次没拿到候选';
+      }
       html += '<tr><td colspan="6" style="padding:6px 10px;background:#fffbe6;color:#999;font-size:12px;">'
-        + '— ' + esc(g.brand) + '：本次没搜到候选 —</td></tr>';
+        + '— ' + esc(g.brand) + '：' + esc(emptyMsg) + ' —</td></tr>';
       return;
     }
+    // 组头：显示 实得/想要 + 封装条件 + 缓存命中
+    var headerExtras = [];
+    if (pkgFilter) headerExtras.push('封装 ' + esc(pkgFilter));
+    if (g.cached) headerExtras.push('<span style="color:#27AE60;">缓存命中</span>');
+    var shortText = (g.items.length < g.wantN) ? '<span style="color:#E67E22;">（候选不足，仅 ' + g.items.length + ' 条）</span>' : '';
     html += '<tr><td colspan="6" style="padding:5px 10px;background:#eaf6fb;color:#0078b8;font-weight:600;font-size:12px;">'
-      + '★ ' + esc(g.brand) + '（' + g.items.length + ' 条）'
-      + (g.total ? ' <span style="color:#999;font-weight:normal;">· 全网共 ' + g.total + ' 条</span>' : '')
-      + (g.cached ? ' <span style="color:#27AE60;font-weight:normal;">· 缓存命中</span>' : '')
+      + '★ ' + esc(g.brand) + '（' + g.items.length + '/' + g.wantN + ' 条）'
+      + shortText
+      + (headerExtras.length ? ' <span style="color:#999;font-weight:normal;">· ' + headerExtras.join(' · ') + '</span>' : '')
       + '</td></tr>';
     g.items.forEach(function(it){
       var i = globalIdx;
@@ -1019,7 +1054,8 @@ function renderLcscBrandResults(groups, planLabel) {
   body.innerHTML = html;
   body._items = allItems;
 
-  document.getElementById('lcscSearchMeta').innerHTML = esc(planLabel) + ' · 共 ' + allItems.length + ' 条'
+  var metaPkg = pkgFilter ? '封装严格 = ' + esc(pkgFilter) : '不限封装';
+  document.getElementById('lcscSearchMeta').innerHTML = esc(planLabel) + ' · ' + metaPkg + ' · 共 ' + allItems.length + ' 条'
     + ' <button type="button" onclick="runLcscSearch(1)" style="margin-left:8px;padding:2px 10px;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:3px;cursor:pointer;">全网搜（不分品牌）</button>';
   document.getElementById('lcscPagePrev').style.display = 'none';
   document.getElementById('lcscPageNext').style.display = 'none';
@@ -1028,7 +1064,7 @@ function renderLcscBrandResults(groups, planLabel) {
   enrichLcscCandidates(allItems);
 }
 
-// 其他器件：单次搜，取前 N 条
+// 其他器件：单次搜，严格按封装过滤后取前 N 条
 function runLcscSearchTopN(q, pkg, n, label) {
   var body = document.getElementById('lcscSearchBody');
   body.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">搜索中...</div>';
@@ -1043,14 +1079,20 @@ function runLcscSearchTopN(q, pkg, n, label) {
         body.innerHTML = '<div style="padding:20px;color:#E74C3C;">搜索失败：' + esc((data && data.error) || '未知错误') + '</div>';
         return;
       }
-      // 浅拷贝 data + 截断 items 到前 N 条
+      var rawItems = data.items || [];
+      // 前端再做一次严格封装过滤（Worker 端在过滤为空时会回退，这里收紧）
+      var strict = pkg ? rawItems.filter(function(it){
+        return strictMatchPkg(it.componentSpecification, pkg);
+      }) : rawItems;
+      // 浅拷贝 data + 截断到前 N 条
       var trimmed = { ok: true };
       for (var k in data) { if (data.hasOwnProperty(k)) trimmed[k] = data[k]; }
-      trimmed.items = (data.items || []).slice(0, n);
+      trimmed.items = strict.slice(0, n);
       renderLcscSearchResults(trimmed);
+      var labelExtra = pkg ? (label + ' · 封装严格 = ' + pkg) : label;
       var meta = document.getElementById('lcscSearchMeta');
-      meta.innerHTML = esc(label) + ' · ' + meta.innerHTML
-        + ' <button type="button" onclick="runLcscSearch(1)" style="margin-left:8px;padding:2px 10px;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:3px;cursor:pointer;">全网搜（10 条）</button>';
+      meta.innerHTML = esc(labelExtra) + ' · ' + meta.innerHTML
+        + ' <button type="button" onclick="runLcscSearch(1)" style="margin-left:8px;padding:2px 10px;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:3px;cursor:pointer;">全网搜（不限封装）</button>';
     })
     .catch(function(e){
       document.getElementById('lcscSearchBtn').disabled = false;
@@ -3521,7 +3563,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.3-dev · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.4-dev · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v2.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v2.pages.dev</a> <span style="color:#F4D03F;font-weight:600">(DEV)</span></div>
 </footer>
 </body>
