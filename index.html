@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V2.0.5-dev</title>
+<title>技象科技研发BOM 整理神器 V2.0.6-dev</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V2.0.5-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V2.0.6-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1022,6 +1022,7 @@ function renderLcscBrandResults(groups, planLabel, pkgFilter) {
     + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;">型号</th>'
     + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:90px;">封装</th>'
     + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:200px;">参数（精度/耐压/温度...）</th>'
+    + '<th style="padding:8px;text-align:right;border-bottom:1px solid #ddd;width:90px;">库存</th>'
     + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:80px;">品牌</th>'
     + '<th style="padding:8px;text-align:center;border-bottom:1px solid #ddd;width:70px;">操作</th>'
     + '</tr></thead><tbody>';
@@ -1038,7 +1039,7 @@ function renderLcscBrandResults(groups, planLabel, pkgFilter) {
       } else {
         emptyMsg = '本次没拿到候选';
       }
-      html += '<tr><td colspan="6" style="padding:6px 10px;background:#fffbe6;color:#999;font-size:12px;">'
+      html += '<tr class="lcsc-empty-msg" data-group="' + esc(g.brand) + '"><td colspan="7" style="padding:6px 10px;background:#fffbe6;color:#999;font-size:12px;">'
         + '— ' + esc(g.brand) + '：' + esc(emptyMsg) + ' —</td></tr>';
       return;
     }
@@ -1047,18 +1048,19 @@ function renderLcscBrandResults(groups, planLabel, pkgFilter) {
     if (pkgFilter) headerExtras.push('封装 ' + esc(pkgFilter));
     if (g.cached) headerExtras.push('<span style="color:#27AE60;">缓存命中</span>');
     var shortText = (g.items.length < g.wantN) ? '<span style="color:#E67E22;">（候选不足，仅 ' + g.items.length + ' 条）</span>' : '';
-    html += '<tr><td colspan="6" style="padding:5px 10px;background:#eaf6fb;color:#0078b8;font-weight:600;font-size:12px;">'
+    html += '<tr class="lcsc-group-header" data-group="' + esc(g.brand) + '"><td colspan="7" style="padding:5px 10px;background:#eaf6fb;color:#0078b8;font-weight:600;font-size:12px;">'
       + '★ ' + esc(g.brand) + '（' + g.items.length + '/' + g.wantN + ' 条）'
       + shortText
       + (headerExtras.length ? ' <span style="color:#999;font-weight:normal;">· ' + headerExtras.join(' · ') + '</span>' : '')
       + '</td></tr>';
     g.items.forEach(function(it){
       var i = globalIdx;
-      html += '<tr id="lcscRow_' + i + '" style="border-bottom:1px solid #f0f0f0;">'
+      html += '<tr id="lcscRow_' + i + '" class="lcsc-data-row" data-group="' + esc(g.brand) + '" data-stock="-1" style="border-bottom:1px solid #f0f0f0;">'
         + '<td style="padding:6px 8px;color:#0078b8;font-weight:600;">' + esc(it.componentCode) + '</td>'
         + '<td style="padding:6px 8px;">' + esc(it.componentModel || '-') + '</td>'
         + '<td style="padding:6px 8px;color:#666;">' + esc(it.componentSpecification || '-') + '</td>'
         + '<td id="lcscParam_' + i + '" style="padding:6px 8px;color:#999;font-size:12px;">加载中...</td>'
+        + '<td id="lcscStock_' + i + '" style="padding:6px 8px;color:#999;font-size:12px;text-align:right;">加载中...</td>'
         + '<td id="lcscBrand_' + i + '" style="padding:6px 8px;color:#666;">' + esc(it.componentBrand || g.brand) + '</td>'
         + '<td style="padding:6px 8px;text-align:center;">'
         + '  <button type="button" onclick="pickLcscCandidate(' + i + ')" style="padding:3px 10px;font-size:12px;background:#0078b8;color:white;border:0;border-radius:3px;cursor:pointer;">选用</button>'
@@ -1132,15 +1134,17 @@ function renderLcscSearchResults(data) {
     + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;">型号</th>'
     + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:90px;">封装</th>'
     + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:200px;">参数（精度/耐压/温度...）</th>'
+    + '<th style="padding:8px;text-align:right;border-bottom:1px solid #ddd;width:90px;">库存</th>'
     + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:80px;">品牌</th>'
     + '<th style="padding:8px;text-align:center;border-bottom:1px solid #ddd;width:70px;">操作</th>'
     + '</tr></thead><tbody>';
   items.forEach(function(it, i){
-    html += '<tr id="lcscRow_' + i + '" style="border-bottom:1px solid #f0f0f0;">'
+    html += '<tr id="lcscRow_' + i + '" class="lcsc-data-row" data-stock="-1" style="border-bottom:1px solid #f0f0f0;">'
       + '<td style="padding:6px 8px;color:#0078b8;font-weight:600;">' + esc(it.componentCode) + '</td>'
       + '<td style="padding:6px 8px;">' + esc(it.componentModel || '-') + '</td>'
       + '<td style="padding:6px 8px;color:#666;">' + esc(it.componentSpecification || '-') + '</td>'
       + '<td id="lcscParam_' + i + '" style="padding:6px 8px;color:#999;font-size:12px;">加载中...</td>'
+      + '<td id="lcscStock_' + i + '" style="padding:6px 8px;color:#999;font-size:12px;text-align:right;">加载中...</td>'
       + '<td id="lcscBrand_' + i + '" style="padding:6px 8px;color:#666;">' + esc(it.componentBrand || '-') + '</td>'
       + '<td style="padding:6px 8px;text-align:center;">'
       + '  <button type="button" onclick="pickLcscCandidate(' + i + ')" style="padding:3px 10px;font-size:12px;background:#0078b8;color:white;border:0;border-radius:3px;cursor:pointer;">选用</button>'
@@ -1165,7 +1169,8 @@ function renderLcscSearchResults(data) {
   enrichLcscCandidates(items);
 }
 
-// 异步批量取详情（精度/耐压/温度系数等）填进候选表
+// 异步批量取详情（精度/耐压/温度系数 + 库存）填进候选表
+// 详情到位后：组内按 stockNum 重排（无库存的沉底）
 function enrichLcscCandidates(items) {
   var codes = items.map(function(it){ return it.componentCode; }).filter(Boolean);
   if (codes.length === 0) return;
@@ -1182,9 +1187,13 @@ function enrichLcscCandidates(items) {
       items.forEach(function(it, i){
         var detail = resByCode[it.componentCode];
         var paramCell = document.getElementById('lcscParam_' + i);
+        var stockCell = document.getElementById('lcscStock_' + i);
         var brandCell = document.getElementById('lcscBrand_' + i);
-        if (!detail || !paramCell) {
+        var rowEl = document.getElementById('lcscRow_' + i);
+        if (!detail) {
           if (paramCell) paramCell.innerHTML = '<span style="color:#bbb;">-</span>';
+          if (stockCell) stockCell.innerHTML = '<span style="color:#bbb;">-</span>';
+          if (rowEl) rowEl.setAttribute('data-stock', '0');
           return;
         }
         // 把候选表里这条的详情存起来（pickLcscCandidate 入库时复用）
@@ -1194,16 +1203,83 @@ function enrichLcscCandidates(items) {
           brandCell.textContent = detail.brand;
           it.componentBrand = detail.brand;
         }
-        paramCell.innerHTML = renderLcscParamSummary(detail.paramLinkedMap || {});
+        if (paramCell) paramCell.innerHTML = renderLcscParamSummary(detail.paramLinkedMap || {});
+        // 库存
+        var stock = (typeof detail.stockNum === 'number') ? detail.stockNum : 0;
+        if (rowEl) rowEl.setAttribute('data-stock', String(stock));
+        if (stockCell) {
+          if (stock > 0) {
+            stockCell.innerHTML = '<span style="color:#27AE60;font-weight:600;">' + stock.toLocaleString() + '</span>';
+          } else {
+            stockCell.innerHTML = '<span style="color:#E74C3C;">无货</span>';
+          }
+        }
       });
+      // 详情全部到位后，组内按库存重排（有库存的在前，库存多的在前）
+      sortLcscRowsByStock();
     })
     .catch(function(){
       // 静默失败：参数列保持「加载中」也不影响选用
       items.forEach(function(it, i){
-        var cell = document.getElementById('lcscParam_' + i);
-        if (cell) cell.innerHTML = '<span style="color:#bbb;">-</span>';
+        var pc = document.getElementById('lcscParam_' + i);
+        var sc = document.getElementById('lcscStock_' + i);
+        if (pc) pc.innerHTML = '<span style="color:#bbb;">-</span>';
+        if (sc) sc.innerHTML = '<span style="color:#bbb;">-</span>';
       });
     });
+}
+
+// 库存到位后组内排序：按 data-group 分组，组内按 data-stock desc 排
+// 组头/空消息行不动，只重排同组的数据行
+function sortLcscRowsByStock() {
+  var body = document.getElementById('lcscSearchBody');
+  if (!body) return;
+  var tbody = body.querySelector('tbody');
+  if (!tbody) return;
+  var rows = Array.prototype.slice.call(tbody.children);
+  // 没分组（renderLcscSearchResults 走的是平铺） → 直接整体排
+  var hasGroup = false;
+  for (var k = 0; k < rows.length; k++) {
+    if (rows[k].className && rows[k].className.indexOf('lcsc-group-header') >= 0) { hasGroup = true; break; }
+  }
+  if (!hasGroup) {
+    var dataRows = rows.filter(function(r){ return r.className && r.className.indexOf('lcsc-data-row') >= 0; });
+    dataRows.sort(function(a, b){
+      return (parseInt(b.getAttribute('data-stock'), 10) || 0) - (parseInt(a.getAttribute('data-stock'), 10) || 0);
+    });
+    dataRows.forEach(function(r){ tbody.appendChild(r); });
+    return;
+  }
+  // 分组场景：按组头/空消息为分隔，重排各组内的 data-row
+  var i = 0;
+  while (i < rows.length) {
+    var r = rows[i];
+    if (r.className && (r.className.indexOf('lcsc-group-header') >= 0 || r.className.indexOf('lcsc-empty-msg') >= 0)) {
+      i++;
+      continue;
+    }
+    if (r.className && r.className.indexOf('lcsc-data-row') >= 0) {
+      // 收集本组连续的 data-row
+      var group = [];
+      var j = i;
+      while (j < rows.length && rows[j].className && rows[j].className.indexOf('lcsc-data-row') >= 0) {
+        group.push(rows[j]);
+        j++;
+      }
+      group.sort(function(a, b){
+        return (parseInt(b.getAttribute('data-stock'), 10) || 0) - (parseInt(a.getAttribute('data-stock'), 10) || 0);
+      });
+      // 把排好的塞回原位置：先记录下一行的参考节点，然后 insertBefore
+      var nextSibling = (j < rows.length) ? rows[j] : null;
+      group.forEach(function(rr){
+        if (nextSibling) tbody.insertBefore(rr, nextSibling);
+        else tbody.appendChild(rr);
+      });
+      i = j;
+      continue;
+    }
+    i++;
+  }
 }
 
 // 从 paramLinkedMap 抽出关键字段，按"精度 · 容值 · 耐压 · 温度系数"顺序展示
@@ -3579,7 +3655,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.5-dev · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.6-dev · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v2.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v2.pages.dev</a> <span style="color:#F4D03F;font-weight:600">(DEV)</span></div>
 </footer>
 </body>
