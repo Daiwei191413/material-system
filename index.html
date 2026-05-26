@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V2.0.0-dev</title>
+<title>技象科技研发BOM 整理神器 V2.0.1-dev</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V2.0.0-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V2.0.1-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -669,14 +669,18 @@ function renderConvTable() {
   CONV_OUT.forEach(function(o, i){
     var statusBadge = '';
     var rowStyle = '';
+    var actionBtn = '';
     if (o.status === 'dnp') {
       statusBadge = '<span style="background:#E74C3C;color:white;padding:2px 8px;border-radius:4px;font-size:12px;">DNP 剔除</span>';
       rowStyle = 'background:#fff5f5;color:#999;text-decoration:line-through;';
     } else if (o.status === 'matched') {
       var lvText = ['','L1','L2','L3'][o.matchLevel] || '';
       statusBadge = '<span style="background:#27AE60;color:white;padding:2px 8px;border-radius:4px;font-size:12px;">已匹配 '+lvText+'</span>';
+      // 已匹配也允许「换一个」，方便手工微调
+      actionBtn = '<button type="button" onclick="openLcscSearch('+i+')" style="margin-left:6px;padding:2px 8px;font-size:12px;background:#fff;border:1px solid #0078b8;color:#0078b8;border-radius:3px;cursor:pointer;">换</button>';
     } else {
       statusBadge = '<span style="background:#F39C12;color:white;padding:2px 8px;border-radius:4px;font-size:12px;">未匹配</span>';
+      actionBtn = '<button type="button" onclick="openLcscSearch('+i+')" style="margin-left:6px;padding:2px 8px;font-size:12px;background:#0078b8;border:0;color:white;border-radius:3px;cursor:pointer;">🔍 立创搜索</button>';
     }
     var tr = document.createElement('tr');
     tr.setAttribute('style', rowStyle);
@@ -685,7 +689,7 @@ function renderConvTable() {
       + '<td style="font-size:12px;">'+esc(o.designator)+' <span style="color:#999;">('+o.refs.length+')</span></td>'
       + '<td>'+esc(o.footprint)+'</td>'
       + '<td style="color:#0078b8;font-weight:600;">'+esc(o.lcsc || '-')+'</td>'
-      + '<td>'+statusBadge+'</td>';
+      + '<td>'+statusBadge+actionBtn+'</td>';
     tbody.appendChild(tr);
   });
 }
@@ -740,6 +744,272 @@ function _ts(){
   var d = new Date();
   var pad = function(n){return n<10?'0'+n:n;};
   return d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes());
+}
+
+// ==================== 立创搜索浮层（方案 C） ====================
+// 当前正在搜索的 CONV_OUT 行索引
+var _LCSC_SEARCH_IDX = -1;
+
+// 打开搜索浮层（自动用 comment 当 query，封装当 pkg 过滤）
+function openLcscSearch(idx) {
+  var o = CONV_OUT[idx];
+  if (!o) return;
+  _LCSC_SEARCH_IDX = idx;
+
+  // 默认 query：comment（已经是规范化后的型号或容值）
+  var defaultQ = o.comment || '';
+  // 默认 pkg：只在三位四位封装数字（0402/0603/0805/1206）才带，复杂封装不传
+  var defaultPkg = '';
+  if (o.footprint && /^\d{4}$/.test(String(o.footprint).trim())) {
+    defaultPkg = String(o.footprint).trim();
+  }
+
+  // 先建浮层（只建一次）
+  var modal = document.getElementById('lcscSearchModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'lcscSearchModal';
+    modal.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;';
+    modal.innerHTML = ''
+      + '<div style="position:absolute;top:8%;left:50%;transform:translateX(-50%);width:760px;max-width:94%;max-height:84vh;background:#fff;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.3);display:flex;flex-direction:column;overflow:hidden;">'
+      + '  <div style="padding:14px 18px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;background:#f8f9fa;">'
+      + '    <div style="font-size:15px;font-weight:600;color:#2C3E50;">🔍 立创编号反查</div>'
+      + '    <button type="button" onclick="closeLcscSearch()" style="background:none;border:0;font-size:22px;color:#999;cursor:pointer;line-height:1;">×</button>'
+      + '  </div>'
+      + '  <div style="padding:14px 18px;border-bottom:1px solid #eee;background:#fff;">'
+      + '    <div id="lcscSearchTarget" style="margin-bottom:10px;color:#666;font-size:13px;"></div>'
+      + '    <div style="display:flex;gap:8px;align-items:center;">'
+      + '      <label style="font-size:13px;color:#555;white-space:nowrap;">关键字</label>'
+      + '      <input id="lcscSearchQ" type="text" style="flex:1;padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;" placeholder="型号 / 容值 / 关键字">'
+      + '      <label style="font-size:13px;color:#555;white-space:nowrap;">封装</label>'
+      + '      <input id="lcscSearchPkg" type="text" style="width:100px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;" placeholder="0805">'
+      + '      <button type="button" id="lcscSearchBtn" onclick="runLcscSearch(1)" style="padding:6px 16px;background:#0078b8;color:white;border:0;border-radius:4px;font-size:13px;cursor:pointer;">搜索</button>'
+      + '    </div>'
+      + '    <div style="margin-top:6px;color:#999;font-size:12px;">提示：封装会做二次过滤（接口本身按全文搜索）；过滤后没结果会回退到全部候选。</div>'
+      + '  </div>'
+      + '  <div id="lcscSearchBody" style="flex:1;overflow-y:auto;padding:0 18px;">'
+      + '    <div style="padding:30px;text-align:center;color:#999;">输入关键字后点搜索</div>'
+      + '  </div>'
+      + '  <div id="lcscSearchFooter" style="padding:10px 18px;border-top:1px solid #eee;background:#f8f9fa;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#666;">'
+      + '    <span id="lcscSearchMeta"></span>'
+      + '    <span><button type="button" id="lcscPagePrev" onclick="lcscPagePrev()" style="padding:4px 10px;font-size:12px;margin-right:6px;cursor:pointer;display:none;">上一页</button>'
+      + '    <button type="button" id="lcscPageNext" onclick="lcscPageNext()" style="padding:4px 10px;font-size:12px;cursor:pointer;display:none;">下一页</button></span>'
+      + '  </div>'
+      + '</div>';
+    document.body.appendChild(modal);
+    // 点遮罩关
+    modal.addEventListener('click', function(e){
+      if (e.target === modal) closeLcscSearch();
+    });
+    // 回车触发搜索
+    var qInput = document.getElementById('lcscSearchQ');
+    qInput.addEventListener('keydown', function(e){
+      if (e.key === 'Enter') { e.preventDefault(); runLcscSearch(1); }
+    });
+  }
+
+  // 填默认值
+  document.getElementById('lcscSearchQ').value = defaultQ;
+  document.getElementById('lcscSearchPkg').value = defaultPkg;
+  document.getElementById('lcscSearchTarget').innerHTML = ''
+    + '正在为 <b>' + esc(o.comment) + '</b> '
+    + '<span style="color:#999;">(' + esc(o.footprint || '-') + ' / ' + esc(o.designator) + ')</span> 搜索候选编号';
+  document.getElementById('lcscSearchBody').innerHTML = '<div style="padding:30px;text-align:center;color:#999;">点搜索开始</div>';
+  document.getElementById('lcscSearchMeta').textContent = '';
+  document.getElementById('lcscPagePrev').style.display = 'none';
+  document.getElementById('lcscPageNext').style.display = 'none';
+  modal.style.display = 'block';
+
+  // 自动搜一发（若有默认 query）
+  if (defaultQ && defaultQ !== '-') {
+    setTimeout(function(){ runLcscSearch(1); }, 50);
+  } else {
+    document.getElementById('lcscSearchQ').focus();
+  }
+}
+
+function closeLcscSearch() {
+  var m = document.getElementById('lcscSearchModal');
+  if (m) m.style.display = 'none';
+  _LCSC_SEARCH_IDX = -1;
+}
+
+// 当前页（用于下一页）
+var _LCSC_SEARCH_PAGE = 1;
+var _LCSC_SEARCH_HAS_NEXT = false;
+
+function runLcscSearch(page) {
+  page = page || 1;
+  _LCSC_SEARCH_PAGE = page;
+  var q = document.getElementById('lcscSearchQ').value.trim();
+  var pkg = document.getElementById('lcscSearchPkg').value.trim();
+  if (!q) { alert('请输入关键字'); return; }
+
+  var body = document.getElementById('lcscSearchBody');
+  body.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">搜索中...</div>';
+  document.getElementById('lcscSearchBtn').disabled = true;
+
+  var url = LCSC_WORKER_URL + '/search?q=' + encodeURIComponent(q) + '&page=' + page;
+  if (pkg) url += '&pkg=' + encodeURIComponent(pkg);
+
+  fetch(url, { mode: 'cors' })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      document.getElementById('lcscSearchBtn').disabled = false;
+      if (!data || !data.ok) {
+        body.innerHTML = '<div style="padding:20px;color:#E74C3C;">搜索失败：' + esc((data && data.error) || '未知错误') + '</div>';
+        return;
+      }
+      renderLcscSearchResults(data);
+    })
+    .catch(function(e){
+      document.getElementById('lcscSearchBtn').disabled = false;
+      body.innerHTML = '<div style="padding:20px;color:#E74C3C;">网络错误：' + esc(String(e.message || e)) + '</div>';
+    });
+}
+
+function renderLcscSearchResults(data) {
+  var body = document.getElementById('lcscSearchBody');
+  var items = data.items || [];
+  if (items.length === 0) {
+    body.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">没找到候选，<br>试试改下关键字（去掉容值单位/封装）。</div>';
+    document.getElementById('lcscSearchMeta').textContent = '共 0 条';
+    document.getElementById('lcscPagePrev').style.display = 'none';
+    document.getElementById('lcscPageNext').style.display = 'none';
+    return;
+  }
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
+  html += '<thead><tr style="background:#f8f9fa;position:sticky;top:0;">'
+    + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:90px;">编号</th>'
+    + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;">型号</th>'
+    + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:120px;">封装</th>'
+    + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:90px;">品牌</th>'
+    + '<th style="padding:8px;text-align:center;border-bottom:1px solid #ddd;width:80px;">操作</th>'
+    + '</tr></thead><tbody>';
+  items.forEach(function(it, i){
+    html += '<tr style="border-bottom:1px solid #f0f0f0;">'
+      + '<td style="padding:6px 8px;color:#0078b8;font-weight:600;">' + esc(it.componentCode) + '</td>'
+      + '<td style="padding:6px 8px;">' + esc(it.componentModel || '-') + '</td>'
+      + '<td style="padding:6px 8px;color:#666;">' + esc(it.componentSpecification || '-') + '</td>'
+      + '<td style="padding:6px 8px;color:#666;">' + esc(it.componentBrand || '-') + '</td>'
+      + '<td style="padding:6px 8px;text-align:center;">'
+      + '  <button type="button" onclick="pickLcscCandidate(' + i + ')" style="padding:3px 10px;font-size:12px;background:#0078b8;color:white;border:0;border-radius:3px;cursor:pointer;">选用</button>'
+      + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  body.innerHTML = html;
+
+  // 暂存候选给 pickLcscCandidate
+  body._items = items;
+
+  // 元信息 + 翻页
+  var meta = '本页 ' + items.length + ' 条';
+  if (data.totalRows) meta += ' / 共 ' + data.totalRows + ' 条';
+  if (data.cached) meta += ' · 缓存命中';
+  document.getElementById('lcscSearchMeta').textContent = meta;
+  _LCSC_SEARCH_HAS_NEXT = !!data.hasNextPage;
+  document.getElementById('lcscPagePrev').style.display = (_LCSC_SEARCH_PAGE > 1) ? 'inline-block' : 'none';
+  document.getElementById('lcscPageNext').style.display = _LCSC_SEARCH_HAS_NEXT ? 'inline-block' : 'none';
+}
+
+function lcscPagePrev() {
+  if (_LCSC_SEARCH_PAGE > 1) runLcscSearch(_LCSC_SEARCH_PAGE - 1);
+}
+function lcscPageNext() {
+  if (_LCSC_SEARCH_HAS_NEXT) runLcscSearch(_LCSC_SEARCH_PAGE + 1);
+}
+
+// 选用某条候选 → 回填到 CONV_OUT[_LCSC_SEARCH_IDX] + 询问是否入库
+function pickLcscCandidate(itemIdx) {
+  var idx = _LCSC_SEARCH_IDX;
+  if (idx < 0 || !CONV_OUT[idx]) { closeLcscSearch(); return; }
+  var body = document.getElementById('lcscSearchBody');
+  var item = body._items && body._items[itemIdx];
+  if (!item) return;
+
+  var row = CONV_OUT[idx];
+  // 回填
+  row.lcsc = item.componentCode;
+  row.status = 'matched';
+  row.matchLevel = 0; // 0 = 手工选用（区别于 L1/L2/L3 自动匹配）
+  row.manualPick = true;
+  row.manualMeta = {
+    model: item.componentModel || '',
+    spec: item.componentSpecification || '',
+    brand: item.componentBrand || '',
+  };
+
+  // 重新统计 + 渲染
+  var matched = 0, unmatched = 0, dnp = 0;
+  CONV_OUT.forEach(function(o){
+    if (o.status === 'matched') matched++;
+    else if (o.status === 'dnp') dnp++;
+    else unmatched++;
+  });
+  document.getElementById('convStatMatched').textContent = matched;
+  document.getElementById('convStatUnmatched').textContent = unmatched;
+  if (document.getElementById('convStatDnp')) document.getElementById('convStatDnp').textContent = dnp;
+  renderConvTable();
+
+  closeLcscSearch();
+
+  // 顺手入库：问要不要把这个映射加进物料库
+  // 数据来源：原理图 comment + footprint + 立创编号 + 立创搜索回来的型号/品牌
+  setTimeout(function(){
+    if (typeof materialDB === 'undefined') return; // 物料库模块未加载，跳过
+    var ok = confirm('已回填编号 ' + item.componentCode + '\n\n是否把这条映射加入物料库？\n\n名称：' + (row.comment || '-')
+      + '\n型号：' + (item.componentModel || '-')
+      + '\n封装：' + (item.componentSpecification || row.footprint || '-')
+      + '\n品牌：' + (item.componentBrand || '-')
+      + '\n立创：' + item.componentCode
+      + '\n\n（点【确定】入库后下次自动匹配，点【取消】仅本次回填）');
+    if (ok) {
+      try {
+        addManualToMaterialDb(row, item);
+      } catch (e) {
+        alert('入库失败：' + e.message);
+      }
+    }
+  }, 100);
+}
+
+// 把手工选用的候选写入物料库（字段名对齐 saveMaterialDB / exportMaterialData）
+function addManualToMaterialDb(row, item) {
+  if (typeof materialDB === 'undefined') {
+    alert('物料库未初始化');
+    return;
+  }
+  // 防重复：同 lcsc_code 已存在就跳过
+  for (var i = 0; i < materialDB.length; i++) {
+    if (materialDB[i].lcsc_code === item.componentCode) {
+      alert('物料库中已存在 ' + item.componentCode + '，本次仅回填、未重复入库');
+      return;
+    }
+  }
+  var rec = {
+    material_code: '',                                 // A 物料编码（手工补，留空）
+    name: row.comment || (item.componentModel || ''),  // C 物料名称
+    model: item.componentModel || row.comment || '',  // D 型号
+    specification: '',                                 // E 参数描述（先留空）
+    package: item.componentSpecification || row.footprint || '', // F 封装
+    brand: item.componentBrand || '',                  // G 品牌
+    lcsc_code: item.componentCode,                     // H 立创编号
+    unit: 'PCS',
+    dnp: false,
+    remark: '由立创搜索手工选用',
+  };
+  materialDB.push(rec);
+  if (typeof saveMaterialDB === 'function') {
+    saveMaterialDB();
+  } else {
+    try {
+      localStorage.setItem('material_db', JSON.stringify(materialDB));
+      localStorage.setItem('material_db_updated', new Date().toLocaleString('zh-CN'));
+    } catch (e) {}
+  }
+  // 刷新物料清单视图（如果有渲染函数）
+  if (typeof renderMaterialTable === 'function') renderMaterialTable();
+  if (typeof renderMatTable === 'function') renderMatTable();
 }
 
 // 上传绑定
@@ -2989,7 +3259,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.0-dev · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.1-dev · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v2.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v2.pages.dev</a> <span style="color:#F4D03F;font-weight:600">(DEV)</span></div>
 </footer>
 </body>
