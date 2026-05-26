@@ -7,6 +7,7 @@
  * 接口契约（保持与 v1.x 兼容）：
  *   GET /?k=C431542               单颗查询
  *   GET /batch?codes=C1,C2,C3     批量查询（最多 30 颗）
+ *   GET /search?q=10K&page=1      关键字搜索（V2 新增，方案 C 反查未匹配料）
  *   GET /health                   健康检查
  *   GET /quota                    查看今日配额消耗（KV 计数）
  *
@@ -18,16 +19,19 @@
  * KV 绑定：
  *   LCSC_CACHE      元器件数据缓存，TTL 7 天
  *
- * 版本：v1.0.8（底层切换至立创官方 OpenAPI，HMAC-SHA256 签名；对外契约不变）
- * 部署：cd cloudflare-worker && export CLOUDFLARE_API_TOKEN=xxx && npx wrangler deploy
+ * 版本：v1.0.9（新增 /search 关键字搜索路由，方案 C 反查未匹配料；对外契约不变）
+ * 部署：cd cloudflare-worker && export CLOUDFLARE_API_TOKEN=*** && npx wrangler deploy
  * 作者：开发助理 (hdv_dev_bot) for 戴纬哥 · 技象科技
  */
 
-const VERSION = 'v1.0.8';
+const VERSION = 'v1.0.9';
 const JLC_BASE = 'https://open-api.jlc.com';
 const JLC_PATH = '/smtOpenApi/smtComponent/selectComponentInfoByCodes';
+const JLC_SEARCH_PATH = '/smtOpenApi/order/selectComponentInfo';
 const CACHE_TTL = 7 * 86400; // 7 天
+const SEARCH_CACHE_TTL = 3600; // 搜索结果缓存 1 小时（型号库变化没那么快）
 const BATCH_HARD_CAP = 30;   // 与前端约定一致
+const SEARCH_PAGE_SIZE = 10; // 搜索每页返回 10 条候选
 
 // 允许跨域的域名白名单
 const ALLOWED_ORIGINS = [
@@ -122,6 +126,50 @@ async function jlcQuery(codes, env) {
     throw new Error(`立创 API 业务失败: code=${json.code} message=${json.message} errorCode=${json.errorCode}`);
   }
   return json.data || [];
+}
+
+// 关键字搜索（方案 C：未匹配料反查）
+async function jlcSearch(queryString, pageNum, env) {
+  if (!env.JLC_ACCESS_KEY || !env.JLC_SECRET_KEY || !env.JLC_APP_ID) {
+    throw new Error('立创签名密钥未配置（需 wrangler secret 设置 JLC_ACCESS_KEY/JLC_SECRET_KEY/JLC_APP_ID）');
+  }
+  const bodyObj = {
+    queryString: String(queryString || '').trim(),
+    pageNum: pageNum || 1,
+    pageSize: SEARCH_PAGE_SIZE,
+  };
+  const body = JSON.stringify(bodyObj);
+  const auth = await buildAuthHeader(env, 'POST', JLC_SEARCH_PATH, body);
+
+  const resp = await fetch(JLC_BASE + JLC_SEARCH_PATH, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Accept': 'application/json',
+      'Authorization': auth,
+    },
+    body,
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`立创搜索 HTTP ${resp.status}: ${text.slice(0, 200)}`);
+  }
+  const json = await resp.json();
+  if (!json.success) {
+    throw new Error(`立创搜索业务失败: code=${json.code} message=${json.message} errorCode=${json.errorCode}`);
+  }
+  // 实际返回结构（PageHelper 标准分页）：
+  //   { success, data: { list:[...], total, pages, pageNum, pageSize, hasNextPage, ... } }
+  const root = json.data || {};
+  return {
+    items: root.list || [],
+    pageNum: root.pageNum || pageNum || 1,
+    pageSize: root.pageSize || SEARCH_PAGE_SIZE,
+    totalPages: root.pages || 0,
+    totalRows: root.total || 0,
+    hasNextPage: !!root.hasNextPage,
+  };
 }
 
 // ==================== 字段映射 JLC → 兼容输出 ====================
@@ -348,6 +396,84 @@ async function handleBatchInternal(queryList, env, ctx) {
   };
 }
 
+// ==================== 搜索：关键字反查（方案 C） ====================
+
+async function handleSearch(rawQuery, rawPkg, rawPage, env, ctx) {
+  const q = String(rawQuery || '').trim();
+  if (!q) {
+    return { ok: false, error: '参数 q 不能为空' };
+  }
+  // q 长度别太放，立创搜索后端是模糊匹配，1 个字符也能搜但量太大
+  if (q.length > 64) {
+    return { ok: false, error: '参数 q 太长，最大 64 字符' };
+  }
+  const pkg = String(rawPkg || '').trim().toUpperCase();
+  let pageNum = parseInt(rawPage, 10);
+  if (!pageNum || pageNum < 1) pageNum = 1;
+  if (pageNum > 20) pageNum = 20; // 防刷
+
+  // KV 缓存：用 query+page 做 key（不含 pkg，pkg 是 Worker 端二次过滤）
+  const cacheKey = `search:${q.toLowerCase()}:p${pageNum}`;
+  let cached = null;
+  let cacheHit = false;
+  if (env && env.LCSC_CACHE) {
+    cached = await env.LCSC_CACHE.get(cacheKey, { type: 'json' });
+    if (cached) cacheHit = true;
+  }
+
+  let raw;
+  if (cached) {
+    raw = cached;
+  } else {
+    try {
+      raw = await jlcSearch(q, pageNum, env);
+    } catch (e) {
+      return { ok: false, error: String(e.message || e), query: q };
+    }
+    if (env && env.LCSC_CACHE) {
+      const writeKv = env.LCSC_CACHE.put(cacheKey, JSON.stringify(raw), { expirationTtl: SEARCH_CACHE_TTL });
+      if (ctx && ctx.waitUntil) ctx.waitUntil(writeKv); else await writeKv;
+    }
+    // 计配额（缓存命中不计）
+    if (ctx && ctx.waitUntil) ctx.waitUntil(bumpQuota(env, 1)); else await bumpQuota(env, 1);
+  }
+
+  // 精简返回字段，只给前端用得上的
+  let items = (raw.items || []).map((it) => ({
+    componentCode: it.componentCode || '',
+    componentModel: it.componentModel || '',
+    componentSpecification: it.componentSpecification || '',
+    componentBrand: it.componentBrand || '',
+    componentName: it.componentName || '',
+  }));
+
+  // pkg 过滤（接口本身不支持封装筛，Worker 端做）
+  if (pkg) {
+    const filtered = items.filter((it) => {
+      const spec = String(it.componentSpecification || '').toUpperCase();
+      // 允许部分包含，0805 能匹配 "0805 (2012 公制)"
+      return spec.indexOf(pkg) >= 0;
+    });
+    // 过滤后没货时，回退到不过滤的结果（让用户至少看到候选）
+    if (filtered.length > 0) {
+      items = filtered;
+    }
+  }
+
+  return {
+    ok: true,
+    cached: cacheHit,
+    query: q,
+    pkg: pkg || null,
+    pageNum: raw.pageNum,
+    pageSize: raw.pageSize,
+    totalPages: raw.totalPages,
+    totalRows: raw.totalRows,
+    hasNextPage: !!raw.hasNextPage,
+    items,
+  };
+}
+
 // ==================== 入口 ====================
 
 export default {
@@ -380,6 +506,7 @@ export default {
           endpoints: {
             '/?k=C431542': '查询单个立创编号',
             '/batch?codes=C1,C2,C3': '批量查询（最多 30 个）',
+            '/search?q=10K&pkg=0805&page=1': '关键字搜索（V2 反查未匹配料）',
             '/health': '健康检查',
             '/quota': '查看今日配额消耗',
           },
@@ -396,6 +523,14 @@ export default {
           .map((s) => s.trim())
           .filter(Boolean);
         body = await handleBatch(codes, env, ctx);
+      } else if (path === '/search') {
+        body = await handleSearch(
+          url.searchParams.get('q'),
+          url.searchParams.get('pkg'),
+          url.searchParams.get('page'),
+          env,
+          ctx,
+        );
       } else {
         body = { ok: false, error: 'Not Found' };
         return new Response(JSON.stringify(body), {
