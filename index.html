@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V2.0.1-dev</title>
+<title>技象科技研发BOM 整理神器 V2.0.2-dev</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V2.0.1-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V2.0.2-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -882,16 +882,18 @@ function renderLcscSearchResults(data) {
   html += '<thead><tr style="background:#f8f9fa;position:sticky;top:0;">'
     + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:90px;">编号</th>'
     + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;">型号</th>'
-    + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:120px;">封装</th>'
-    + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:90px;">品牌</th>'
-    + '<th style="padding:8px;text-align:center;border-bottom:1px solid #ddd;width:80px;">操作</th>'
+    + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:90px;">封装</th>'
+    + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:200px;">参数（精度/耐压/温度...）</th>'
+    + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:80px;">品牌</th>'
+    + '<th style="padding:8px;text-align:center;border-bottom:1px solid #ddd;width:70px;">操作</th>'
     + '</tr></thead><tbody>';
   items.forEach(function(it, i){
-    html += '<tr style="border-bottom:1px solid #f0f0f0;">'
+    html += '<tr id="lcscRow_' + i + '" style="border-bottom:1px solid #f0f0f0;">'
       + '<td style="padding:6px 8px;color:#0078b8;font-weight:600;">' + esc(it.componentCode) + '</td>'
       + '<td style="padding:6px 8px;">' + esc(it.componentModel || '-') + '</td>'
       + '<td style="padding:6px 8px;color:#666;">' + esc(it.componentSpecification || '-') + '</td>'
-      + '<td style="padding:6px 8px;color:#666;">' + esc(it.componentBrand || '-') + '</td>'
+      + '<td id="lcscParam_' + i + '" style="padding:6px 8px;color:#999;font-size:12px;">加载中...</td>'
+      + '<td id="lcscBrand_' + i + '" style="padding:6px 8px;color:#666;">' + esc(it.componentBrand || '-') + '</td>'
       + '<td style="padding:6px 8px;text-align:center;">'
       + '  <button type="button" onclick="pickLcscCandidate(' + i + ')" style="padding:3px 10px;font-size:12px;background:#0078b8;color:white;border:0;border-radius:3px;cursor:pointer;">选用</button>'
       + '</td></tr>';
@@ -910,6 +912,76 @@ function renderLcscSearchResults(data) {
   _LCSC_SEARCH_HAS_NEXT = !!data.hasNextPage;
   document.getElementById('lcscPagePrev').style.display = (_LCSC_SEARCH_PAGE > 1) ? 'inline-block' : 'none';
   document.getElementById('lcscPageNext').style.display = _LCSC_SEARCH_HAS_NEXT ? 'inline-block' : 'none';
+
+  // 异步拉详情参数（批量接口，KV 缓存 7 天）
+  enrichLcscCandidates(items);
+}
+
+// 异步批量取详情（精度/耐压/温度系数等）填进候选表
+function enrichLcscCandidates(items) {
+  var codes = items.map(function(it){ return it.componentCode; }).filter(Boolean);
+  if (codes.length === 0) return;
+  fetch(LCSC_WORKER_URL + '/batch?codes=' + codes.join(','), { mode: 'cors' })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (!data || !data.ok) return;
+      var resByCode = {};
+      (data.results || []).forEach(function(r){
+        if (r.ok && r.data && r.data.productCode) {
+          resByCode[r.data.productCode] = r.data;
+        }
+      });
+      items.forEach(function(it, i){
+        var detail = resByCode[it.componentCode];
+        var paramCell = document.getElementById('lcscParam_' + i);
+        var brandCell = document.getElementById('lcscBrand_' + i);
+        if (!detail || !paramCell) {
+          if (paramCell) paramCell.innerHTML = '<span style="color:#bbb;">-</span>';
+          return;
+        }
+        // 把候选表里这条的详情存起来（pickLcscCandidate 入库时复用）
+        items[i]._detail = detail;
+        // 品牌补全（搜索接口经常返空，详情有）
+        if (brandCell && detail.brand && (!it.componentBrand || it.componentBrand === '-')) {
+          brandCell.textContent = detail.brand;
+          it.componentBrand = detail.brand;
+        }
+        paramCell.innerHTML = renderLcscParamSummary(detail.paramLinkedMap || {});
+      });
+    })
+    .catch(function(){
+      // 静默失败：参数列保持「加载中」也不影响选用
+      items.forEach(function(it, i){
+        var cell = document.getElementById('lcscParam_' + i);
+        if (cell) cell.innerHTML = '<span style="color:#bbb;">-</span>';
+      });
+    });
+}
+
+// 从 paramLinkedMap 抽出关键字段，按"精度 · 容值 · 耐压 · 温度系数"顺序展示
+function renderLcscParamSummary(pm) {
+  if (!pm) return '<span style="color:#bbb;">-</span>';
+  var parts = [];
+  // 1. 精度（电容/电阻/电感都叫这个，最关键）
+  if (pm['精度']) {
+    parts.push('<b style="color:#E74C3C;">' + esc(pm['精度']) + '</b>');
+  } else if (pm['公差']) {
+    parts.push('<b style="color:#E74C3C;">' + esc(pm['公差']) + '</b>');
+  }
+  // 2. 主参数（容值/阻值/电感值，搜索关键字一般已带，但放上更直观）
+  var mainVal = pm['容值'] || pm['阻值'] || pm['电感值'] || '';
+  if (mainVal) parts.push(esc(mainVal));
+  // 3. 耐压（电容关键）
+  if (pm['额定电压']) parts.push(esc(pm['额定电压']));
+  // 4. 温度系数（电容 X7R/X5R/C0G 关键）
+  if (pm['温度系数']) parts.push(esc(pm['温度系数']));
+  // 5. 功率（电阻关键）
+  if (pm['功率']) parts.push(esc(pm['功率']));
+  // 6. 额定电流（电感关键）
+  if (pm['额定电流']) parts.push(esc(pm['额定电流']));
+
+  if (parts.length === 0) return '<span style="color:#bbb;">-</span>';
+  return parts.join(' · ');
 }
 
 function lcscPagePrev() {
@@ -3259,7 +3331,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.1-dev · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.2-dev · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v2.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v2.pages.dev</a> <span style="color:#F4D03F;font-weight:600">(DEV)</span></div>
 </footer>
 </body>
