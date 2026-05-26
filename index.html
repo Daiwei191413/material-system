@@ -186,6 +186,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 <div class="nav">
   <button class="nav-btn active" onclick="showPanel('material')">📦 物料编码</button>
   <button class="nav-btn" onclick="showPanel('compare')">🔍 BOM对比</button>
+  <button class="nav-btn" onclick="showPanel('convert')">🔄 转嘉立创</button>
 </div>
 
 <!-- 全局使用流程 -->
@@ -350,11 +351,73 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
             <th>封装</th>
             <th>品牌</th>
             <th>立创编号</th>
+            <th title="是否不上板（DNP/Do Not Place）">DNP</th>
           </tr>
         </thead>
         <tbody id="matTableBody">
         </tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- 原理图BOM 转 嘉立创BOM 面板 -->
+<div id="convertPanel" style="display:none;">
+  <div class="panel">
+    <h3>🔄 原理图BOM → 嘉立创BOM</h3>
+    <div class="import-hint">
+      💡 上传原理图导出的 BOM（含 <b>Value / Reference / PCB Footprint</b> 三列），系统会：<br>
+      ① 容值/电阻规范化（<code>0.1uF → 100nF</code>，耐压保留）<br>
+      ② 同型号同封装合并位号 <br>
+      ③ 三级匹配引擎填立创编号 <br>
+      ④ 按物料库 <b>DNP 字段</b>自动剔除不上板物料<br>
+      输出：<b>嘉立创BOM（4列：Comment/Designator/Footprint/嘉立创元件编号）</b> + <b>映射关系附件</b>
+    </div>
+
+    <div class="upload-row" style="margin-top:16px;">
+      <div class="upload-box" id="convUploadBox" style="cursor:pointer;">
+        <div class="upload-icon">📐</div>
+        <div class="upload-title">上传原理图 BOM</div>
+        <div class="upload-hint">支持 .xlsx / .xls / .csv，需含 Value / Reference / Footprint 三列</div>
+        <input type="file" id="convFile" accept=".xlsx,.xls,.csv" style="display:none;">
+      </div>
+    </div>
+
+    <div id="convStatus" style="display:none; margin-top:16px;">
+      <div class="panel" style="background:#F8F9FA;">
+        <div style="display:flex;gap:24px;flex-wrap:wrap;">
+          <div><b>原始：</b><span id="convStatRaw">-</span> 行</div>
+          <div><b>合并后：</b><span id="convStatMerged">-</span> 行</div>
+          <div style="color:#E74C3C;"><b>剔除 DNP：</b><span id="convStatDnp">-</span> 个</div>
+          <div style="color:#27AE60;"><b>已匹配 LCSC：</b><span id="convStatMatched">-</span> 行</div>
+          <div style="color:#F39C12;"><b>未匹配：</b><span id="convStatUnmatched">-</span> 行</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="convPreview" style="display:none; margin-top:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <h3 style="margin:0;">📋 转换预览</h3>
+        <div>
+          <button class="btn-primary" onclick="exportJlcBom()">📥 导出嘉立创BOM</button>
+          <button class="btn-secondary" onclick="exportConvMap()" style="margin-left:8px;">📋 导出映射表</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="convTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Comment</th>
+              <th>Designator</th>
+              <th>Footprint</th>
+              <th>嘉立创元件编号</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody id="convTableBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -378,41 +441,371 @@ var ALIAS={
 '单位':['单位','Unit'],
 '品牌':['品牌','Brand','Manufacturer','厂商','MFR','制造商'],
 '立创编号':['立创编号','LCSC','LCSC编号','立创商城编号','LCSC Part','嘉立创编号','嘉立创元件编号','嘉立创编码','立创元件编号','立创料号'],
-'备注':['备注','Note','Remark','说明']
+'备注':['备注','Note','Remark','说明'],
+'DNP':['DNP','dnp','不上板','不贴','不焊','禁用','是否DNP','上板','是否上板']
 };
+
+// ==================== DNP 解析 ====================
+// 智能识别物料行是否为 DNP（不上板/不贴）
+// 关键陷阱：「上板」和「不上板」语义相反，要按列名+值组合判断
+function parseDnpCell(row) {
+  // 优先级 1：明确叫 "DNP" 的列
+  var dnpVal = row['DNP'] || '';
+  if (dnpVal !== '') {
+    var v = dnpVal.toString().trim().toUpperCase();
+    // 真值：DNP / Y / YES / TRUE / 1 / 是 / 不上板 / 不贴 / 不焊
+    if (v === 'DNP' || v === 'Y' || v === 'YES' || v === 'TRUE' || v === '1' ||
+        v === '是' || v === '不上板' || v === '不贴' || v === '不焊' || v === '✓' || v === '√') {
+      return true;
+    }
+    return false;
+  }
+  // 优先级 2：列名是「上板」或「是否上板」时，反义判断
+  // 这种情况下 "否/N/NO/0" 才表示 DNP
+  // 但 ALIAS 已经统一映射到 'DNP' key 了，所以这里实际不会走到
+  return false;
+}
+
+
+// ==================== 容值/电阻 规范化 ====================
+// 用于「原理图BOM → 嘉立创BOM」转换。Q1=b：保留耐压标注
+// 转换规则：
+//   - 容值单位统一（uF/μF/UF → uF；nF/NF → nF；pF/PF → pF）
+//   - 跨单位归一（0.1uF → 100nF；1000pF → 1nF；0.1nF → 100pF）
+//   - 阻值补 R（180 → 180R；2.4 → 2.4R），但保留 K/M 后缀（10K 不动）
+//   - 耐压保留：100nF/50V → 100nF/50V；0.1uF/25V → 100nF/25V；1nF/4KV → 1nF/4KV
+// 不做的事：
+//   - 不替换等效料（ESD5471X 不会变成 BDFN2C071V）
+//   - 不擅自升降耐压（25V 不会自动变 50V，4KV 不会自动变 2KV）
+function normalizeValue(rawValue, fp) {
+  if (!rawValue) return '';
+  var s = rawValue.toString().trim();
+  if (!s) return '';
+
+  // 拆分主值和耐压（第一个 / 之后的部分作为耐压保留）
+  var parts = s.split(/[\/\\]/);
+  var main = parts[0].trim();
+  var voltage = parts.length > 1 ? parts.slice(1).join('/').trim() : '';
+
+  // 判断是电容还是电阻还是其它（看封装名提示）
+  var fpUpper = (fp || '').toString().toUpperCase();
+  var isCap = /^SC\d|^C\d|CAP/.test(fpUpper);
+  var isRes = /^SR\d|^R\d|RES/.test(fpUpper);
+
+  // === 电容值归一 ===
+  var capMatch = main.match(/^([\d.]+)\s*(uF|μF|UF|nF|NF|pF|PF)$/i);
+  if (capMatch) {
+    var num = parseFloat(capMatch[1]);
+    var unit = capMatch[2].toLowerCase();
+    if (unit === 'μf') unit = 'uf';
+    // 转成 pF 量纲
+    var inPf = num;
+    if (unit === 'uf') inPf = num * 1e6;
+    else if (unit === 'nf') inPf = num * 1e3;
+    // 选最佳显示单位（嘉立创风格优先 nF）
+    var normalized;
+    if (inPf >= 1e6) {
+      normalized = trimZero(inPf / 1e6) + 'uF';
+    } else if (inPf >= 1) {
+      var inNf = inPf / 1e3;
+      if (inNf >= 1) normalized = trimZero(inNf) + 'nF';
+      else normalized = trimZero(inPf) + 'pF';
+    } else {
+      normalized = trimZero(inPf) + 'pF';
+    }
+    return voltage ? normalized + '/' + voltage : normalized;
+  }
+
+  // === 电阻值归一 ===
+  if (/^[\d.]+$/.test(main) && isRes) {
+    return voltage ? main + 'R/' + voltage : main + 'R';
+  }
+  if (/^[\d.]+\s*[KMRkmr]Ω?$/.test(main)) {
+    var m2 = main.match(/^([\d.]+)\s*([KMRkmr])Ω?$/);
+    if (m2) {
+      var letter = m2[2].toUpperCase();
+      var clean = trimZero(parseFloat(m2[1])) + letter;
+      return voltage ? clean + '/' + voltage : clean;
+    }
+  }
+
+  // 不识别的格式：原样返回（含耐压）
+  return s;
+}
+
+// 去末尾多余的 0 和小数点（100.0 → 100；2.40 → 2.4）
+function trimZero(n) {
+  if (typeof n !== 'number') n = parseFloat(n);
+  if (isNaN(n)) return '0';
+  var s = n.toString();
+  if (s.indexOf('e') >= 0) {
+    s = n.toFixed(12).replace(/\.?0+$/, '');
+  }
+  return s;
+}
+
+
+// ==================== 原理图BOM → 嘉立创BOM 转换器 ====================
+// 数据流：原始行 → 规范化 → 同型号同封装合并位号 → 三级匹配填 LCSC → 按 DNP 剔除
+var CONV_RAW = [];      // 原始行：[{value, ref, fp}]
+var CONV_OUT = [];      // 输出行：[{comment, designator, footprint, lcsc, refs:[], status, matchLevel, dnp}]
+
+// 列名归一：把原理图 BOM 的列名映射到 value/ref/fp
+function pickConvCol(row) {
+  var get = function(keys){
+    for (var i=0;i<keys.length;i++){
+      var k = keys[i];
+      if (row[k] != null && row[k] !== '') return row[k];
+    }
+    return '';
+  };
+  return {
+    value: get(['Value','value','VALUE','值','物料值','参数','Comment','comment','COMMENT']),
+    ref:   get(['Reference','reference','REFERENCE','Designator','designator','DESIGNATOR','位号','Refs']),
+    fp:    get(['PCB Footprint','Footprint','footprint','FOOTPRINT','封装','PCB Package','Package'])
+  };
+}
+
+// 拆位号字符串："C1, C2, C3" / "C1,C2 C3" / "R1; R2" → ['C1','C2','C3']
+function splitRefs(s) {
+  if (!s) return [];
+  return s.toString()
+    .split(/[,，;；\s]+/)
+    .map(function(x){ return x.trim(); })
+    .filter(function(x){ return !!x; });
+}
+
+// 位号排序：C1 < C2 < C10（按字母前缀+数字）
+function sortRefs(refs) {
+  return refs.slice().sort(function(a, b){
+    var ma = a.match(/^([A-Za-z]+)(\d+)/);
+    var mb = b.match(/^([A-Za-z]+)(\d+)/);
+    if (ma && mb) {
+      if (ma[1] !== mb[1]) return ma[1].localeCompare(mb[1]);
+      return parseInt(ma[2],10) - parseInt(mb[2],10);
+    }
+    return a.localeCompare(b);
+  });
+}
+
+// 转换主流程
+function runConvert(rows) {
+  CONV_RAW = [];
+  CONV_OUT = [];
+
+  // 1. 列名归一 + 拆位号
+  var rawRefCount = 0;
+  var byKey = {};  // key = normalized(value) + '|' + normPkg(fp)
+  rows.forEach(function(r){
+    var c = pickConvCol(r);
+    if (!c.value && !c.ref) return;
+    CONV_RAW.push(c);
+    var refs = splitRefs(c.ref);
+    rawRefCount += refs.length;
+    // 规范化值（带封装提示）
+    var normVal = normalizeValue(c.value, c.fp) || c.value;
+    var key = normVal + '||' + normPkg(c.fp || '');
+    if (!byKey[key]) {
+      byKey[key] = { comment: normVal, footprint: c.fp || '', refs: [], rawValues: [] };
+    }
+    byKey[key].refs = byKey[key].refs.concat(refs);
+    if (byKey[key].rawValues.indexOf(c.value) < 0) byKey[key].rawValues.push(c.value);
+  });
+
+  // 2. 合并 + 三级匹配 + DNP 剔除
+  var dnpRefCount = 0;
+  var matchedCount = 0;
+  var unmatchedCount = 0;
+  Object.keys(byKey).forEach(function(k){
+    var grp = byKey[k];
+    // 用合并后的 value+footprint 当 row 跑三级匹配
+    var probe = { '型号': grp.comment, '封装': grp.footprint, '立创编号': '', '物料编码': '' };
+    var mr = matchMaterial(probe);
+    var lcsc = mr.hit ? (mr.hit.lcsc_code || '') : '';
+    var isDnp = mr.hit && mr.hit.dnp === true;
+    var sortedRefs = sortRefs(grp.refs);
+
+    if (isDnp) {
+      dnpRefCount += sortedRefs.length;
+      CONV_OUT.push({
+        comment: grp.comment,
+        designator: sortedRefs.join(','),
+        footprint: grp.footprint,
+        lcsc: lcsc,
+        refs: sortedRefs,
+        status: 'dnp',
+        matchLevel: mr.level,
+        rawValues: grp.rawValues
+      });
+      return; // DNP 不计入 matched/unmatched
+    }
+    if (lcsc) matchedCount++; else unmatchedCount++;
+    CONV_OUT.push({
+      comment: grp.comment,
+      designator: sortedRefs.join(','),
+      footprint: grp.footprint,
+      lcsc: lcsc,
+      refs: sortedRefs,
+      status: lcsc ? 'matched' : 'unmatched',
+      matchLevel: mr.level,
+      rawValues: grp.rawValues
+    });
+  });
+
+  // 3. 渲染统计 + 表格
+  document.getElementById('convStatRaw').textContent = rawRefCount;
+  document.getElementById('convStatMerged').textContent = CONV_OUT.filter(function(o){return o.status!=='dnp';}).length;
+  document.getElementById('convStatDnp').textContent = dnpRefCount;
+  document.getElementById('convStatMatched').textContent = matchedCount;
+  document.getElementById('convStatUnmatched').textContent = unmatchedCount;
+  document.getElementById('convStatus').style.display = 'block';
+  renderConvTable();
+  document.getElementById('convPreview').style.display = 'block';
+}
+
+function renderConvTable() {
+  var tbody = document.getElementById('convTableBody');
+  tbody.innerHTML = '';
+  CONV_OUT.forEach(function(o, i){
+    var statusBadge = '';
+    var rowStyle = '';
+    if (o.status === 'dnp') {
+      statusBadge = '<span style="background:#E74C3C;color:white;padding:2px 8px;border-radius:4px;font-size:12px;">DNP 剔除</span>';
+      rowStyle = 'background:#fff5f5;color:#999;text-decoration:line-through;';
+    } else if (o.status === 'matched') {
+      var lvText = ['','L1','L2','L3'][o.matchLevel] || '';
+      statusBadge = '<span style="background:#27AE60;color:white;padding:2px 8px;border-radius:4px;font-size:12px;">已匹配 '+lvText+'</span>';
+    } else {
+      statusBadge = '<span style="background:#F39C12;color:white;padding:2px 8px;border-radius:4px;font-size:12px;">未匹配</span>';
+    }
+    var tr = document.createElement('tr');
+    tr.setAttribute('style', rowStyle);
+    tr.innerHTML = '<td>'+(i+1)+'</td>'
+      + '<td><b>'+esc(o.comment)+'</b></td>'
+      + '<td style="font-size:12px;">'+esc(o.designator)+' <span style="color:#999;">('+o.refs.length+')</span></td>'
+      + '<td>'+esc(o.footprint)+'</td>'
+      + '<td style="color:#0078b8;font-weight:600;">'+esc(o.lcsc || '-')+'</td>'
+      + '<td>'+statusBadge+'</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+// 简单 HTML 转义
+function esc(s){ return (s==null?'':String(s)).replace(/[<>&"]/g, function(c){
+  return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];
+});}
+
+// 导出嘉立创 BOM（严格 4 列：Comment/Designator/Footprint/嘉立创元件编号）
+function exportJlcBom() {
+  if (!CONV_OUT.length) { alert('还没有可导出的数据'); return; }
+  var data = [['Comment','Designator','Footprint','嘉立创元件编号']];
+  CONV_OUT.forEach(function(o){
+    if (o.status === 'dnp') return; // DNP 不进嘉立创 BOM
+    data.push([o.comment, o.designator, o.footprint, o.lcsc || '']);
+  });
+  var ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{wch:18},{wch:40},{wch:14},{wch:14}];
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '嘉立创BOM');
+  XLSX.writeFile(wb, '嘉立创BOM_'+_ts()+'.xlsx');
+}
+
+// 导出映射关系（含原始值/规范化值/状态/匹配级别/DNP 标记）
+function exportConvMap() {
+  if (!CONV_OUT.length) { alert('还没有可导出的数据'); return; }
+  var data = [['#','原始值','规范化Comment','位号','位号数','封装','嘉立创编号','匹配级别','状态']];
+  CONV_OUT.forEach(function(o, i){
+    var lvText = ['未匹配','L1','L2','L3'][o.matchLevel] || '未匹配';
+    var stText = o.status === 'dnp' ? 'DNP（已剔除）' : (o.status === 'matched' ? '已匹配' : '未匹配');
+    data.push([
+      i+1,
+      (o.rawValues || []).join(' / '),
+      o.comment,
+      o.designator,
+      o.refs.length,
+      o.footprint,
+      o.lcsc || '',
+      lvText,
+      stText
+    ]);
+  });
+  var ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{wch:5},{wch:20},{wch:18},{wch:40},{wch:8},{wch:14},{wch:14},{wch:10},{wch:14}];
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '映射关系');
+  XLSX.writeFile(wb, '嘉立创BOM_映射关系_'+_ts()+'.xlsx');
+}
+
+function _ts(){
+  var d = new Date();
+  var pad = function(n){return n<10?'0'+n:n;};
+  return d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes());
+}
+
+// 上传绑定
+document.addEventListener('DOMContentLoaded', function(){
+  var box = document.getElementById('convUploadBox');
+  var inp = document.getElementById('convFile');
+  if (box && inp) {
+    box.addEventListener('click', function(){ inp.click(); });
+    inp.addEventListener('change', function(){
+      var f = inp.files[0]; if (!f) return;
+      if (!materialDB.length) {
+        if (confirm('物料库还没导入，三级匹配会全部未匹配。\n\n点【确定】跳转去导入物料库，点【取消】仍然继续转换。')) {
+          showPanelDirect('material');
+          return;
+        }
+      }
+      var rd = new FileReader();
+      rd.onload = function(ev){
+        try {
+          var wb = XLSX.read(ev.target.result, {type:'array'});
+          var ws = wb.Sheets[wb.SheetNames[0]];
+          var rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+          if (!rows.length) { alert('未识别到数据'); return; }
+          runConvert(rows);
+        } catch(err) {
+          alert('解析失败：'+err.message);
+        }
+      };
+      rd.readAsArrayBuffer(f);
+    });
+  }
+});
+
 
 // ==================== 面板切换 ====================
 function showPanel(panel) {
   document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-  event.target.classList.add('active');
-  
-  if (panel === 'compare') {
-    document.getElementById('comparePanel').style.display = 'block';
-    document.getElementById('materialPanel').style.display = 'none';
-  } else {
-    document.getElementById('comparePanel').style.display = 'none';
-    document.getElementById('materialPanel').style.display = 'block';
-    loadMaterialTable();
-  }
+  if (event && event.target) event.target.classList.add('active');
+
+  document.getElementById('comparePanel').style.display = (panel === 'compare') ? 'block' : 'none';
+  document.getElementById('materialPanel').style.display = (panel === 'material') ? 'block' : 'none';
+  document.getElementById('convertPanel').style.display = (panel === 'convert') ? 'block' : 'none';
+
+  if (panel === 'material') loadMaterialTable();
 }
 
 // 从流程卡跳转（没有 event.target 时用这个）
 function showPanelDirect(panel){
   var btns = document.querySelectorAll('.nav-btn');
   btns.forEach(b => b.classList.remove('active'));
-  if (panel === 'compare') {
-    btns[0].classList.add('active');
-    document.getElementById('comparePanel').style.display = 'block';
-    document.getElementById('materialPanel').style.display = 'none';
-  } else {
-    btns[1].classList.add('active');
-    document.getElementById('comparePanel').style.display = 'none';
-    document.getElementById('materialPanel').style.display = 'block';
-    loadMaterialTable();
-  }
+  var idxMap = {material:0, compare:1, convert:2};
+  var idx = idxMap[panel] != null ? idxMap[panel] : 0;
+  if (btns[idx]) btns[idx].classList.add('active');
+
+  document.getElementById('comparePanel').style.display = (panel === 'compare') ? 'block' : 'none';
+  document.getElementById('materialPanel').style.display = (panel === 'material') ? 'block' : 'none';
+  document.getElementById('convertPanel').style.display = (panel === 'convert') ? 'block' : 'none';
+
+  if (panel === 'material') loadMaterialTable();
+
   // 平滑滚动到面板
   setTimeout(function(){
-    var target = panel === 'compare' ? document.querySelector('.upload-row') : document.getElementById('materialPanel');
+    var target;
+    if (panel === 'compare') target = document.querySelector('.upload-row');
+    else if (panel === 'convert') target = document.getElementById('convertPanel');
+    else target = document.getElementById('materialPanel');
     if (target) target.scrollIntoView({behavior:'smooth', block:'start'});
   }, 50);
 }
@@ -473,6 +866,7 @@ document.getElementById('btnImportMat').addEventListener('click', function(e){
             brand: (r['品牌'] || '').toString().trim(),
             material_code: (r['物料编码'] || '').toString().trim(),
             unit: (r['单位'] || '').toString().trim(),
+            dnp: parseDnpCell(r),
             _raw: r
           };
         }).filter(function(m){ return m.model || m.lcsc_code || m.material_code; });
@@ -526,14 +920,15 @@ function exportMaterialData() {
   if (materialDB.length === 0) { alert('没有物料数据可导出'); return; }
   var data = materialDB.map(function(m){
     return {
-      '立创编号': m.lcsc_code || '',
-      '型号': m.model || '',
-      '封装': m.package || '',
-      '物料名称': m.name || '',
-      '参数描述': m.specification || '',
-      '品牌': m.brand || '',
       '物料编码': m.material_code || '',
-      '单位': m.unit || ''
+      '物料名称': m.name || '',
+      '型号': m.model || '',
+      '参数描述': m.specification || '',
+      '封装': m.package || '',
+      '品牌': m.brand || '',
+      '立创编号': m.lcsc_code || '',
+      '单位': m.unit || '',
+      'DNP': m.dnp ? 'DNP' : ''
     };
   });
   var ws = XLSX.utils.json_to_sheet(data);
@@ -605,7 +1000,7 @@ function loadMaterialTable() {
   }
   var h = '';
   list.slice(0, 500).forEach(function(m){
-    h += '<tr>'
+    h += '<tr'+(m.dnp?' style="background:#fff5f5"':'')+'>'
        + '<td>'+m.idx+'</td>'
        + '<td><b style="color:#ff6b35">'+esc(m.material_code||'')+'</b></td>'
        + '<td>'+esc(m.name||'')+'</td>'
@@ -614,10 +1009,11 @@ function loadMaterialTable() {
        + '<td>'+esc(m.package||'')+'</td>'
        + '<td>'+esc(m.brand||'')+'</td>'
        + '<td style="color:#888">'+esc(m.lcsc_code||'')+'</td>'
+       + '<td style="text-align:center">'+(m.dnp?'<span style="background:#e74c3c;color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">DNP</span>':'')+'</td>'
        + '</tr>';
   });
-  if (list.length > 500) h += '<tr><td colspan="8" style="text-align:center;color:#888">共 '+list.length+' 条，仅显示前 500 条，请用搜索缩小范围</td></tr>';
-  tbody.innerHTML = h || '<tr><td colspan="8" style="text-align:center;color:#999;padding:30px">暂无物料，请导入器件BOM库 Excel</td></tr>';
+  if (list.length > 500) h += '<tr><td colspan="9" style="text-align:center;color:#888">共 '+list.length+' 条，仅显示前 500 条，请用搜索缩小范围</td></tr>';
+  tbody.innerHTML = h || '<tr><td colspan="9" style="text-align:center;color:#999;padding:30px">暂无物料，请导入器件BOM库 Excel</td></tr>';
 }
 
 document.addEventListener('DOMContentLoaded', function(){
