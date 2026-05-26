@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V2.0.2-dev</title>
+<title>技象科技研发BOM 整理神器 V2.0.3-dev</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V2.0.2-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V2.0.3-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -783,9 +783,11 @@ function openLcscSearch(idx) {
       + '      <input id="lcscSearchQ" type="text" style="flex:1;padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;" placeholder="型号 / 容值 / 关键字">'
       + '      <label style="font-size:13px;color:#555;white-space:nowrap;">封装</label>'
       + '      <input id="lcscSearchPkg" type="text" style="width:100px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;" placeholder="0805">'
-      + '      <button type="button" id="lcscSearchBtn" onclick="runLcscSearch(1)" style="padding:6px 16px;background:#0078b8;color:white;border:0;border-radius:4px;font-size:13px;cursor:pointer;">搜索</button>'
+      + '      <button type="button" id="lcscSearchBtn" onclick="runLcscSearchByBrand()" style="padding:6px 16px;background:#0078b8;color:white;border:0;border-radius:4px;font-size:13px;cursor:pointer;">搜索</button>'
       + '    </div>'
-      + '    <div style="margin-top:6px;color:#999;font-size:12px;">提示：封装会做二次过滤（接口本身按全文搜索）；过滤后没结果会回退到全部候选。</div>'
+      + '    <div style="margin-top:6px;color:#999;font-size:12px;">'
+      + '提示：电容自动搜「村田×3 / 三星×3 / 风华×3」；电感「村田×5 / 顺络×5」；电阻「厚声×3 / 国巨×3」；其他器件取前 3 条。'
+      + '</div>'
       + '  </div>'
       + '  <div id="lcscSearchBody" style="flex:1;overflow-y:auto;padding:0 18px;">'
       + '    <div style="padding:30px;text-align:center;color:#999;">输入关键字后点搜索</div>'
@@ -804,7 +806,7 @@ function openLcscSearch(idx) {
     // 回车触发搜索
     var qInput = document.getElementById('lcscSearchQ');
     qInput.addEventListener('keydown', function(e){
-      if (e.key === 'Enter') { e.preventDefault(); runLcscSearch(1); }
+      if (e.key === 'Enter') { e.preventDefault(); runLcscSearchByBrand(); }
     });
   }
 
@@ -822,7 +824,7 @@ function openLcscSearch(idx) {
 
   // 自动搜一发（若有默认 query）
   if (defaultQ && defaultQ !== '-') {
-    setTimeout(function(){ runLcscSearch(1); }, 50);
+    setTimeout(function(){ runLcscSearchByBrand(); }, 50);
   } else {
     document.getElementById('lcscSearchQ').focus();
   }
@@ -861,6 +863,194 @@ function runLcscSearch(page) {
         return;
       }
       renderLcscSearchResults(data);
+    })
+    .catch(function(e){
+      document.getElementById('lcscSearchBtn').disabled = false;
+      body.innerHTML = '<div style="padding:20px;color:#E74C3C;">网络错误：' + esc(String(e.message || e)) + '</div>';
+    });
+}
+
+// ===== 按 designator 自动按品牌精选 =====
+// C* 三品牌（村田/三星/风华）×3 款
+// L* 两品牌（村田/顺络）×5 款
+// R* 两品牌（厚声/国巨）×3 款
+// 其他 走单次全网搜（取 10 条）
+function getLcscBrandPlan(designator) {
+  var d = String(designator || '').toUpperCase();
+  if (d.charAt(0) === 'C' && /^C\d/.test(d)) {
+    return {
+      label: '电容精选 · 村田×3 / 三星×3 / 风华×3',
+      brands: [
+        { name: '村田',   kw: 'muRata',  n: 3 },
+        { name: '三星',   kw: 'SAMSUNG', n: 3 },
+        { name: '风华',   kw: '风华',    n: 3 }
+      ]
+    };
+  }
+  if (d.charAt(0) === 'L' && /^L\d/.test(d)) {
+    return {
+      label: '电感精选 · 村田×5 / 顺络×5',
+      brands: [
+        { name: '村田',   kw: 'muRata', n: 5 },
+        { name: '顺络',   kw: '顺络',   n: 5 }
+      ]
+    };
+  }
+  if (d.charAt(0) === 'R' && /^R\d/.test(d)) {
+    return {
+      label: '电阻精选 · 厚声×3 / 国巨×3',
+      brands: [
+        { name: '厚声',   kw: '厚声',  n: 3 },
+        { name: '国巨',   kw: 'YAGEO', n: 3 }
+      ]
+    };
+  }
+  return null; // 其他器件走全文搜
+}
+
+// 按品牌并发搜（自动模式）
+function runLcscSearchByBrand() {
+  var idx = _LCSC_SEARCH_IDX;
+  if (idx < 0 || !CONV_OUT[idx]) return;
+  var row = CONV_OUT[idx];
+  var plan = getLcscBrandPlan(row.designator);
+
+  var q = document.getElementById('lcscSearchQ').value.trim();
+  var pkg = document.getElementById('lcscSearchPkg').value.trim();
+  if (!q) { alert('请输入关键字'); return; }
+
+  if (!plan) {
+    // 非 C/L/R：走全网搜，但只渲染前 3 条
+    runLcscSearchTopN(q, pkg, 3, '其他器件 · 取前 3 条候选');
+    return;
+  }
+
+  var body = document.getElementById('lcscSearchBody');
+  body.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">'
+    + '正在按品牌并发搜索（' + plan.brands.length + ' 个品牌）...</div>';
+  document.getElementById('lcscSearchBtn').disabled = true;
+
+  var promises = plan.brands.map(function(b){
+    var kw = q + ' ' + b.kw;
+    var url = LCSC_WORKER_URL + '/search?q=' + encodeURIComponent(kw) + '&page=1';
+    if (pkg) url += '&pkg=' + encodeURIComponent(pkg);
+    return fetch(url, { mode: 'cors' })
+      .then(function(r){ return r.json(); })
+      .catch(function(){ return { ok: false }; });
+  });
+
+  Promise.all(promises).then(function(results){
+    document.getElementById('lcscSearchBtn').disabled = false;
+    var groups = [];
+    plan.brands.forEach(function(b, i){
+      var data = results[i];
+      var rawItems = (data && data.ok && data.items) ? data.items : [];
+      var picked = rawItems.slice(0, b.n);
+      // 搜索接口品牌字段经常返空，用品牌计划里的中文名顶上
+      picked.forEach(function(it){ if (!it.componentBrand) it.componentBrand = b.name; });
+      groups.push({
+        brand:  b.name,
+        items:  picked,
+        total:  (data && data.totalRows) || 0,
+        cached: !!(data && data.cached)
+      });
+    });
+    renderLcscBrandResults(groups, plan.label);
+  });
+
+  _LCSC_SEARCH_PAGE = 1;
+  _LCSC_SEARCH_HAS_NEXT = false;
+}
+
+// 按品牌分组渲染候选表
+function renderLcscBrandResults(groups, planLabel) {
+  var body = document.getElementById('lcscSearchBody');
+  var allItems = [];
+  groups.forEach(function(g){ allItems = allItems.concat(g.items); });
+
+  if (allItems.length === 0) {
+    body.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">'
+      + '指定品牌都没找到候选<br>'
+      + '<button type="button" onclick="runLcscSearch(1)" style="margin-top:10px;padding:6px 14px;font-size:12px;background:#0078b8;color:white;border:0;border-radius:3px;cursor:pointer;">改成全网搜</button>'
+      + '</div>';
+    document.getElementById('lcscSearchMeta').innerHTML = esc(planLabel) + ' · 共 0 条';
+    document.getElementById('lcscPagePrev').style.display = 'none';
+    document.getElementById('lcscPageNext').style.display = 'none';
+    return;
+  }
+
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
+  html += '<thead><tr style="background:#f8f9fa;position:sticky;top:0;">'
+    + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:90px;">编号</th>'
+    + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;">型号</th>'
+    + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:90px;">封装</th>'
+    + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:200px;">参数（精度/耐压/温度...）</th>'
+    + '<th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;width:80px;">品牌</th>'
+    + '<th style="padding:8px;text-align:center;border-bottom:1px solid #ddd;width:70px;">操作</th>'
+    + '</tr></thead><tbody>';
+
+  var globalIdx = 0;
+  groups.forEach(function(g){
+    if (g.items.length === 0) {
+      html += '<tr><td colspan="6" style="padding:6px 10px;background:#fffbe6;color:#999;font-size:12px;">'
+        + '— ' + esc(g.brand) + '：本次没搜到候选 —</td></tr>';
+      return;
+    }
+    html += '<tr><td colspan="6" style="padding:5px 10px;background:#eaf6fb;color:#0078b8;font-weight:600;font-size:12px;">'
+      + '★ ' + esc(g.brand) + '（' + g.items.length + ' 条）'
+      + (g.total ? ' <span style="color:#999;font-weight:normal;">· 全网共 ' + g.total + ' 条</span>' : '')
+      + (g.cached ? ' <span style="color:#27AE60;font-weight:normal;">· 缓存命中</span>' : '')
+      + '</td></tr>';
+    g.items.forEach(function(it){
+      var i = globalIdx;
+      html += '<tr id="lcscRow_' + i + '" style="border-bottom:1px solid #f0f0f0;">'
+        + '<td style="padding:6px 8px;color:#0078b8;font-weight:600;">' + esc(it.componentCode) + '</td>'
+        + '<td style="padding:6px 8px;">' + esc(it.componentModel || '-') + '</td>'
+        + '<td style="padding:6px 8px;color:#666;">' + esc(it.componentSpecification || '-') + '</td>'
+        + '<td id="lcscParam_' + i + '" style="padding:6px 8px;color:#999;font-size:12px;">加载中...</td>'
+        + '<td id="lcscBrand_' + i + '" style="padding:6px 8px;color:#666;">' + esc(it.componentBrand || g.brand) + '</td>'
+        + '<td style="padding:6px 8px;text-align:center;">'
+        + '  <button type="button" onclick="pickLcscCandidate(' + i + ')" style="padding:3px 10px;font-size:12px;background:#0078b8;color:white;border:0;border-radius:3px;cursor:pointer;">选用</button>'
+        + '</td></tr>';
+      globalIdx++;
+    });
+  });
+  html += '</tbody></table>';
+  body.innerHTML = html;
+  body._items = allItems;
+
+  document.getElementById('lcscSearchMeta').innerHTML = esc(planLabel) + ' · 共 ' + allItems.length + ' 条'
+    + ' <button type="button" onclick="runLcscSearch(1)" style="margin-left:8px;padding:2px 10px;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:3px;cursor:pointer;">全网搜（不分品牌）</button>';
+  document.getElementById('lcscPagePrev').style.display = 'none';
+  document.getElementById('lcscPageNext').style.display = 'none';
+
+  // 异步拉详情参数（精度/耐压/温度系数）
+  enrichLcscCandidates(allItems);
+}
+
+// 其他器件：单次搜，取前 N 条
+function runLcscSearchTopN(q, pkg, n, label) {
+  var body = document.getElementById('lcscSearchBody');
+  body.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">搜索中...</div>';
+  document.getElementById('lcscSearchBtn').disabled = true;
+  var url = LCSC_WORKER_URL + '/search?q=' + encodeURIComponent(q) + '&page=1';
+  if (pkg) url += '&pkg=' + encodeURIComponent(pkg);
+  fetch(url, { mode: 'cors' })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      document.getElementById('lcscSearchBtn').disabled = false;
+      if (!data || !data.ok) {
+        body.innerHTML = '<div style="padding:20px;color:#E74C3C;">搜索失败：' + esc((data && data.error) || '未知错误') + '</div>';
+        return;
+      }
+      // 浅拷贝 data + 截断 items 到前 N 条
+      var trimmed = { ok: true };
+      for (var k in data) { if (data.hasOwnProperty(k)) trimmed[k] = data[k]; }
+      trimmed.items = (data.items || []).slice(0, n);
+      renderLcscSearchResults(trimmed);
+      var meta = document.getElementById('lcscSearchMeta');
+      meta.innerHTML = esc(label) + ' · ' + meta.innerHTML
+        + ' <button type="button" onclick="runLcscSearch(1)" style="margin-left:8px;padding:2px 10px;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:3px;cursor:pointer;">全网搜（10 条）</button>';
     })
     .catch(function(e){
       document.getElementById('lcscSearchBtn').disabled = false;
@@ -3331,7 +3521,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.2-dev · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.3-dev · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v2.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v2.pages.dev</a> <span style="color:#F4D03F;font-weight:600">(DEV)</span></div>
 </footer>
 </body>
