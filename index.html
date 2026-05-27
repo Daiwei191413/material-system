@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V2.1.0-dev</title>
+<title>技象科技研发BOM 整理神器 V2.1.1-dev</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V2.1.0-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V2.1.1-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -441,7 +441,7 @@ var ALIAS={
 '参数描述':['参数描述','规格描述','详细描述','Specification','规格'],
 '单位':['单位','Unit'],
 '品牌':['品牌','Brand','Manufacturer','厂商','MFR','制造商'],
-'立创编号':['立创编号','LCSC','LCSC编号','立创商城编号','LCSC Part','嘉立创编号','嘉立创元件编号','嘉立创编码','立创元件编号','立创料号'],
+'立创编号':['立创编号','立创编码','LCSC','LCSC编号','立创商城编号','LCSC Part','嘉立创编号','嘉立创编码','嘉立创元件编号','嘉立创元件编码','立创元件编号','立创料号','立创','LCSC Code','LCSC PartNumber'],
 '备注':['备注','Note','Remark','说明'],
 'DNP':['DNP','dnp','不上板','不贴','不焊','禁用','是否DNP','上板','是否上板']
 };
@@ -1591,20 +1591,34 @@ document.getElementById('btnImportMat').addEventListener('click', function(e){
           covMsg += '\n✅ 覆盖率优秀，L1 匹配将高效运作。';
         }
 
-        if (!confirm('识别到 '+newDB.length+' 条物料。\n当前库 '+materialDB.length+' 条。'+covMsg+'\n\n点确定覆盖导入，点取消合并追加（按型号+封装去重）')) {
-          // 合并
-          var seen = {};
-          materialDB.forEach(function(m){ seen[(m.model+'|'+m.package).toLowerCase()] = true; });
-          var added = 0;
-          newDB.forEach(function(m){
-            var k = (m.model+'|'+m.package).toLowerCase();
-            if (!seen[k]) { materialDB.push(m); seen[k] = true; added++; }
-          });
-          alert('合并完成：新增 '+added+' 条，总计 '+materialDB.length+' 条'+covMsg);
-        } else {
-          materialDB = newDB;
-          alert('覆盖导入完成：'+materialDB.length+' 条物料'+covMsg);
-        }
+        // ⚠️ 默认行为改为「合并追加」，避免误覆盖丢库
+        // 覆盖只能通过先点「清空物料库」再导入实现
+        var seen = {};
+        materialDB.forEach(function(m){
+          // 多维去重 key：优先用立创编号，其次用 型号+封装
+          if (m.lcsc_code) seen['lcsc:' + m.lcsc_code.toUpperCase()] = true;
+          if (m.model) seen['mp:' + (m.model + '|' + m.package).toLowerCase()] = true;
+        });
+        var added = 0, dupSkip = 0;
+        newDB.forEach(function(m){
+          var keyL = m.lcsc_code ? 'lcsc:' + m.lcsc_code.toUpperCase() : '';
+          var keyMP = m.model ? 'mp:' + (m.model + '|' + m.package).toLowerCase() : '';
+          if ((keyL && seen[keyL]) || (keyMP && seen[keyMP])) {
+            dupSkip++;
+            return;
+          }
+          materialDB.push(m);
+          if (keyL) seen[keyL] = true;
+          if (keyMP) seen[keyMP] = true;
+          added++;
+        });
+        var msg = '✅ 合并追加完成\n\n'
+                + '本次识别：' + newDB.length + ' 条\n'
+                + '新增入库：' + added + ' 条\n'
+                + '重复跳过：' + dupSkip + ' 条（按 立创编号 或 型号+封装 去重）\n'
+                + '当前总计：' + materialDB.length + ' 条'
+                + covMsg;
+        alert(msg);
         saveMaterialDB();
         loadMaterialTable();
       } catch(err) {
@@ -3720,7 +3734,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.1.0-dev · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.1.1-dev · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v2.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v2.pages.dev</a> <span style="color:#F4D03F;font-weight:600">(DEV)</span></div>
 </footer>
 </body>
