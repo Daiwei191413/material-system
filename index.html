@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V2.0.6-dev</title>
+<title>技象科技研发BOM 整理神器 V2.0.7-dev</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V2.0.6-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V2.0.7-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -185,8 +185,8 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 <!-- 导航 -->
 <div class="nav">
   <button class="nav-btn active" onclick="showPanel('material')">📦 物料编码</button>
-  <button class="nav-btn" onclick="showPanel('compare')">🔍 BOM对比</button>
   <button class="nav-btn" onclick="showPanel('convert')">🔄 转嘉立创</button>
+  <button class="nav-btn" onclick="showPanel('compare')">🔍 BOM对比</button>
 </div>
 
 <!-- 全局使用流程 -->
@@ -375,11 +375,12 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
     </div>
 
     <div class="upload-row" style="margin-top:16px;">
-      <div class="upload-box" id="convUploadBox" style="cursor:pointer;">
-        <div class="upload-icon">📐</div>
-        <div class="upload-title">上传原理图 BOM</div>
-        <div class="upload-hint">支持 .xlsx / .xls / .csv，需含 Value / Reference / Footprint 三列</div>
+      <div class="upload-card" id="convUploadBox">
+        <h3>📐 上传原理图 BOM</h3>
+        <p>支持 .xlsx / .xls / .csv，需含 Value / Reference / Footprint 三列</p>
+        <button class="file-btn" id="btnConv">选择文件</button>
         <input type="file" id="convFile" accept=".xlsx,.xls,.csv" style="display:none;">
+        <div class="info" id="msgConv"></div>
       </div>
     </div>
 
@@ -1446,11 +1447,19 @@ function addManualToMaterialDb(row, item) {
 // 上传绑定
 document.addEventListener('DOMContentLoaded', function(){
   var box = document.getElementById('convUploadBox');
+  var btn = document.getElementById('btnConv');
   var inp = document.getElementById('convFile');
+  var msg = document.getElementById('msgConv');
   if (box && inp) {
-    box.addEventListener('click', function(){ inp.click(); });
+    if (btn) btn.addEventListener('click', function(e){ e.stopPropagation(); inp.click(); });
+    box.addEventListener('click', function(e){
+      // 点击卡片空白区域也能触发；按钮已 stopPropagation
+      if (e.target === box || e.target.tagName === 'H3' || e.target.tagName === 'P') inp.click();
+    });
     inp.addEventListener('change', function(){
       var f = inp.files[0]; if (!f) return;
+      if (msg) msg.textContent = '✓ 已选：' + f.name;
+      if (box) box.classList.add('ok');
       if (!materialDB.length) {
         if (confirm('物料库还没导入，三级匹配会全部未匹配。\n\n点【确定】跳转去导入物料库，点【取消】仍然继续转换。')) {
           showPanelDirect('material');
@@ -3690,7 +3699,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.6-dev · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.7-dev · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v2.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v2.pages.dev</a> <span style="color:#F4D03F;font-weight:600">(DEV)</span></div>
 </footer>
 </body>
