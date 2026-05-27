@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V2.1.2-dev</title>
+<title>技象科技研发BOM 整理神器 V2.1.3-dev</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V2.1.2-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V2.1.3-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1723,7 +1723,8 @@ function loadMaterialTable() {
     });
   }
   var h = '';
-  list.slice(0, 500).forEach(function(m, i){
+  var DISPLAY_LIMIT = 5000;
+  list.slice(0, DISPLAY_LIMIT).forEach(function(m, i){
     h += '<tr'+(m.dnp?' style="background:#fff5f5"':'')+'>'
        + '<td>'+(i+1)+'</td>'
        + '<td><b style="color:#ff6b35">'+esc(m.material_code||'')+'</b></td>'
@@ -1736,7 +1737,7 @@ function loadMaterialTable() {
        + '<td style="text-align:center">'+(m.dnp?'<span style="background:#e74c3c;color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">DNP</span>':'')+'</td>'
        + '</tr>';
   });
-  if (list.length > 500) h += '<tr><td colspan="9" style="text-align:center;color:#888">共 '+list.length+' 条，仅显示前 500 条，请用搜索缩小范围</td></tr>';
+  if (list.length > DISPLAY_LIMIT) h += '<tr><td colspan="9" style="text-align:center;color:#888">共 '+list.length+' 条，仅显示前 '+DISPLAY_LIMIT+' 条，请用搜索缩小范围</td></tr>';
   tbody.innerHTML = h || '<tr><td colspan="9" style="text-align:center;color:#999;padding:30px">暂无物料，请导入器件BOM库 Excel</td></tr>';
 }
 
@@ -3734,7 +3735,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.1.2-dev · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.1.3-dev · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v2.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v2.pages.dev</a> <span style="color:#F4D03F;font-weight:600">(DEV)</span></div>
 </footer>
 </body>
