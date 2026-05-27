@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V2.0.7-dev</title>
+<title>技象科技研发BOM 整理神器 V2.1.0-dev</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V2.0.7-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V2.1.0-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -3201,7 +3201,28 @@ function autoDescribe(model, pkg){
 }
 
 // ==================== 立创代理 Worker（一键补齐 / 批量补齐） ====================
-var LCSC_WORKER_URL = 'https://lcsc-proxy.steidleyestephani737.workers.dev';
+// 双后端自动适配：
+//   - EdgeOne 部署（国内主用） → 同域 /api/lcsc
+//   - Cloudflare Pages 部署（海外/兜底） → 走 lcsc-proxy.workers.dev
+//   - 本地调试 / 直接打开 file:// → 默认走 CF Worker
+var LCSC_WORKER_URL = (function(){
+  try {
+    var h = (location.hostname || '').toLowerCase();
+    // 腾讯云 EdgeOne 域名特征：*.edgeone.cool / *.edgeone.app / 自定义已备案域名
+    // 凡是「不是 cloudflare pages 也不是 workers.dev 也不是 github.io 也不是 localhost」，都按同域走
+    var isCFPages   = h.endsWith('.pages.dev');
+    var isCFWorkers = h.endsWith('.workers.dev');
+    var isGithub    = h.endsWith('.github.io');
+    var isLocal     = (h === 'localhost' || h === '127.0.0.1' || h === '');
+    if (isCFPages || isCFWorkers || isGithub || isLocal) {
+      return 'https://lcsc-proxy.steidleyestephani737.workers.dev';
+    }
+    // 其它（EdgeOne / 自定义国内域名）走同域 Functions
+    return '/api/lcsc';
+  } catch (e) {
+    return 'https://lcsc-proxy.steidleyestephani737.workers.dev';
+  }
+})();
 
 // 把 Worker 返回的 LCSC 数据写入一行 B BOM
 function applyLcscToRow(item, data){
@@ -3699,7 +3720,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.0.7-dev · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.1.0-dev · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v2.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v2.pages.dev</a> <span style="color:#F4D03F;font-weight:600">(DEV)</span></div>
 </footer>
 </body>
