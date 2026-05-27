@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V2.1.3-dev</title>
+<title>技象科技研发BOM 整理神器 V2.1.4-dev</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V2.1.3-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
+<h1>⚡ 技象科技研发BOM 整理神器 V2.1.4-dev <span style="font-size:14px;background:#F4D03F;color:#333;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">DEV 测试版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1591,31 +1591,63 @@ document.getElementById('btnImportMat').addEventListener('click', function(e){
           covMsg += '\n✅ 覆盖率优秀，L1 匹配将高效运作。';
         }
 
-        // ⚠️ 默认行为改为「合并追加」，避免误覆盖丢库
+        // ⚠️ 默认行为改为「合并追加 + 智能升级」
+        // 同 key 物料：字段更完整的覆盖更残缺的（修复 V2.1.1 残缺库永久占位 BUG）
         // 覆盖只能通过先点「清空物料库」再导入实现
-        var seen = {};
-        materialDB.forEach(function(m){
-          // 多维去重 key：优先用立创编号，其次用 型号+封装
-          if (m.lcsc_code) seen['lcsc:' + m.lcsc_code.toUpperCase()] = true;
-          if (m.model) seen['mp:' + (m.model + '|' + m.package).toLowerCase()] = true;
+        function fieldScore(m){
+          // 关键字段非空才计分
+          var fs = ['name','specification','brand','lcsc_code','material_code'];
+          var s = 0;
+          fs.forEach(function(k){ if (m[k] && String(m[k]).trim()) s++; });
+          return s;
+        }
+        function buildKeys(m){
+          var keys = [];
+          if (m.lcsc_code) keys.push('lcsc:' + m.lcsc_code.toUpperCase());
+          if (m.model) keys.push('mp:' + (m.model + '|' + m.package).toLowerCase());
+          return keys;
+        }
+        // 建立现有库的 key → index 映射
+        var keyToIdx = {};
+        materialDB.forEach(function(m, i){
+          buildKeys(m).forEach(function(k){ keyToIdx[k] = i; });
         });
-        var added = 0, dupSkip = 0;
+        var added = 0, upgraded = 0, dupSkip = 0;
         newDB.forEach(function(m){
-          var keyL = m.lcsc_code ? 'lcsc:' + m.lcsc_code.toUpperCase() : '';
-          var keyMP = m.model ? 'mp:' + (m.model + '|' + m.package).toLowerCase() : '';
-          if ((keyL && seen[keyL]) || (keyMP && seen[keyMP])) {
-            dupSkip++;
+          var keys = buildKeys(m);
+          var existIdx = -1;
+          for (var ki=0; ki<keys.length; ki++){
+            if (keyToIdx[keys[ki]] !== undefined){ existIdx = keyToIdx[keys[ki]]; break; }
+          }
+          if (existIdx >= 0) {
+            // 命中已有：比较字段完整度
+            var oldM = materialDB[existIdx];
+            var oldScore = fieldScore(oldM);
+            var newScore = fieldScore(m);
+            if (newScore > oldScore) {
+              // 新版更完整 → 字段融合（新有则用新，旧字段补缺）
+              ['name','specification','brand','lcsc_code','material_code','unit','package'].forEach(function(k){
+                if (m[k] && String(m[k]).trim()) oldM[k] = m[k];
+              });
+              // 重新登记 key（新带了立创编号但旧没有的情况）
+              buildKeys(oldM).forEach(function(k){ keyToIdx[k] = existIdx; });
+              upgraded++;
+            } else {
+              dupSkip++;
+            }
             return;
           }
+          // 全新物料
           materialDB.push(m);
-          if (keyL) seen[keyL] = true;
-          if (keyMP) seen[keyMP] = true;
+          var newIdx = materialDB.length - 1;
+          buildKeys(m).forEach(function(k){ keyToIdx[k] = newIdx; });
           added++;
         });
         var msg = '✅ 合并追加完成\n\n'
                 + '本次识别：' + newDB.length + ' 条\n'
                 + '新增入库：' + added + ' 条\n'
-                + '重复跳过：' + dupSkip + ' 条（按 立创编号 或 型号+封装 去重）\n'
+                + '字段升级：' + upgraded + ' 条（已用更完整的版本覆盖残缺记录）\n'
+                + '重复跳过：' + dupSkip + ' 条（旧记录字段更完整或同样完整）\n'
                 + '当前总计：' + materialDB.length + ' 条'
                 + covMsg;
         alert(msg);
@@ -3735,7 +3767,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.1.3-dev · 开发者：David.hao</div>
+  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.1.4-dev · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v2.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v2.pages.dev</a> <span style="color:#F4D03F;font-weight:600">(DEV)</span></div>
 </footer>
 </body>
