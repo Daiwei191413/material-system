@@ -1869,6 +1869,7 @@ function loadMaterialTable() {
         + '<th>Comment型号</th>'
         + '<th>Footprint封装</th>'
         + '<th>嘉立创元件编号</th>'
+        + '<th>操作</th>'
         + '</tr>';
     } else {
       thead.innerHTML = '<tr>'
@@ -1881,6 +1882,7 @@ function loadMaterialTable() {
         + '<th>品牌</th>'
         + '<th>立创编号</th>'
         + '<th title="是否不上板（DNP/Do Not Place）">DNP</th>'
+        + '<th>操作</th>'
         + '</tr>';
     }
   }
@@ -1896,14 +1898,17 @@ function loadMaterialTable() {
   }
   var h = '';
   var DISPLAY_LIMIT = 5000;
-  var COL_COUNT = (currentLib === 'lcsc') ? 4 : 9;
+  var COL_COUNT = (currentLib === 'lcsc') ? 5 : 10;
   list.slice(0, DISPLAY_LIMIT).forEach(function(m, i){
+    // 找出 m 在 materialDB 里的真实索引（搜索过滤时 i 不等于真实位置）
+    var realIdx = materialDB.indexOf(m);
     if (currentLib === 'lcsc') {
       h += '<tr>'
          + '<td>'+(i+1)+'</td>'
          + '<td>'+esc(m.model||'')+'</td>'
          + '<td>'+esc(m.package||'')+'</td>'
          + '<td><b style="color:#0078b8">'+esc(m.lcsc_code||'')+'</b></td>'
+         + '<td><button onclick="deleteMaterialRow('+realIdx+')" style="background:#e74c3c;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px">删除</button></td>'
          + '</tr>';
     } else {
       h += '<tr'+(m.dnp?' style="background:#fff5f5"':'')+'>'
@@ -1916,6 +1921,7 @@ function loadMaterialTable() {
          + '<td>'+esc(m.brand||'')+'</td>'
          + '<td style="color:#888">'+esc(m.lcsc_code||'')+'</td>'
          + '<td style="text-align:center">'+(m.dnp?'<span style="background:#e74c3c;color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">DNP</span>':'')+'</td>'
+         + '<td><button onclick="deleteMaterialRow('+realIdx+')" style="background:#e74c3c;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px">删除</button></td>'
          + '</tr>';
     }
   });
@@ -1924,6 +1930,30 @@ function loadMaterialTable() {
     ? '暂无立创格式物料，请导入立创格式 BOM（4列：型号/位号/封装/嘉立创元件编号）'
     : '暂无标准格式物料，请导入公司格式 BOM（含物料名称/参数描述等字段）';
   tbody.innerHTML = h || '<tr><td colspan="'+COL_COUNT+'" style="text-align:center;color:#999;padding:30px">'+emptyTip+'</td></tr>';
+}
+
+// 删除物料库中的单条记录
+function deleteMaterialRow(idx) {
+  if (idx < 0 || idx >= materialDB.length) return;
+  var m = materialDB[idx];
+  var desc = (currentLib === 'lcsc')
+    ? (m.model || '') + ' / ' + (m.package || '') + ' / ' + (m.lcsc_code || '')
+    : (m.name || '') + ' / ' + (m.model || '') + ' / ' + (m.material_code || '');
+  if (!confirm('确定删除这条记录吗？\n\n' + desc)) return;
+  
+  // 从对应库中删除
+  if (currentLib === 'lcsc') {
+    materialDB_lcsc.splice(idx, 1);
+    setActiveLib('lcsc'); // 刷新 materialDB 指针
+    saveMaterialDB(); // 持久化
+  } else {
+    materialDB_standard.splice(idx, 1);
+    setActiveLib('standard');
+    saveMaterialDB();
+  }
+  
+  loadMaterialTable(); // 重新渲染表格
+  alert('已删除');
 }
 
 document.addEventListener('DOMContentLoaded', function(){
