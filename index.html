@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V2.1.7</title>
+  <title>技象科技研发BOM 整理神器 V2.1.8</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-        <h1>⚡ 技象科技研发BOM 整理神器 V2.1.7 <span style="font-size:14px;background:#1ABC9C;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">双库版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V2.1.8 <span style="font-size:14px;background:#1ABC9C;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">双库版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -318,7 +318,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">双库分离 V2.1.7</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">双库分离 V2.1.8</span></h3>
 
     <!-- 库切换 Tab -->
     <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -3560,6 +3560,61 @@ function autoDescribe(model, pkg){
   return null;
 }
 
+// ==================== V2.1.8：用立创 API _extracted 字段组装精准描述 ====================
+// 优先于 autoDescribe() 硬编码，确保容值/精度/耐压/材质与立创实际一致
+function buildSpecFromExtracted(ext, productType, pkg) {
+  if (!ext) return '';
+  var type = String(productType || '').toLowerCase();
+  var size = String(pkg || '').trim().toUpperCase();
+
+  // 电容
+  if (type.indexOf('电容') >= 0 || ext.capacitance) {
+    var cap = ext.capacitance || '';
+    var tol = ext.tolerance || '';
+    var volt = ext.voltage || '';
+    var dia = ext.dielectric || '';
+    if (!cap) return '';
+    // 组装 A 风格：MLCC 容值 精度 耐压 材质 SMD 封装
+    var parts = ['MLCC', cap];
+    if (tol) parts.push(tol);
+    if (volt) parts.push(volt);
+    if (dia) parts.push(dia);
+    parts.push('SMD');
+    if (size) parts.push(size);
+    return parts.join(' ');
+  }
+
+  // 电阻
+  if (type.indexOf('电阻') >= 0 || ext.resistance) {
+    var res = ext.resistance || '';
+    var tol = ext.tolerance || '';
+    var pwr = ext.power || '';
+    if (!res) return '';
+    var parts = ['厚膜电阻', res];
+    if (tol) parts.push('精度：' + tol);
+    if (pwr) parts.push(pwr);
+    parts.push('SMD');
+    if (size) parts.push(size);
+    return parts.join(',');
+  }
+
+  // 电感
+  if (type.indexOf('电感') >= 0 || ext.inductance) {
+    var ind = ext.inductance || '';
+    var tol = ext.tolerance || '';
+    var curr = ext.current || '';
+    if (!ind) return '';
+    var parts = ['绕线电感', ind];
+    if (tol) parts.push(tol);
+    if (curr) parts.push(curr);
+    parts.push('SMD');
+    if (size) parts.push(size);
+    return parts.join(' ');
+  }
+
+  return '';
+}
+
 // ==================== 立创代理 Worker（一键补齐 / 批量补齐） ====================
 // 双后端自动适配：
 //   - EdgeOne 部署（国内主用） → 同域 /api/lcsc
@@ -3601,9 +3656,15 @@ function applyLcscToRow(item, data){
   if (data.productType && (isInductive || !row['物料名称'])) {
     row['物料名称'] = data.productType;
   }
-  if (data.specification && (isInductive || !row['参数描述'])) {
+
+  // V2.1.8 修复：优先用立创 API 返回的 _extracted 字段组装精准描述，替代 autoDescribe 硬编码
+  var extractedSpec = buildSpecFromExtracted(data._extracted, data.productType, data.package);
+  if (extractedSpec && (isInductive || !row['参数描述'])) {
+    row['参数描述'] = extractedSpec;
+  } else if (data.specification && (isInductive || !row['参数描述'])) {
     row['参数描述'] = data.specification;
   }
+
   // 关键：把参数描述转 A 风格紧凑式（电容/电阻/电感）
   if (row['参数描述']) row['参数描述'] = toAStyleSpec(row['参数描述'], row);
   // 同步存入 MANUAL_DB（下次同型号秒命中，跨 BOM 持续生效）
