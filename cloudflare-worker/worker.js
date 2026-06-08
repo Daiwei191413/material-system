@@ -24,7 +24,7 @@
  * 作者：开发助理 (hdv_dev_bot) for 戴纬哥 · 技象科技
  */
 
-const VERSION = 'v1.0.9';
+const VERSION = 'v1.0.10';
 const JLC_BASE = 'https://open-api.jlc.com';
 const JLC_PATH = '/smtOpenApi/smtComponent/selectComponentInfoByCodes';
 const JLC_SEARCH_PATH = '/smtOpenApi/order/selectComponentInfo';
@@ -207,6 +207,16 @@ function jlcToCompatData(query, jlcItem) {
   if (!jlcItem) {
     return { query, hit: false, error: '立创未找到该编号' };
   }
+  const paramMap = jlcParamToMap(jlcItem.paramTextAll || '');
+
+  // 从 paramLinkedMap 提取关键电气参数，供前端精准组装描述（替代 autoDescribe 硬编码）
+  const extract = (keys) => {
+    for (const k of keys) {
+      if (paramMap[k]) return paramMap[k];
+    }
+    return '';
+  };
+
   return {
     query,
     hit: true,
@@ -219,9 +229,20 @@ function jlcToCompatData(query, jlcItem) {
     unit: 'PCS',
     productId: String(jlcItem.componentId || ''),
     remark: jlcItem.componentName || '',
-    paramLinkedMap: jlcParamToMap(jlcItem.paramTextAll || ''),
+    paramLinkedMap: paramMap,
     specification: jlcParamToSpec(jlcItem.paramTextAll || ''),
-    // JLC 独有字段，留给前端将来用
+    // 提取字段：前端优先用这些组装描述，比 autoDescribe 硬编码更准确
+    _extracted: {
+      capacitance: extract(['容值', '电容量', 'Capacitance']),
+      resistance: extract(['阻值', '电阻值', 'Resistance']),
+      tolerance: extract(['精度', '误差', 'Tolerance', '容许差']),
+      voltage: extract(['额定电压', '耐压', 'Voltage', '工作电压']),
+      dielectric: extract(['介质材料', '材质', 'Dielectric', '温度系数']),
+      current: extract(['额定电流', '电流', 'Current']),
+      inductance: extract(['感值', '电感量', 'Inductance']),
+      frequency: extract(['频率', '频点', 'Frequency']),
+      power: extract(['功率', 'Power']),
+    },
     stockNum: jlcItem.stockNum || 0,
     encapsulationNumber: jlcItem.encapsulationNumber || 0,
     priceLadder: jlcItem.smtComponentPriceInfoVOList || [],

@@ -3574,7 +3574,13 @@ function buildSpecFromExtracted(ext, productType, pkg) {
     var volt = ext.voltage || '';
     var dia = ext.dielectric || '';
     if (!cap) return '';
-    // 组装 A 风格：MLCC 容值 精度 耐压 材质 SMD 封装
+    // V2.1.8 修复：小容值 COG/NP0 材质默认精度（立创常省略精度字段）
+    if (!tol && /C0G|NP0/i.test(dia)) {
+      var pfVal = parseFloat(cap);
+      if (!isNaN(pfVal) && pfVal < 10) tol = '±0.1pF';
+      else tol = '±5%';
+    }
+    // 组装 A 风格：MLCC 容值 [精度] [耐压] [材质] SMD 封装（空字段跳过）
     var parts = ['MLCC', cap];
     if (tol) parts.push(tol);
     if (volt) parts.push(volt);
@@ -3612,6 +3618,8 @@ function buildSpecFromExtracted(ext, productType, pkg) {
     return parts.join(' ');
   }
 
+  // 兜底：无法识别的类型，但原始 specification 可用 → 返回原始描述
+  // 注意：调用方应在 extractedSpec 为空时 fallback 到 data.specification
   return '';
 }
 
