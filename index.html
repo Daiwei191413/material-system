@@ -3870,11 +3870,15 @@ function batchAutoFetchAll(){
           resultByCode[realCode] = r.data;
         } else if (r.ok && !r.data.hit) {
           resultByCode[realCode] = { _notHit: true };
+        } else {
+          // r.ok 为 false（查询失败）→ 标记为需兜底
+          resultByCode[realCode] = { _failed: true };
         }
       });
-      // 这批里没收到响应的 code → 进兜底
+      // 这批里没收到响应 或 查询失败的 code → 进兜底
       thisChunk.forEach(function(c){
         if (!seen[c] && !resultByCode[c]) failedCodes.push(c);
+        else if (resultByCode[c] && resultByCode[c]._failed) failedCodes.push(c);
       });
     });
 
