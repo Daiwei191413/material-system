@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>技象科技研发BOM 整理神器 V2.1.6</title>
+  <title>技象科技研发BOM 整理神器 V2.1.7</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<h1>⚡ 技象科技研发BOM 整理神器 V2.1.6 <span style="font-size:14px;background:#1ABC9C;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">双库版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V2.1.7 <span style="font-size:14px;background:#1ABC9C;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">双库版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -318,7 +318,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">双库分离 V2.1.6</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">双库分离 V2.1.7</span></h3>
 
     <!-- 库切换 Tab -->
     <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -2573,12 +2573,19 @@ function enrichRow(row, hit){
   fields.forEach(function(p){
     if (!row[p[0]] && hit[p[1]]) row[p[0]] = hit[p[1]];
   });
-  // 电感/磁珠：物料名称 + 参数描述都用立创值覆盖（B BOM 常写"功率电感"，A BOM 标准是"绕线电感"；描述常缺精度/电流/DCR）
-  // 其他类型：仅填空，不覆盖（保持精度优先原则）
+  // V2.1.7 修复：立创库命中时可能缺少 name/specification，用 autoDescribe 兜底生成
   var isInductive = isFerrite(row) || detectMaterialType(row) === 'inductor';
   if (hit.name && (isInductive || !row['物料名称'])) row['物料名称'] = hit.name;
   if (hit.specification && (isInductive || !row['参数描述'])) {
     row['参数描述'] = cleanSpec(hit.specification);
+  }
+  // 兜底：如果库命中但缺少 name/specification（立创库常见），用 autoDescribe 生成
+  if (!row['物料名称'] || !row['参数描述']) {
+    var auto = autoDescribe(row['型号'], row['封装']);
+    if (auto) {
+      if (!row['物料名称']) row['物料名称'] = auto.name;
+      if (!row['参数描述']) row['参数描述'] = auto.specification;
+    }
   }
   // 厂家料号（用于电感/磁珠型号的 A 风格替换）
   if (hit.mfg_part) row['_mfgPart'] = hit.mfg_part;
@@ -3219,7 +3226,7 @@ function fmt(dir){
   var rev = {}; for(var s in tpl.fm) rev[tpl.fm[s]] = s;
   var hd = tpl.hd.filter(function(h){return h});
   var rows = [];
-  var enrichStats = {l1:0, l2:0, l3:0, l0:0, filled:0};
+  var enrichStats = {l1:0, l2:0, l3:0, l0:0, auto:0, filled:0};
   var enrichDetails = [];
 
   dat.rows.forEach(function(u, idx){
@@ -3242,6 +3249,17 @@ function fmt(dir){
       if (filled.length) {
         enrichStats.filled += filled.length;
         enrichDetails.push({ref: clone['位号']||'', model: clone['型号']||'', level: mr.level, filled: filled});
+      }
+    } else {
+      // V2.1.7 兜底：库未命中时，用 autoDescribe 自动生成规律型器件（电容/电阻）的名称+描述
+      var auto = autoDescribe(clone['型号'], clone['封装']);
+      if (auto) {
+        if (!clone['物料名称']) clone['物料名称'] = auto.name;
+        if (!clone['参数描述']) clone['参数描述'] = auto.specification;
+        enrichStats.filled += (clone['物料名称'] ? 1 : 0) + (clone['参数描述'] ? 1 : 0);
+        if (clone['物料名称'] || clone['参数描述']) {
+          enrichDetails.push({ref: clone['位号']||'', model: clone['型号']||'', level: 'auto', filled: ['物料名称','参数描述'].filter(function(f){return clone[f];})});
+        }
       }
     }
 
@@ -3271,10 +3289,11 @@ function fmt(dir){
     if (mr.level === 1) enrichStats.l1++;
     else if (mr.level === 2) enrichStats.l2++;
     else if (mr.level === 3) enrichStats.l3++;
+    else if (mr.level === 'auto') enrichStats.auto++;
     else enrichStats.l0++;
 
     // 最终兜底：电容/电阻/电感参数描述转 A 风格紧凑式
-    // 确保即使未命中库、但已有 spec（来自立创/手填）也按 A BOM 输出
+    // 确保即使未命中库、但已有 spec（来自立创/手填/autoDescribe）也按 A BOM 输出
     if (clone['参数描述']) clone['参数描述'] = toAStyleSpec(clone['参数描述'], clone);
 
     // A 标准型号规范化（电容/电阻加后缀；电感/磁珠用厂家料号）
@@ -3347,6 +3366,7 @@ function fmt(dir){
       + '  L1 立创精确：'+enrichStats.l1+'\n'
       + '  L2 型号+封装：'+enrichStats.l2+'\n'
       + '  L3 规范化容差：'+enrichStats.l3+'\n'
+      + '  自动兜底：'+(enrichStats.auto||0)+'\n'
       + '  未命中：'+enrichStats.l0+'\n\n'
       + '🔧 共补齐 '+enrichStats.filled+' 个字段\n'
       + '📁 输出文件含两个 sheet：整理后BOM + 补齐报告');
@@ -4060,7 +4080,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-  <div>© 2026 技象科技 · 研发BOM 整理神器 V2.1.6 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V2.1.7 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v2.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v2.pages.dev</a></div>
 </footer>
 </body>
