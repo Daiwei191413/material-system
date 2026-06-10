@@ -35,6 +35,7 @@ const SEARCH_PAGE_SIZE = 10; // 搜索每页返回 10 条候选
 
 // 允许跨域的域名白名单
 const ALLOWED_ORIGINS = [
+  'https://techphant-bom.pages.dev',
   'https://techphant-bom-tools.pages.dev',
   'https://techphant-bom-tools-v2.pages.dev',
   'https://daiwei191413.github.io',
@@ -44,8 +45,9 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:3000',
 ];
 
-// 通配后缀（CF Pages 预览分支：xxx.techphant-bom-tools.pages.dev / xxx.techphant-bom-tools-v2.pages.dev）
+// 通配后缀（CF Pages 预览分支）
 const ALLOWED_ORIGIN_SUFFIXES = [
+  '.techphant-bom.pages.dev',
   '.techphant-bom-tools.pages.dev',
   '.techphant-bom-tools-v2.pages.dev',
 ];
