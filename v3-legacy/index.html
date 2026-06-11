@@ -371,7 +371,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   // 由 hook 层在 saveMaterialDB / 导入完成后调用
   var SYNC_DEBOUNCE = {};
   BOM_API.scheduleSync = function(lib){
-    if (!BOM_API.canWrite()) return;
+    if (!BOM_API.isAdmin()) return;  // V3.0.1: 只有 admin 才能把改动同步到云端共享库（成员的 BOM 不入双库）
     if (SYNC_DEBOUNCE[lib]) clearTimeout(SYNC_DEBOUNCE[lib]);
     SYNC_DEBOUNCE[lib] = setTimeout(function(){
       var key = (lib === 'lcsc') ? 'material_db_lcsc' : 'material_db_standard';
