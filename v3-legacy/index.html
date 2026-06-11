@@ -218,11 +218,59 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-userbar" id="v3UserBar">
   <span id="v3UserName">—</span>
   <span class="v3-role" id="v3UserRole">—</span>
+  <a id="v3UsersLink" style="display:none">成员管理</a>
   <a id="v3PwdLink">改密</a>
   <a id="v3LogoutLink">登出</a>
 </div>
 <div class="v3-readonly-hint" id="v3ReadonlyHint">⚠️ 你是只读账号，所有写操作（导入/编辑/删除）会被禁止</div>
 <div class="v3-toast" id="v3Toast"></div>
+
+<!-- ============ V3：成员管理弹窗（admin only）============ -->
+<div class="v3-mask" id="v3UsersMask" style="z-index:9990">
+  <div style="width:760px;max-width:95vw;max-height:88vh;background:#fff;border-radius:10px;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;font-family:-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h3 style="margin:0;color:#0078b8;font-size:18px;">👥 团队成员管理</h3>
+      <span id="v3UsersClose" style="cursor:pointer;color:#94a3b8;font-size:22px;line-height:1">×</span>
+    </div>
+
+    <!-- 新建账号 -->
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;margin-bottom:16px">
+      <div style="font-size:13px;font-weight:600;color:#334155;margin-bottom:10px">➕ 新建账号</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 110px 1fr 90px;gap:8px;align-items:end">
+        <div><label style="display:block;font-size:11px;color:#64748b;margin-bottom:3px">账号<span style="color:#dc2626">*</span></label><input id="v3NewU" type="text" placeholder="zhang_san" style="width:100%;height:32px;padding:0 8px;border:1px solid #cbd5e1;border-radius:5px;font-size:13px;box-sizing:border-box"></div>
+        <div><label style="display:block;font-size:11px;color:#64748b;margin-bottom:3px">显示名</label><input id="v3NewD" type="text" placeholder="张三" style="width:100%;height:32px;padding:0 8px;border:1px solid #cbd5e1;border-radius:5px;font-size:13px;box-sizing:border-box"></div>
+        <div><label style="display:block;font-size:11px;color:#64748b;margin-bottom:3px">手机号</label><input id="v3NewP" type="text" placeholder="可选" style="width:100%;height:32px;padding:0 8px;border:1px solid #cbd5e1;border-radius:5px;font-size:13px;box-sizing:border-box"></div>
+        <div><label style="display:block;font-size:11px;color:#64748b;margin-bottom:3px">角色</label>
+          <select id="v3NewR" style="width:100%;height:32px;padding:0 8px;border:1px solid #cbd5e1;border-radius:5px;font-size:13px;box-sizing:border-box;background:#fff">
+            <option value="member">成员（可读写）</option>
+            <option value="readonly">只读</option>
+            <option value="admin">管理员</option>
+          </select>
+        </div>
+        <div><label style="display:block;font-size:11px;color:#64748b;margin-bottom:3px">初始密码<span style="color:#dc2626">*</span></label><input id="v3NewPw" type="text" value="Tx@123456" style="width:100%;height:32px;padding:0 8px;border:1px solid #cbd5e1;border-radius:5px;font-size:13px;box-sizing:border-box"></div>
+        <button id="v3NewBtn" style="height:32px;background:#0078b8;color:#fff;border:none;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer">创建</button>
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-top:6px">💡 创建后会强制要求成员首次登录改密；如忘记可点行内「重置密码」</div>
+    </div>
+
+    <!-- 成员列表 -->
+    <div style="overflow-y:auto;flex:1;border:1px solid #e2e8f0;border-radius:8px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px" id="v3UsersTable">
+        <thead style="background:#f1f5f9;position:sticky;top:0;z-index:1">
+          <tr>
+            <th style="padding:8px 12px;text-align:left;font-weight:600;color:#334155;border-bottom:1px solid #e2e8f0">账号</th>
+            <th style="padding:8px 12px;text-align:left;font-weight:600;color:#334155;border-bottom:1px solid #e2e8f0">显示名</th>
+            <th style="padding:8px 12px;text-align:left;font-weight:600;color:#334155;border-bottom:1px solid #e2e8f0">手机</th>
+            <th style="padding:8px 12px;text-align:left;font-weight:600;color:#334155;border-bottom:1px solid #e2e8f0">角色</th>
+            <th style="padding:8px 12px;text-align:left;font-weight:600;color:#334155;border-bottom:1px solid #e2e8f0">创建时间</th>
+            <th style="padding:8px 12px;text-align:right;font-weight:600;color:#334155;border-bottom:1px solid #e2e8f0">操作</th>
+          </tr>
+        </thead>
+        <tbody id="v3UsersBody"><tr><td colspan="6" style="padding:20px;text-align:center;color:#94a3b8">加载中...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
 
 <!-- ============ V3 API 同步层（必须在 V2 主脚本之前定义）============ -->
 <script>
@@ -310,6 +358,13 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 
     // ---- 立创代理 ----
     lcscBatch: function(codes){ return this.req('/lcsc/batch?codes=' + encodeURIComponent(codes.join(','))); },
+
+    // ---- 用户管理（admin only）----
+    listUsers:    function(){ return this.req('/users'); },
+    createUser:   function(payload){ return this.req('/users', {method:'POST', body:payload}); },
+    setUserRole:  function(username, role){ return this.req('/users/role/' + encodeURIComponent(username), {method:'POST', body:{role:role}}); },
+    deleteUser:   function(username){ return this.req('/users/' + encodeURIComponent(username), {method:'DELETE'}); },
+    resetUserPwd: function(username, newPassword){ return this.req('/users/reset-password', {method:'POST', body:{username:username, newPassword:newPassword}}); },
   };
 
   // -------- 同步状态：判断本地操作是否需要回传 --------
@@ -381,6 +436,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
     role.className = 'v3-role v3-role-' + u.role;
     document.getElementById('v3UserBar').classList.add('show');
     document.getElementById('v3ReadonlyHint').classList.toggle('show', u.role === 'readonly');
+    document.getElementById('v3UsersLink').style.display = (u.role === 'admin') ? 'inline' : 'none';
   }
 
   async function tryAutoLogin(){
@@ -435,6 +491,116 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
         BOM_API.toast('密码已更新');
       }).catch(function(e){ alert('改密失败：' + e.message); });
     });
+
+    // ---- 成员管理弹窗 ----
+    var usersMask = document.getElementById('v3UsersMask');
+    document.getElementById('v3UsersLink').addEventListener('click', function(){
+      usersMask.classList.add('show');
+      refreshUsers();
+    });
+    document.getElementById('v3UsersClose').addEventListener('click', function(){
+      usersMask.classList.remove('show');
+    });
+    usersMask.addEventListener('click', function(ev){
+      if (ev.target === usersMask) usersMask.classList.remove('show');
+    });
+
+    document.getElementById('v3NewBtn').addEventListener('click', function(){
+      var u  = document.getElementById('v3NewU').value.trim();
+      var d  = document.getElementById('v3NewD').value.trim();
+      var p  = document.getElementById('v3NewP').value.trim();
+      var r  = document.getElementById('v3NewR').value;
+      var pw = document.getElementById('v3NewPw').value;
+      if (!u || !pw) { alert('账号和初始密码必填'); return; }
+      if (!/^[a-zA-Z0-9_]{2,32}$/.test(u)) { alert('账号只能用字母/数字/下划线，2-32 位'); return; }
+      if (pw.length < 6) { alert('初始密码至少 6 位'); return; }
+      var btn = this; btn.disabled = true; btn.textContent = '创建中...';
+      BOM_API.createUser({
+        username: u, display_name: d || u, phone: p || null,
+        role: r, password: pw, mustChangePassword: true
+      }).then(function(){
+        BOM_API.toast('已创建：' + u);
+        document.getElementById('v3NewU').value = '';
+        document.getElementById('v3NewD').value = '';
+        document.getElementById('v3NewP').value = '';
+        document.getElementById('v3NewPw').value = 'Tx@123456';
+        refreshUsers();
+      }).catch(function(e){ alert('创建失败：' + e.message); })
+      .finally(function(){ btn.disabled = false; btn.textContent = '创建'; });
+    });
+
+    function refreshUsers(){
+      var body = document.getElementById('v3UsersBody');
+      body.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#94a3b8">加载中...</td></tr>';
+      BOM_API.listUsers().then(function(r){
+        var rows = r.data || [];
+        if (rows.length === 0) {
+          body.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#94a3b8">暂无成员</td></tr>';
+          return;
+        }
+        var roleLabels = {admin:'管理员', member:'成员', readonly:'只读'};
+        var roleColors = {admin:'#dc2626', member:'#0078b8', readonly:'#64748b'};
+        body.innerHTML = rows.map(function(x){
+          var isMe = BOM_API.user && BOM_API.user.username === x.username;
+          var isAdminBuiltin = x.username === 'admin';
+          var disabled = isMe || isAdminBuiltin;
+          var roleSelect = '<select data-user="' + x.username + '" class="v3-role-sel" '
+            + (disabled?'disabled':'') + ' style="height:26px;padding:0 6px;border:1px solid #cbd5e1;border-radius:4px;font-size:12px;background:#fff;color:'+roleColors[x.role]+'">'
+            + ['admin','member','readonly'].map(function(rk){
+                return '<option value="'+rk+'"'+(rk===x.role?' selected':'')+'>'+roleLabels[rk]+'</option>';
+              }).join('') + '</select>';
+          var actions = '';
+          actions += '<button data-act="resetpwd" data-user="'+x.username+'" style="height:26px;padding:0 8px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;font-size:12px;cursor:pointer;color:#334155">重置密码</button>';
+          if (!disabled) {
+            actions += ' <button data-act="del" data-user="'+x.username+'" style="height:26px;padding:0 8px;background:#fef2f2;border:1px solid #fecaca;border-radius:4px;font-size:12px;cursor:pointer;color:#dc2626">删除</button>';
+          }
+          return '<tr style="border-bottom:1px solid #f1f5f9">'
+            + '<td style="padding:8px 12px"><strong>'+x.username+'</strong>'+(isMe?' <span style="color:#0078b8;font-size:11px">(我)</span>':'')+'</td>'
+            + '<td style="padding:8px 12px">'+(x.display_name||'-')+'</td>'
+            + '<td style="padding:8px 12px;color:#64748b">'+(x.phone||'-')+'</td>'
+            + '<td style="padding:8px 12px">'+roleSelect+'</td>'
+            + '<td style="padding:8px 12px;color:#94a3b8;font-size:12px">'+(x.created_at||'').slice(0,16).replace('T',' ')+'</td>'
+            + '<td style="padding:8px 12px;text-align:right;white-space:nowrap">'+actions+'</td>'
+            + '</tr>';
+        }).join('');
+
+        // 绑定行内事件
+        body.querySelectorAll('.v3-role-sel').forEach(function(sel){
+          sel.addEventListener('change', function(){
+            var uname = this.dataset.user; var newRole = this.value;
+            if (!confirm('将 ' + uname + ' 的角色改为「' + roleLabels[newRole] + '」？')) {
+              refreshUsers(); return;
+            }
+            BOM_API.setUserRole(uname, newRole).then(function(){
+              BOM_API.toast('角色已更新');
+              refreshUsers();
+            }).catch(function(e){ alert('修改失败：' + e.message); refreshUsers(); });
+          });
+        });
+        body.querySelectorAll('button[data-act="resetpwd"]').forEach(function(b){
+          b.addEventListener('click', function(){
+            var uname = this.dataset.user;
+            var newPwd = prompt('为「' + uname + '」设置新密码（至少 6 位，登录后会强制改密）：', 'Tx@123456');
+            if (!newPwd || newPwd.length < 6) return;
+            BOM_API.resetUserPwd(uname, newPwd).then(function(){
+              alert('已重置 ' + uname + ' 的密码为：' + newPwd + '\n请告知该成员，登录后会强制改密。');
+            }).catch(function(e){ alert('重置失败：' + e.message); });
+          });
+        });
+        body.querySelectorAll('button[data-act="del"]').forEach(function(b){
+          b.addEventListener('click', function(){
+            var uname = this.dataset.user;
+            if (!confirm('确认删除账号「' + uname + '」？此操作不可撤销。')) return;
+            BOM_API.deleteUser(uname).then(function(){
+              BOM_API.toast('已删除 ' + uname);
+              refreshUsers();
+            }).catch(function(e){ alert('删除失败：' + e.message); });
+          });
+        });
+      }).catch(function(e){
+        body.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#dc2626">加载失败：'+e.message+'</td></tr>';
+      });
+    }
   }
 
   // 从云端拉取双库覆盖到 localStorage，再触发 V2 重新加载
@@ -4448,12 +4614,18 @@ function batchAutoFillAll(){
 
 // ==================== V3 团队版：写入 hook（V2 主脚本末尾注入）====================
 (function(){
-  // hook saveMaterialDB
+  // 角色判断 helper
+  function role(){ return (window.BOM_API && window.BOM_API.user && window.BOM_API.user.role) || 'readonly'; }
+  function isAdmin(){ return role() === 'admin'; }
+  function isReadonly(){ return role() === 'readonly'; }
+
+  // hook saveMaterialDB —— 只有 admin 才把改动推到云端共享库
   if (typeof window.saveMaterialDB === 'function') {
     var _origSave = window.saveMaterialDB;
     window.saveMaterialDB = function(){
       var ret = _origSave.apply(this, arguments);
       try {
+        if (!isAdmin()) return ret; // member/readonly 写改动只存自己浏览器，不污染共享库
         var lib = (typeof currentLib !== 'undefined') ? currentLib : 'standard';
         if (window.BOM_API) window.BOM_API.scheduleSync(lib);
       } catch (e) { console.warn('[V3] hook saveMaterialDB:', e); }
@@ -4461,25 +4633,54 @@ function batchAutoFillAll(){
     };
   }
 
-  // hook localStorage.setItem 作为兜底——V2 多处直接写 localStorage
+  // hook localStorage.setItem 兜底——同样仅 admin 推云端
   var _origSetItem = localStorage.setItem.bind(localStorage);
   localStorage.setItem = function(key, val){
     _origSetItem(key, val);
+    if (!isAdmin()) return;
     if (key === 'material_db_lcsc' && window.BOM_API) window.BOM_API.scheduleSync('lcsc');
     else if (key === 'material_db_standard' && window.BOM_API) window.BOM_API.scheduleSync('standard');
   };
 
-  // 只读账号：DOM 就绪后禁用写入按钮（后端也会二次校验）
+  // DOM 就绪后按角色调整 UI
   document.addEventListener('DOMContentLoaded', function(){
     setTimeout(function(){
-      if (!window.BOM_API || !window.BOM_API.isReadonly || !window.BOM_API.isReadonly()) return;
-      document.querySelectorAll('button, input[type=file]').forEach(function(el){
-        var t = (el.textContent || el.value || '').trim();
-        if (el.type === 'file' || /导入|删除|清空|添加|保存|批量|生成|执行|导出/.test(t)) {
-          el.disabled = true;
-          el.title = '只读账号，无写入权限';
-        }
-      });
+      if (!window.BOM_API) return;
+      var r = role();
+
+      // ---- admin only：库管理写控件（导入 Excel / 导出当前库）----
+      if (r !== 'admin') {
+        var imp = document.getElementById('btnImportMat');
+        if (imp) imp.style.display = 'none';
+        // 导出按钮（onclick="exportMaterialData()"）
+        document.querySelectorAll('button[onclick^="exportMaterialData"]').forEach(function(b){ b.style.display = 'none'; });
+        // 物料库行内「删除」按钮：交给 renderMaterialTable 时 CSS 隐藏不方便，这里用事件捕获拦截
+        document.addEventListener('click', function(ev){
+          var t = ev.target;
+          if (!t || t.tagName !== 'BUTTON') return;
+          var oc = t.getAttribute('onclick') || '';
+          if (/deleteMaterialRow|addManualToMaterialDb/.test(oc)) {
+            ev.preventDefault(); ev.stopPropagation();
+            alert('只有管理员可以修改双库器件');
+          }
+        }, true);
+        // 「✅ 应用填入 & 存入库」（粘贴立创参数对话框）→ 改文案 + 拦截存库副作用
+        document.querySelectorAll('#pasteDlg button[onclick^="pdApply"]').forEach(function(b){
+          b.textContent = '✅ 应用填入（仅本次 BOM）';
+          b.title = '成员账号：参数只贴回当前 BOM，不会写入双库';
+        });
+      }
+
+      // ---- readonly：所有写动作禁用 ----
+      if (r === 'readonly') {
+        document.querySelectorAll('button, input[type=file]').forEach(function(el){
+          var t = (el.textContent || el.value || '').trim();
+          if (el.type === 'file' || /导入|删除|清空|添加|保存|批量|生成|执行|导出|应用填入/.test(t)) {
+            el.disabled = true;
+            el.title = '只读账号，无写入权限';
+          }
+        });
+      }
     }, 600);
   });
 })();

@@ -38,6 +38,7 @@ const ALLOWED_ORIGINS = [
   'https://techphant-bom.pages.dev',
   'https://techphant-bom-tools.pages.dev',
   'https://techphant-bom-tools-v2.pages.dev',
+  'https://techphant-bom-tools-v3.pages.dev',
   'https://daiwei191413.github.io',
   'http://localhost:8765',
   'http://127.0.0.1:8765',
@@ -50,6 +51,7 @@ const ALLOWED_ORIGIN_SUFFIXES = [
   '.techphant-bom.pages.dev',
   '.techphant-bom-tools.pages.dev',
   '.techphant-bom-tools-v2.pages.dev',
+  '.techphant-bom-tools-v3.pages.dev',
 ];
 
 const CORS_HEADERS_FACTORY = (origin) => {

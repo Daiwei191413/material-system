@@ -332,7 +332,7 @@ export default {
         }
 
         if (request.method === 'POST') {
-          if (userRole === 'readonly') return errorResponse('无权限', 403, origin);
+          if (userRole !== 'admin') return errorResponse('只有管理员可写入物料库', 403, origin);
 
           const data = await request.json();
           if (!data.lcsc_code) return errorResponse('立创编号必填', 400, origin);
@@ -376,7 +376,7 @@ export default {
         }
 
         if (request.method === 'PUT') {
-          if (userRole === 'readonly') return errorResponse('无权限', 403, origin);
+          if (userRole !== 'admin') return errorResponse('只有管理员可修改物料库', 403, origin);
 
           const data = await request.json();
           const old = await dbQuery(env.BOM_DB,
@@ -564,6 +564,46 @@ export default {
 
           return jsonResponse({ success: true, message: '创建成功' }, 201, origin);
         }
+      }
+
+      // ----- 修改用户角色（admin only）-----
+      if (path.startsWith('/users/role/') && request.method === 'POST') {
+        if (userRole !== 'admin') return errorResponse('无权限', 403, origin);
+        const targetUsername = decodeURIComponent(path.replace('/users/role/', ''));
+        const data = await request.json();
+        if (!['admin', 'member', 'readonly'].includes(data.role)) {
+          return errorResponse('role 必须是 admin / member / readonly', 400, origin);
+        }
+        // 防止把自己降权（避免锁死管理员）
+        const me = await dbQuery(env.BOM_DB, 'SELECT username FROM users WHERE id = ?', [userId]);
+        if (me.length && me[0].username === targetUsername && data.role !== 'admin') {
+          return errorResponse('不能修改自己的管理员角色', 400, origin);
+        }
+        await dbRun(env.BOM_DB, 'UPDATE users SET role = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?', [data.role, targetUsername]);
+        return jsonResponse({ success: true, message: '角色已更新' }, 200, origin);
+      }
+
+      // ----- 删除用户（admin only）-----
+      if (path.startsWith('/users/') && request.method === 'DELETE') {
+        if (userRole !== 'admin') return errorResponse('无权限', 403, origin);
+        const targetUsername = decodeURIComponent(path.replace('/users/', ''));
+        const me = await dbQuery(env.BOM_DB, 'SELECT username FROM users WHERE id = ?', [userId]);
+        if (me.length && me[0].username === targetUsername) {
+          return errorResponse('不能删除自己', 400, origin);
+        }
+        if (targetUsername === 'admin') {
+          return errorResponse('不能删除内置 admin 账号', 400, origin);
+        }
+        // 先查目标用户 id
+        const target = await dbQuery(env.BOM_DB, 'SELECT id FROM users WHERE username = ?', [targetUsername]);
+        if (!target.length) return errorResponse('用户不存在', 404, origin);
+        const targetId = target[0].id;
+        // 解除 audit_log 与 material_library 的外键引用，再删用户
+        await dbRun(env.BOM_DB, 'UPDATE audit_log SET user_id = NULL WHERE user_id = ?', [targetId]);
+        await dbRun(env.BOM_DB, 'UPDATE material_library SET created_by = NULL WHERE created_by = ?', [targetId]);
+        await dbRun(env.BOM_DB, 'UPDATE material_library SET updated_by = NULL WHERE updated_by = ?', [targetId]);
+        const r = await dbRun(env.BOM_DB, 'DELETE FROM users WHERE id = ?', [targetId]);
+        return jsonResponse({ success: true, message: '已删除', changes: r.meta?.changes }, 200, origin);
       }
 
       // ----- 重置密码（admin 或自己）-----
