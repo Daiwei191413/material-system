@@ -1,0 +1,21 @@
+name = "techphant-bom-tools-v3"
+main = "worker.js"
+compatibility_date = "2024-09-01"
+
+# V3 独立 KV 命名空间
+[[kv_namespaces]]
+binding = "LCSC_CACHE_V3"
+id = "de4dd70912144d48b50c8756f61e296c"
+
+# D1 数据库（团队共享物料库 + 用户系统）
+[[d1_databases]]
+binding = "BOM_DB"
+database_name = "bom-db-v3"
+database_id = "7453dd2b-977d-4152-b70b-ebf9c4e2d2bd"
+
+# 密钥通过 wrangler secret put 注入：
+#   JLC_ACCESS_KEY / JLC_SECRET_KEY / JLC_APP_ID
+#   JWT_SECRET（用于签名 Token）
+
+[observability]
+enabled = true
