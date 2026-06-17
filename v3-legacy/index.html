@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V3.0.7 团队版</title>
+  <title>技象科技研发BOM 整理神器 V3.0.8 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -14,9 +14,9 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:#f0f2f5;min-height:100vh;display:flex;flex-direction:column}
 /* 品牌顶部条 */
-.brand-bar{background:#fff;border-bottom:1px solid #e8ecef;padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
+.brand-bar{background:#fff;border-bottom:1px solid #e8ecef;padding:16px 300px 16px 24px;display:flex;align-items:center;justify-content:flex-start;gap:24px;min-height:76px;box-sizing:border-box}
 .brand-bar .logo{height:60px;width:auto}
-.brand-bar .subtitle{font-size:17px;color:#0078b8;letter-spacing:1px;font-weight:500}
+.brand-bar .subtitle{font-size:17px;color:#0078b8;letter-spacing:1px;font-weight:500;white-space:nowrap}
 /* 产品 header */
 header{background:linear-gradient(135deg,#0078b8,#005a8a);color:#fff;padding:22px 0;text-align:center}
 header h1{font-size:24px;margin-bottom:6px}
@@ -167,7 +167,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 #materialPanel{display:none}
 #materialPanel.show{display:block}
 
-@media(max-width:768px){.upload-row{flex-direction:column}.stats{grid-template-columns:1fr 1fr}}
+@media(max-width:768px){.brand-bar{padding:14px 16px;flex-direction:column;align-items:flex-start;gap:6px}.brand-bar .logo{height:50px}.brand-bar .subtitle{font-size:15px}.upload-row{flex-direction:column}.stats{grid-template-columns:1fr 1fr}}
 </style>
 <style>
 /* ============ V3 团队版：登录/权限 UI ============ */
@@ -184,13 +184,13 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 .v3-login-card button:disabled{background:#94a3b8;cursor:not-allowed;}
 .v3-login-err{margin-top:12px;padding:8px 10px;background:#fef2f2;color:#dc2626;border-radius:4px;font-size:13px;display:none;}
 .v3-login-err.show{display:block;}
-.v3-userbar{position:fixed;top:8px;right:12px;z-index:9000;background:rgba(255,255,255,.92);backdrop-filter:blur(6px);border:1px solid #e2e8f0;border-radius:6px;padding:6px 12px;font-size:12px;color:#334155;box-shadow:0 2px 8px rgba(0,0,0,.06);display:none;}
-.v3-userbar.show{display:flex;align-items:center;gap:10px;}
-.v3-userbar .v3-role{padding:2px 6px;border-radius:3px;font-size:11px;font-weight:600;}
+.v3-userbar{position:fixed;top:12px;right:16px;z-index:9000;background:rgba(255,255,255,.95);backdrop-filter:blur(6px);border:1px solid #e2e8f0;border-radius:6px;padding:7px 12px;font-size:13px;color:#334155;box-shadow:0 2px 8px rgba(0,0,0,.06);display:none;max-width:calc(100vw - 32px);}
+.v3-userbar.show{display:flex;align-items:center;gap:11px;}
+.v3-userbar .v3-role{padding:2px 7px;border-radius:3px;font-size:12px;font-weight:600;}
 .v3-userbar .v3-role-admin{background:#fef3c7;color:#a16207;}
 .v3-userbar .v3-role-member{background:#dbeafe;color:#1e40af;}
 .v3-userbar .v3-role-readonly{background:#e2e8f0;color:#475569;}
-.v3-userbar a{color:#0078b8;cursor:pointer;text-decoration:none;}
+.v3-userbar a{color:#0078b8;cursor:pointer;text-decoration:none;font-size:13px;}
 .v3-userbar a:hover{text-decoration:underline;}
 .v3-readonly-hint{display:none;background:#fef9c3;color:#854d0e;padding:6px 12px;font-size:13px;text-align:center;border-bottom:1px solid #fde68a;}
 .v3-readonly-hint.show{display:block;}
@@ -204,7 +204,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V3.0.7 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V3.0.8 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -409,7 +409,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   };
   BOM_API.scheduleSync = function(lib){
     if (BOM_API._suspendSync) return;
-    if (!BOM_API.isAdmin()) return;  // V3.0.7: 只有 admin 才能把改动同步到云端共享库（成员的 BOM 不入双库）
+    if (!BOM_API.isAdmin()) return;  // V3.0.8: 只有 admin 才能把改动同步到云端共享库（成员的 BOM 不入双库）
     if (SYNC_DEBOUNCE[lib]) clearTimeout(SYNC_DEBOUNCE[lib]);
     SYNC_DEBOUNCE[lib] = setTimeout(function(){
       if (BOM_API._suspendSync) return;
@@ -726,7 +726,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.7 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.8 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -867,7 +867,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.7</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.8</span></h3>
 
     <!-- 库切换 Tab -->
     <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -4808,7 +4808,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.7 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.8 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>
