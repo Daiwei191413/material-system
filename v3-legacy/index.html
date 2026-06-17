@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V3.0.2 团队版</title>
+  <title>技象科技研发BOM 整理神器 V3.0.3 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -204,7 +204,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V3.0.2 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V3.0.3 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -348,7 +348,8 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
         .catch(function(err){
           if (err.status === 409) {
             // 已存在 → PUT
-            return BOM_API.req('/library/' + encodeURIComponent(item.lcsc_code) + '?lib=' + encodeURIComponent(lib), {method:'PUT', body:item});
+            var key = item.sync_key || BOM_API.makeSyncKey(lib, item);
+            return BOM_API.req('/library/' + encodeURIComponent(key) + '?lib=' + encodeURIComponent(lib), {method:'PUT', body:item});
           }
           throw err;
         });
@@ -367,11 +368,35 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
     resetUserPwd: function(username, newPassword){ return this.req('/users/reset-password', {method:'POST', body:{username:username, newPassword:newPassword}}); },
   };
 
+  BOM_API.cleanText = function(v){ return (v == null ? '' : String(v)).trim(); };
+  BOM_API.normText = function(v){ return BOM_API.cleanText(v).toLowerCase().replace(/\s+/g, ' '); };
+  BOM_API.normLcsc = function(v){
+    var raw = BOM_API.cleanText(v).toUpperCase();
+    var m = raw.match(/C\d{3,}/);
+    return m ? m[0] : raw;
+  };
+  BOM_API.makeSyncKey = function(lib, item){
+    item = item || {};
+    var lcsc = BOM_API.normLcsc(item.lcsc_code || item.componentCode || item['立创编号']);
+    var materialCode = BOM_API.cleanText(item.material_code || item['物料编码']);
+    var model = BOM_API.cleanText(item.model || item['型号']);
+    var pkg = BOM_API.cleanText(item.package || item['封装']);
+    var brand = BOM_API.cleanText(item.brand || item['品牌']);
+    var name = BOM_API.cleanText(item.name || item['物料名称']);
+    var spec = BOM_API.cleanText(item.specification || item['参数描述']);
+    if (lib === 'lcsc') return lcsc ? 'lcsc:' + lcsc : '';
+    if (materialCode) return 'mat:' + BOM_API.normText(materialCode);
+    if (lcsc) return 'lcsc:' + lcsc;
+    if (model || pkg || brand) return 'mpb:' + BOM_API.normText(model) + '|' + BOM_API.normText(pkg) + '|' + BOM_API.normText(brand);
+    if (name || spec) return 'desc:' + BOM_API.normText(name) + '|' + BOM_API.normText(spec);
+    return '';
+  };
+
   // -------- 同步状态：判断本地操作是否需要回传 --------
   // 由 hook 层在 saveMaterialDB / 导入完成后调用
   var SYNC_DEBOUNCE = {};
   BOM_API.scheduleSync = function(lib){
-    if (!BOM_API.isAdmin()) return;  // V3.0.2: 只有 admin 才能把改动同步到云端共享库（成员的 BOM 不入双库）
+    if (!BOM_API.isAdmin()) return;  // V3.0.3: 只有 admin 才能把改动同步到云端共享库（成员的 BOM 不入双库）
     if (SYNC_DEBOUNCE[lib]) clearTimeout(SYNC_DEBOUNCE[lib]);
     SYNC_DEBOUNCE[lib] = setTimeout(function(){
       var key = (lib === 'lcsc') ? 'material_db_lcsc' : 'material_db_standard';
@@ -379,8 +404,8 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
       try { items = JSON.parse(localStorage.getItem(key) || '[]'); } catch(e){ items = []; }
       // 转后端字段
       var payload = items.map(function(m){
-        return {
-          lcsc_code:    m.lcsc_code || m.componentCode || m['立创编号'] || '',
+        var item = {
+          lcsc_code:    BOM_API.normLcsc(m.lcsc_code || m.componentCode || m['立创编号']),
           name:         m.name || m['物料名称'] || '',
           model:        m.model || m['型号'] || '',
           specification: m.specification || m['参数描述'] || '',
@@ -395,7 +420,9 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
           image_url:    m.image_url || '',
           remark:       m.remark || m['备注'] || '',
         };
-      }).filter(function(m){ return m.lcsc_code; });
+        item.sync_key = BOM_API.makeSyncKey(lib, item);
+        return item;
+      }).filter(function(m){ return m.sync_key; });
       if (payload.length === 0) return;
       BOM_API.importLib(lib, payload).then(function(r){
         BOM_API.toast('已同步 ' + lib + '：' + (r.message || r.stats));
@@ -615,7 +642,8 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
         return (arr || []).map(function(m){
           return {
             // 通用键（V2 saveMaterialDB 写出的就是这一组）
-            lcsc_code: m.lcsc_code,
+            sync_key: m.sync_key,
+            lcsc_code: m.lcsc_code || '',
             name: m.name,
             model: m.model,
             specification: m.specification,
@@ -636,7 +664,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
             '封装': m.package,
             '分类': m.category,
             '单位': m.unit || 'PCS',
-            '立创编号': m.lcsc_code,
+            '立创编号': m.lcsc_code || '',
             '备注': m.remark,
           };
         });
@@ -679,7 +707,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.2 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.3 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -820,7 +848,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.2</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.3</span></h3>
 
     <!-- 库切换 Tab -->
     <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -4728,7 +4756,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.2 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.3 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>

@@ -1,12 +1,12 @@
 // ============================================================
-// 技象科技 BOM 整理神器 V3.0.0 - 团队版 API
+// 技象科技 BOM 整理神器 V3.0.3 - 团队版 API
 // Cloudflare Worker + D1 数据库 + KV 缓存
 // ============================================================
 
 // ----- 配置 -----
 const CONFIG = {
   APP_NAME: '技象科技研发BOM整理神器',
-  VERSION: 'V3.0.0',
+  VERSION: 'V3.0.3',
   JWT_EXPIRE_DAYS: 7,
   MAX_LOGIN_ATTEMPTS: 5,
   LOGIN_LOCKOUT_MINUTES: 15,
@@ -124,6 +124,64 @@ async function dbQuery(db, sql, params = []) {
 
 async function dbRun(db, sql, params = []) {
   return await db.prepare(sql).bind(...params).run();
+}
+
+function cleanText(value) {
+  return (value ?? '').toString().trim();
+}
+
+function normText(value) {
+  return cleanText(value).toLowerCase().replace(/\s+/g, ' ');
+}
+
+function normLcsc(value) {
+  const m = cleanText(value).toUpperCase().match(/C\d{3,}/);
+  return m ? m[0] : cleanText(value).toUpperCase();
+}
+
+function makeMaterialSyncKey(lib, item) {
+  const lcsc = normLcsc(item.lcsc_code || item.componentCode || item['立创编号']);
+  const materialCode = cleanText(item.material_code || item['物料编码']);
+  const model = cleanText(item.model || item['型号']);
+  const pkg = cleanText(item.package || item['封装']);
+  const brand = cleanText(item.brand || item['品牌']);
+  const name = cleanText(item.name || item['物料名称']);
+  const spec = cleanText(item.specification || item['参数描述']);
+
+  if (lib === 'lcsc') return lcsc ? `lcsc:${lcsc}` : '';
+  if (materialCode) return `mat:${normText(materialCode)}`;
+  if (lcsc) return `lcsc:${lcsc}`;
+  if (model || pkg || brand) return `mpb:${normText(model)}|${normText(pkg)}|${normText(brand)}`;
+  if (name || spec) return `desc:${normText(name)}|${normText(spec)}`;
+  return '';
+}
+
+function materialIdentityError(lib) {
+  return lib === 'lcsc'
+    ? '立创库需填写立创编号'
+    : '标准库需至少填写物料编码、立创编号、型号/封装/品牌或物料名称/参数描述';
+}
+
+function materialParams(item, userId, lib, syncKey, includeCreators) {
+  const params = [
+    lib, syncKey,
+    normLcsc(item.lcsc_code || item.componentCode || item['立创编号']) || '',
+    item.name || item['物料名称'] || '',
+    item.model || item['型号'] || '',
+    item.specification || item['参数描述'] || '',
+    item.brand || item['品牌'] || '',
+    item.material_code || item['物料编码'] || '',
+    item.package || item['封装'] || '',
+    item.category || item['分类'] || '',
+    item.manufacturer || '',
+    item.unit || item['单位'] || 'PCS',
+    item.price || '',
+    item.stock || '',
+    item.datasheet || '',
+    item.image_url || '',
+    item.remark || item['备注'] || '',
+  ];
+  return includeCreators ? [...params, userId, userId] : params;
 }
 
 // ----- 响应封装 -----
@@ -305,10 +363,10 @@ export default {
           const params = [lib];
 
           if (search) {
-            sql += ' AND (lcsc_code LIKE ? OR name LIKE ? OR model LIKE ? OR specification LIKE ? OR material_code LIKE ?)';
-            countSql += ' AND (lcsc_code LIKE ? OR name LIKE ? OR model LIKE ? OR specification LIKE ? OR material_code LIKE ?)';
+            sql += ' AND (sync_key LIKE ? OR lcsc_code LIKE ? OR name LIKE ? OR model LIKE ? OR specification LIKE ? OR material_code LIKE ?)';
+            countSql += ' AND (sync_key LIKE ? OR lcsc_code LIKE ? OR name LIKE ? OR model LIKE ? OR specification LIKE ? OR material_code LIKE ?)';
             const like = `%${search}%`;
-            params.push(like, like, like, like, like);
+            params.push(like, like, like, like, like, like);
           }
           if (category) {
             sql += ' AND category = ?';
@@ -335,42 +393,42 @@ export default {
           if (userRole !== 'admin') return errorResponse('只有管理员可写入物料库', 403, origin);
 
           const data = await request.json();
-          if (!data.lcsc_code) return errorResponse('立创编号必填', 400, origin);
+          const syncKey = makeMaterialSyncKey(lib, data);
+          if (!syncKey) return errorResponse(materialIdentityError(lib), 400, origin);
+          data.lcsc_code = normLcsc(data.lcsc_code || data.componentCode || data['立创编号']) || '';
+          data.sync_key = syncKey;
 
           const existing = await dbQuery(env.BOM_DB,
-            'SELECT id FROM material_library WHERE lib_type = ? AND lcsc_code = ?', [lib, data.lcsc_code]);
+            'SELECT id FROM material_library WHERE lib_type = ? AND sync_key = ?', [lib, syncKey]);
           if (existing.length > 0) return errorResponse('该物料在此库已存在', 409, origin);
 
           await dbRun(env.BOM_DB,
             `INSERT INTO material_library
-             (lib_type, lcsc_code, name, model, specification, brand, material_code, package, category, manufacturer, unit, price, stock, datasheet, image_url, remark, source, created_by, updated_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [lib, data.lcsc_code,
-             data.name || '', data.model || '', data.specification || '', data.brand || '',
-             data.material_code || '', data.package || '', data.category || '', data.manufacturer || '',
-             data.unit || 'PCS', data.price || '', data.stock || '',
-             data.datasheet || '', data.image_url || '', data.remark || '',
-             data.source || 'manual', userId, userId]
+             (lib_type, sync_key, lcsc_code, name, model, specification, brand, material_code, package, category, manufacturer, unit, price, stock, datasheet, image_url, remark, source, created_by, updated_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [...materialParams(data, userId, lib, syncKey, false), data.source || 'manual', userId, userId]
           );
 
           await dbRun(env.BOM_DB,
             'INSERT INTO audit_log (user_id, action, target, lib_type, new_value, ip) VALUES (?, ?, ?, ?, ?, ?)',
-            [userId, 'create', data.lcsc_code, lib, JSON.stringify(data), clientIP]);
+            [userId, 'create', syncKey, lib, JSON.stringify(data), clientIP]);
 
           return jsonResponse({ success: true, message: '创建成功' }, 201, origin);
         }
       }
 
-      // ----- 单条物料操作 /library/<lcsc_code>?lib=xxx -----
+      // ----- 单条物料操作 /library/<sync_key>?lib=xxx -----
       const materialMatch = path.match(/^\/library\/(.+)$/);
       if (materialMatch && !path.startsWith('/library/import') && !path.startsWith('/library/export')) {
         const code = decodeURIComponent(materialMatch[1]);
         const lib = requireLib(url.searchParams.get('lib'));
         if (!lib) return errorResponse('lib 参数必填且必须为 lcsc 或 standard', 400, origin);
+        const fallbackKey = code.includes(':') ? code : makeMaterialSyncKey(lib, { lcsc_code: code, material_code: code });
+        const lookupSql = 'SELECT * FROM material_library WHERE lib_type = ? AND (sync_key = ? OR sync_key = ? OR lcsc_code = ?)';
+        const lookupParams = [lib, code, fallbackKey, code];
 
         if (request.method === 'GET') {
-          const items = await dbQuery(env.BOM_DB,
-            'SELECT * FROM material_library WHERE lib_type = ? AND lcsc_code = ?', [lib, code]);
+          const items = await dbQuery(env.BOM_DB, lookupSql, lookupParams);
           if (items.length === 0) return errorResponse('物料不存在', 404, origin);
           return jsonResponse({ success: true, data: items[0] }, 200, origin);
         }
@@ -379,23 +437,27 @@ export default {
           if (userRole !== 'admin') return errorResponse('只有管理员可修改物料库', 403, origin);
 
           const data = await request.json();
-          const old = await dbQuery(env.BOM_DB,
-            'SELECT * FROM material_library WHERE lib_type = ? AND lcsc_code = ?', [lib, code]);
+          const old = await dbQuery(env.BOM_DB, lookupSql, lookupParams);
           if (old.length === 0) return errorResponse('物料不存在', 404, origin);
 
           const o = old[0];
+          const merged = { ...o, ...data };
+          const nextSyncKey = makeMaterialSyncKey(lib, merged);
+          if (!nextSyncKey) return errorResponse(materialIdentityError(lib), 400, origin);
           await dbRun(env.BOM_DB,
             `UPDATE material_library SET
+             sync_key = ?, lcsc_code = ?,
              name = ?, model = ?, specification = ?, brand = ?,
              material_code = ?, package = ?, category = ?, manufacturer = ?,
              unit = ?, price = ?, stock = ?, datasheet = ?, image_url = ?, remark = ?,
              updated_by = ?, updated_at = datetime('now')
-             WHERE lib_type = ? AND lcsc_code = ?`,
-            [data.name ?? o.name, data.model ?? o.model, data.specification ?? o.specification, data.brand ?? o.brand,
+             WHERE lib_type = ? AND sync_key = ?`,
+            [nextSyncKey, normLcsc(merged.lcsc_code || merged.componentCode || merged['立创编号']) || '',
+             data.name ?? o.name, data.model ?? o.model, data.specification ?? o.specification, data.brand ?? o.brand,
              data.material_code ?? o.material_code, data.package ?? o.package, data.category ?? o.category, data.manufacturer ?? o.manufacturer,
              data.unit ?? o.unit, data.price ?? o.price, data.stock ?? o.stock,
              data.datasheet ?? o.datasheet, data.image_url ?? o.image_url, data.remark ?? o.remark,
-             userId, lib, code]
+             userId, lib, o.sync_key]
           );
 
           await dbRun(env.BOM_DB,
@@ -408,12 +470,11 @@ export default {
         if (request.method === 'DELETE') {
           if (userRole !== 'admin') return errorResponse('只有管理员可删除', 403, origin);
 
-          const old = await dbQuery(env.BOM_DB,
-            'SELECT * FROM material_library WHERE lib_type = ? AND lcsc_code = ?', [lib, code]);
+          const old = await dbQuery(env.BOM_DB, lookupSql, lookupParams);
           if (old.length === 0) return errorResponse('物料不存在', 404, origin);
 
           await dbRun(env.BOM_DB,
-            'DELETE FROM material_library WHERE lib_type = ? AND lcsc_code = ?', [lib, code]);
+            'DELETE FROM material_library WHERE lib_type = ? AND sync_key = ?', [lib, old[0].sync_key]);
           await dbRun(env.BOM_DB,
             'INSERT INTO audit_log (user_id, action, target, lib_type, old_value, ip) VALUES (?, ?, ?, ?, ?, ?)',
             [userId, 'delete', code, lib, JSON.stringify(old[0]), clientIP]);
@@ -435,31 +496,35 @@ export default {
 
         let success = 0, failed = 0, updated = 0, inserted = 0;
         for (const item of items) {
-          if (!item.lcsc_code) { failed++; continue; }
+          const syncKey = makeMaterialSyncKey(lib, item);
+          if (!syncKey) { failed++; continue; }
+          item.sync_key = syncKey;
+          item.lcsc_code = normLcsc(item.lcsc_code || item.componentCode || item['立创编号']) || '';
           try {
             const existing = await dbQuery(env.BOM_DB,
-              'SELECT id FROM material_library WHERE lib_type = ? AND lcsc_code = ?', [lib, item.lcsc_code]);
+              'SELECT id FROM material_library WHERE lib_type = ? AND sync_key = ?', [lib, syncKey]);
             if (existing.length > 0) {
               await dbRun(env.BOM_DB,
                 `UPDATE material_library SET
-                 name = ?, model = ?, specification = ?, brand = ?,
+                 lcsc_code = ?, name = ?, model = ?, specification = ?, brand = ?,
                  material_code = ?, package = ?, category = ?, manufacturer = ?,
                  unit = ?, price = ?, stock = ?, datasheet = ?, image_url = ?, remark = ?,
                  source = 'import', updated_by = ?, updated_at = datetime('now')
-                 WHERE lib_type = ? AND lcsc_code = ?`,
-                [item.name || '', item.model || '', item.specification || '', item.brand || '',
+                 WHERE lib_type = ? AND sync_key = ?`,
+                [item.lcsc_code || '',
+                 item.name || '', item.model || '', item.specification || '', item.brand || '',
                  item.material_code || '', item.package || '', item.category || '', item.manufacturer || '',
                  item.unit || 'PCS', item.price || '', item.stock || '',
                  item.datasheet || '', item.image_url || '', item.remark || '',
-                 userId, lib, item.lcsc_code]
+                 userId, lib, syncKey]
               );
               updated++;
             } else {
               await dbRun(env.BOM_DB,
                 `INSERT INTO material_library
-                 (lib_type, lcsc_code, name, model, specification, brand, material_code, package, category, manufacturer, unit, price, stock, datasheet, image_url, remark, source, created_by, updated_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?, ?)`,
-                [lib, item.lcsc_code,
+                 (lib_type, sync_key, lcsc_code, name, model, specification, brand, material_code, package, category, manufacturer, unit, price, stock, datasheet, image_url, remark, source, created_by, updated_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?, ?)`,
+                [lib, syncKey, item.lcsc_code || '',
                  item.name || '', item.model || '', item.specification || '', item.brand || '',
                  item.material_code || '', item.package || '', item.category || '', item.manufacturer || '',
                  item.unit || 'PCS', item.price || '', item.stock || '',
