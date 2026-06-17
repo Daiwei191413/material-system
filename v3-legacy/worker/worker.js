@@ -1,12 +1,12 @@
 // ============================================================
-// 技象科技 BOM 整理神器 V3.0.8 - 团队版 API
+// 技象科技 BOM 整理神器 V3.0.9 - 团队版 API
 // Cloudflare Worker + D1 数据库 + KV 缓存
 // ============================================================
 
 // ----- 配置 -----
 const CONFIG = {
   APP_NAME: '技象科技研发BOM整理神器',
-  VERSION: 'V3.0.8',
+  VERSION: 'V3.0.9',
   JWT_EXPIRE_DAYS: 7,
   MAX_LOGIN_ATTEMPTS: 5,
   LOGIN_LOCKOUT_MINUTES: 15,
@@ -151,8 +151,9 @@ function makeMaterialSyncKey(lib, item) {
   if (lib === 'lcsc') return lcsc ? `lcsc:${lcsc}` : '';
   if (materialCode) return `mat:${normText(materialCode)}`;
   if (lcsc) return `lcsc:${lcsc}`;
-  if (model || pkg || brand) return `mpb:${normText(model)}|${normText(pkg)}|${normText(brand)}`;
-  if (name || spec) return `desc:${normText(name)}|${normText(spec)}`;
+  if (model || pkg || brand || name || spec) {
+    return `std:${normText(model)}|${normText(pkg)}|${normText(brand)}|${normText(name)}|${normText(spec)}`;
+  }
   return '';
 }
 
