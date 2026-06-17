@@ -1,12 +1,12 @@
 // ============================================================
-// 技象科技 BOM 整理神器 V3.0.6 - 团队版 API
+// 技象科技 BOM 整理神器 V3.0.7 - 团队版 API
 // Cloudflare Worker + D1 数据库 + KV 缓存
 // ============================================================
 
 // ----- 配置 -----
 const CONFIG = {
   APP_NAME: '技象科技研发BOM整理神器',
-  VERSION: 'V3.0.6',
+  VERSION: 'V3.0.7',
   JWT_EXPIRE_DAYS: 7,
   MAX_LOGIN_ATTEMPTS: 5,
   LOGIN_LOCKOUT_MINUTES: 15,
@@ -419,7 +419,7 @@ export default {
 
       // ----- 单条物料操作 /library/<sync_key>?lib=xxx -----
       const materialMatch = path.match(/^\/library\/(.+)$/);
-      if (materialMatch && !path.startsWith('/library/import') && !path.startsWith('/library/export')) {
+      if (materialMatch && !path.startsWith('/library/import') && !path.startsWith('/library/export') && !path.startsWith('/library/clear')) {
         const code = decodeURIComponent(materialMatch[1]);
         const lib = requireLib(url.searchParams.get('lib'));
         if (!lib) return errorResponse('lib 参数必填且必须为 lcsc 或 standard', 400, origin);
