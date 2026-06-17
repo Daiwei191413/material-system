@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V3.0.1 团队版</title>
+  <title>技象科技研发BOM 整理神器 V3.0.2 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -204,7 +204,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V3.0.1 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V3.0.2 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -371,7 +371,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   // 由 hook 层在 saveMaterialDB / 导入完成后调用
   var SYNC_DEBOUNCE = {};
   BOM_API.scheduleSync = function(lib){
-    if (!BOM_API.isAdmin()) return;  // V3.0.1: 只有 admin 才能把改动同步到云端共享库（成员的 BOM 不入双库）
+    if (!BOM_API.isAdmin()) return;  // V3.0.2: 只有 admin 才能把改动同步到云端共享库（成员的 BOM 不入双库）
     if (SYNC_DEBOUNCE[lib]) clearTimeout(SYNC_DEBOUNCE[lib]);
     SYNC_DEBOUNCE[lib] = setTimeout(function(){
       var key = (lib === 'lcsc') ? 'material_db_lcsc' : 'material_db_standard';
@@ -679,14 +679,14 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.1 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.2 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
 
 <!-- 导航 -->
 <div class="nav">
-  <button class="nav-btn active" onclick="showPanel('material')">📦 物料编码</button>
+  <button class="nav-btn active" onclick="showPanel('material')">📦 物料库管理</button>
   <button class="nav-btn" onclick="showPanel('convert')">🔄 转嘉立创</button>
   <button class="nav-btn" onclick="showPanel('compare')">🔍 BOM对比</button>
 </div>
@@ -702,7 +702,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
       <div class="step">
         <div class="step-num">1</div>
         <h4>导入物料库</h4>
-        <p>在「📦 物料编码」页导入 <b>器件BOM库.xlsx</b>，物料会持久化存到浏览器，下次免重复导入。</p>
+        <p>在「📦 物料库管理」页导入 <b>器件BOM库.xlsx</b>，物料会持久化存到浏览器，下次免重复导入。</p>
         <span class="go" onclick="showPanelDirect('material')">→ 去导入</span>
       </div>
       <div class="step">
@@ -820,7 +820,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.1</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.2</span></h3>
 
     <!-- 库切换 Tab -->
     <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -4728,7 +4728,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.1 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.2 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>
