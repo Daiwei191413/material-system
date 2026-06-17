@@ -27,11 +27,13 @@
 
 | 变量名 | 值 |
 |---|---|
-| `JLC_APP_ID` | `575485345222201345` |
-| `JLC_ACCESS_KEY` | `45d14f3300604d2e9b5680c54d86f061` |
-| `JLC_SECRET_KEY` | `mOfkLp0VjYFsOtFe0oSF7KgeFcNFL38v` |
+| `JLC_APP_ID` | `<在 EdgeOne 控制台配置为 Secret>` |
+| `JLC_ACCESS_KEY` | `<在 EdgeOne 控制台配置为 Secret>` |
+| `JLC_SECRET_KEY` | `<在 EdgeOne 控制台配置为 Secret>` |
 
 ⚠️ 千万别选「客户端可访问」，否则密钥会下发到浏览器。
+
+⚠️ 如果真实密钥曾经提交到 Git 历史或发到公开渠道，请到立创开放平台重新生成/轮换密钥，并同步更新 EdgeOne、Cloudflare Worker 等运行环境里的 Secret。
 
 路径：项目 → 设置 → 函数 → 环境变量
 
