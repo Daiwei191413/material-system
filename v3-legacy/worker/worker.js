@@ -1,12 +1,12 @@
 // ============================================================
-// 技象科技 BOM 整理神器 V3.0.4 - 团队版 API
+// 技象科技 BOM 整理神器 V3.0.5 - 团队版 API
 // Cloudflare Worker + D1 数据库 + KV 缓存
 // ============================================================
 
 // ----- 配置 -----
 const CONFIG = {
   APP_NAME: '技象科技研发BOM整理神器',
-  VERSION: 'V3.0.4',
+  VERSION: 'V3.0.5',
   JWT_EXPIRE_DAYS: 7,
   MAX_LOGIN_ATTEMPTS: 5,
   LOGIN_LOCKOUT_MINUTES: 15,
@@ -572,8 +572,9 @@ export default {
       if (path === '/library/clear') {
         if (userRole !== 'admin') return errorResponse('只有管理员可清空', 403, origin);
         const body = await request.json().catch(() => ({}));
-        const lib = requireLib(body.lib);
-        if (!lib) return errorResponse('lib 字段必填且必须为 lcsc 或 standard', 400, origin);
+        const libRaw = body.lib || url.searchParams.get('lib');
+        const lib = requireLib(libRaw);
+        if (!lib) return errorResponse(`lib 字段必填且必须为 lcsc 或 standard（收到：${libRaw || '空'}）`, 400, origin);
 
         const before = await dbQuery(env.BOM_DB,
           'SELECT COUNT(*) as cnt FROM material_library WHERE lib_type = ?', [lib]);
