@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V3.0.5 团队版</title>
+  <title>技象科技研发BOM 整理神器 V3.0.6 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -204,7 +204,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V3.0.5 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V3.0.6 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -294,6 +294,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
     base: WORKER_BASE,
     token: localStorage.getItem(TOKEN_KEY) || '',
     user: (function(){ try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); } catch(e){ return null; } })(),
+    _suspendSync: false,
 
     setAuth: function(token, user){
       this.token = token; this.user = user;
@@ -395,10 +396,23 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   // -------- 同步状态：判断本地操作是否需要回传 --------
   // 由 hook 层在 saveMaterialDB / 导入完成后调用
   var SYNC_DEBOUNCE = {};
+  BOM_API.cancelSync = function(lib){
+    if (lib) {
+      if (SYNC_DEBOUNCE[lib]) clearTimeout(SYNC_DEBOUNCE[lib]);
+      delete SYNC_DEBOUNCE[lib];
+      return;
+    }
+    Object.keys(SYNC_DEBOUNCE).forEach(function(k){
+      clearTimeout(SYNC_DEBOUNCE[k]);
+      delete SYNC_DEBOUNCE[k];
+    });
+  };
   BOM_API.scheduleSync = function(lib){
-    if (!BOM_API.isAdmin()) return;  // V3.0.5: 只有 admin 才能把改动同步到云端共享库（成员的 BOM 不入双库）
+    if (BOM_API._suspendSync) return;
+    if (!BOM_API.isAdmin()) return;  // V3.0.6: 只有 admin 才能把改动同步到云端共享库（成员的 BOM 不入双库）
     if (SYNC_DEBOUNCE[lib]) clearTimeout(SYNC_DEBOUNCE[lib]);
     SYNC_DEBOUNCE[lib] = setTimeout(function(){
+      if (BOM_API._suspendSync) return;
       var key = (lib === 'lcsc') ? 'material_db_lcsc' : 'material_db_standard';
       var items;
       try { items = JSON.parse(localStorage.getItem(key) || '[]'); } catch(e){ items = []; }
@@ -632,6 +646,8 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 
   // 从云端拉取双库覆盖到 localStorage，再触发 V2 重新加载
   async function syncDownAll(){
+    BOM_API._suspendSync = true;
+    if (typeof BOM_API.cancelSync === 'function') BOM_API.cancelSync();
     try {
       var [lcscR, stdR] = await Promise.all([
         BOM_API.exportLib('lcsc'),
@@ -678,11 +694,14 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
       // 让 V2 的内存数组也刷新
       if (typeof window.materialDB_lcsc !== 'undefined') window.materialDB_lcsc = lcscArr;
       if (typeof window.materialDB_standard !== 'undefined') window.materialDB_standard = stdArr;
+      if (typeof window.setActiveLib === 'function') window.setActiveLib(window.currentLib || 'standard');
       if (typeof window.loadMaterialTable === 'function') window.loadMaterialTable();
       BOM_API.toast('已同步云端：立创 ' + lcscArr.length + ' 条 / 标准 ' + stdArr.length + ' 条');
     } catch (e) {
       console.warn('[V3] 拉取云端库失败', e);
       BOM_API.toast('云端同步失败：' + (e.message || ''));
+    } finally {
+      BOM_API._suspendSync = false;
     }
   }
 
@@ -707,7 +726,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.5 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.6 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -848,7 +867,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.5</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.6</span></h3>
 
     <!-- 库切换 Tab -->
     <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -2341,9 +2360,12 @@ async function clearMaterialData() {
 
   if (isCloudAdmin && window.BOM_API && typeof window.BOM_API.clearLib === 'function') {
     try {
+      if (typeof window.BOM_API.cancelSync === 'function') window.BOM_API.cancelSync(lib);
+      window.BOM_API._suspendSync = true;
       await window.BOM_API.clearLib(lib);
     } catch (e) {
       alert('云端清空失败：' + (e.message || e));
+      window.BOM_API._suspendSync = false;
       return;
     }
   }
@@ -2358,6 +2380,10 @@ async function clearMaterialData() {
     setActiveLib('standard');
     localStorage.removeItem('material_db_standard');
     localStorage.removeItem('material_db_standard_updated');
+  }
+  if (window.BOM_API) {
+    if (typeof window.BOM_API.cancelSync === 'function') window.BOM_API.cancelSync(lib);
+    window.BOM_API._suspendSync = false;
   }
   loadMaterialTable();
   if (window.BOM_API && typeof window.BOM_API.toast === 'function') {
@@ -4678,6 +4704,7 @@ function batchAutoFillAll(){
     window.saveMaterialDB = function(){
       var ret = _origSave.apply(this, arguments);
       try {
+        if (window.BOM_API && window.BOM_API._suspendSync) return ret;
         if (!isAdmin()) return ret; // member/readonly 写改动只存自己浏览器，不污染共享库
         var lib = (typeof currentLib !== 'undefined') ? currentLib : 'standard';
         if (window.BOM_API) window.BOM_API.scheduleSync(lib);
@@ -4690,6 +4717,7 @@ function batchAutoFillAll(){
   var _origSetItem = localStorage.setItem.bind(localStorage);
   localStorage.setItem = function(key, val){
     _origSetItem(key, val);
+    if (window.BOM_API && window.BOM_API._suspendSync) return;
     if (!isAdmin()) return;
     if (key === 'material_db_lcsc' && window.BOM_API) window.BOM_API.scheduleSync('lcsc');
     else if (key === 'material_db_standard' && window.BOM_API) window.BOM_API.scheduleSync('standard');
@@ -4780,7 +4808,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.5 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.6 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>
