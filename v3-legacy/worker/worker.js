@@ -1,12 +1,12 @@
 // ============================================================
-// 技象科技 BOM 整理神器 V3.0.10 - 团队版 API
+// 技象科技 BOM 整理神器 V3.0.11 - 团队版 API
 // Cloudflare Worker + D1 数据库 + KV 缓存
 // ============================================================
 
 // ----- 配置 -----
 const CONFIG = {
   APP_NAME: '技象科技研发BOM整理神器',
-  VERSION: 'V3.0.10',
+  VERSION: 'V3.0.11',
   JWT_EXPIRE_DAYS: 7,
   MAX_LOGIN_ATTEMPTS: 5,
   LOGIN_LOCKOUT_MINUTES: 15,
@@ -495,56 +495,74 @@ export default {
         const items = body.items;
         if (!Array.isArray(items) || items.length === 0) return errorResponse('items 为空', 400, origin);
 
-        let success = 0, failed = 0, updated = 0, inserted = 0;
+        const normalized = [];
+        let failed = 0;
+        const seen = new Set();
         for (const item of items) {
           const syncKey = makeMaterialSyncKey(lib, item);
           if (!syncKey) { failed++; continue; }
           item.sync_key = syncKey;
           item.lcsc_code = normLcsc(item.lcsc_code || item.componentCode || item['立创编号']) || '';
-          try {
-            const existing = await dbQuery(env.BOM_DB,
-              'SELECT id FROM material_library WHERE lib_type = ? AND sync_key = ?', [lib, syncKey]);
-            if (existing.length > 0) {
-              await dbRun(env.BOM_DB,
-                `UPDATE material_library SET
-                 lcsc_code = ?, name = ?, model = ?, specification = ?, brand = ?,
-                 material_code = ?, package = ?, category = ?, manufacturer = ?,
-                 unit = ?, price = ?, stock = ?, datasheet = ?, image_url = ?, remark = ?,
-                 source = 'import', updated_by = ?, updated_at = datetime('now')
-                 WHERE lib_type = ? AND sync_key = ?`,
-                [item.lcsc_code || '',
-                 item.name || '', item.model || '', item.specification || '', item.brand || '',
-                 item.material_code || '', item.package || '', item.category || '', item.manufacturer || '',
-                 item.unit || 'PCS', item.price || '', item.stock || '',
-                 item.datasheet || '', item.image_url || '', item.remark || '',
-                 userId, lib, syncKey]
-              );
-              updated++;
-            } else {
-              await dbRun(env.BOM_DB,
-                `INSERT INTO material_library
-                 (lib_type, sync_key, lcsc_code, name, model, specification, brand, material_code, package, category, manufacturer, unit, price, stock, datasheet, image_url, remark, source, created_by, updated_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?, ?)`,
-                [lib, syncKey, item.lcsc_code || '',
-                 item.name || '', item.model || '', item.specification || '', item.brand || '',
-                 item.material_code || '', item.package || '', item.category || '', item.manufacturer || '',
-                 item.unit || 'PCS', item.price || '', item.stock || '',
-                 item.datasheet || '', item.image_url || '', item.remark || '',
-                 userId, userId]
-              );
-              inserted++;
-            }
-            success++;
-          } catch (e) {
-            failed++;
+          // 同一批里相同 sync_key 只保留最后一条，避免 batch 内互相反复更新。
+          if (seen.has(syncKey)) {
+            const idx = normalized.findIndex((x) => x.sync_key === syncKey);
+            if (idx >= 0) normalized[idx] = item;
+          } else {
+            seen.add(syncKey);
+            normalized.push(item);
           }
+        }
+
+        const existingRows = await dbQuery(env.BOM_DB,
+          'SELECT sync_key FROM material_library WHERE lib_type = ?', [lib]);
+        const existingKeys = new Set(existingRows.map((r) => r.sync_key));
+        const inserted = normalized.filter((item) => !existingKeys.has(item.sync_key)).length;
+        const updated = normalized.length - inserted;
+        const success = normalized.length;
+
+        const upsertSql = `
+          INSERT INTO material_library
+           (lib_type, sync_key, lcsc_code, name, model, specification, brand, material_code, package, category, manufacturer, unit, price, stock, datasheet, image_url, remark, source, created_by, updated_by)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?, ?)
+          ON CONFLICT(lib_type, sync_key) DO UPDATE SET
+            lcsc_code = excluded.lcsc_code,
+            name = excluded.name,
+            model = excluded.model,
+            specification = excluded.specification,
+            brand = excluded.brand,
+            material_code = excluded.material_code,
+            package = excluded.package,
+            category = excluded.category,
+            manufacturer = excluded.manufacturer,
+            unit = excluded.unit,
+            price = excluded.price,
+            stock = excluded.stock,
+            datasheet = excluded.datasheet,
+            image_url = excluded.image_url,
+            remark = excluded.remark,
+            source = 'import',
+            updated_by = excluded.updated_by,
+            updated_at = datetime('now')`;
+        const chunkSize = 100;
+        for (let i = 0; i < normalized.length; i += chunkSize) {
+          const stmts = normalized.slice(i, i + chunkSize).map((item) =>
+            env.BOM_DB.prepare(upsertSql).bind(
+              lib, item.sync_key, item.lcsc_code || '',
+              item.name || '', item.model || '', item.specification || '', item.brand || '',
+              item.material_code || '', item.package || '', item.category || '', item.manufacturer || '',
+              item.unit || 'PCS', item.price || '', item.stock || '',
+              item.datasheet || '', item.image_url || '', item.remark || '',
+              userId, userId
+            )
+          );
+          await env.BOM_DB.batch(stmts);
         }
 
         await dbRun(env.BOM_DB,
           'INSERT INTO audit_log (user_id, action, target, lib_type, new_value, ip) VALUES (?, ?, ?, ?, ?, ?)',
-          [userId, 'import', `batch-${Date.now()}`, lib, JSON.stringify({ success, failed, inserted, updated, total: items.length }), clientIP]);
+          [userId, 'import', `batch-${Date.now()}`, lib, JSON.stringify({ success, failed, inserted, updated, total: items.length, unique: normalized.length }), clientIP]);
 
-        return jsonResponse({ success: true, message: `导入完成：新增 ${inserted}，更新 ${updated}，失败 ${failed}`, stats: { success, failed, inserted, updated } }, 200, origin);
+        return jsonResponse({ success: true, message: `导入完成：新增 ${inserted}，更新 ${updated}，失败 ${failed}`, stats: { success, failed, inserted, updated, total: items.length, unique: normalized.length } }, 200, origin);
       }
 
       // ----- 导出（按库导出，或全部）-----
