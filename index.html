@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V2.1.9</title>
+  <title>技象科技研发BOM 整理神器 V2.1.10</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,7 +177,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-        <h1>⚡ 技象科技研发BOM 整理神器 V2.1.9 <span style="font-size:14px;background:#1ABC9C;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">双库版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V2.1.10 <span style="font-size:14px;background:#1ABC9C;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">双库版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -200,13 +200,13 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
       <div class="step">
         <div class="step-num">1</div>
         <h4>导入物料库</h4>
-        <p>在「📦 物料库管理」页导入 <b>标准库</b> 和 <b>立创库</b>，物料会持久化存到浏览器，下次免重复导入。</p>
+        <p>在「📦 物料库管理」页导入 <b>标准库</b> 和 <b>立创库</b>。标准库用于线下 BOM 输出，立创库用于原理图转立创 BOM。</p>
         <span class="go" onclick="showPanelDirect('material')">→ 去导入</span>
       </div>
       <div class="step">
         <div class="step-num">2</div>
         <h4>上传两份 BOM</h4>
-        <p>在「🔍 BOM对比及转线下BOM」页上传 <b>BOM A（线下BOM参考模版）</b> 和 <b>BOM B（立创BOM）</b>。BOM A 的字段格式就是输出的线下标准格式。<br><span style="color:#1ABC9C;font-weight:600">✨ A 上传后会自动把新物料增量入库（按型号+封装去重，已有不覆盖）</span></p>
+        <p>在「🔍 BOM对比及转线下BOM」页上传 <b>BOM A（线下BOM参考模版）</b> 和 <b>BOM B（立创BOM）</b>。BOM A 用作线下输出格式参考，BOM B 是需要对比并整理的立创 BOM。<br><span style="color:#1ABC9C;font-weight:600">✨ A 上传后会自动把新物料增量入库（按型号+封装去重，已有不覆盖）</span></p>
         <span class="go" onclick="showPanelDirect('compare')">→ 去上传</span>
       </div>
       <div class="step">
@@ -230,7 +230,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 <div class="upload-row">
   <div class="upload-card" id="boxA">
     <h3>📄 BOM A（线下BOM参考模版）</h3>
-    <p>支持 xlsx / xls / csv</p>
+    <p>公司线下 BOM 参考模板，决定整理后的表头和字段顺序</p>
     <button class="file-btn" id="btnA">选择文件</button>
     <input type="file" id="fileA" accept=".xlsx,.xls,.csv" style="display:none">
     <div class="info" id="msgA"></div>
@@ -238,7 +238,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   </div>
   <div class="upload-card" id="boxB">
     <h3>📄 BOM B（立创BOM）</h3>
-    <p>支持 xlsx / xls / csv</p>
+    <p>请上传立创 BOM 文件，用于与左侧线下 BOM 参考模板做对比</p>
     <button class="file-btn" id="btnB">选择文件</button>
     <input type="file" id="fileB" accept=".xlsx,.xls,.csv" style="display:none">
     <div class="info" id="msgB"></div>
@@ -267,10 +267,9 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 
 <div class="bar">
   <button class="btn btn-blue" id="goBtn" disabled>🔍 开始对比</button>
-  <button class="btn btn-green" id="expBtn" style="display:none">📥 导出报告</button>
-  <button class="btn btn-purple" id="fmtAB" style="display:none">✨ 按线下BOM模板整理立创BOM</button>
-  <button class="btn btn-purple" id="fmtBA" style="display:none">📐 按B格式整理A</button>
-  <button class="btn btn-orange" id="lcBtn" style="display:none">🛒 立创查询清单</button>
+  <button class="btn btn-green" id="expBtn" disabled title="请先上传 BOM A/B 并完成对比">📥 导出报告</button>
+  <button class="btn btn-purple" id="fmtAB" disabled title="请先上传 BOM A/B 并完成对比">✨ 按线下BOM模板整理立创BOM</button>
+  <button class="btn btn-orange" id="lcBtn" disabled title="请先上传 BOM A/B 并完成对比">🛒 立创查询清单</button>
 </div>
 
 <div id="out">
@@ -318,7 +317,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">双库分离 V2.1.9</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">双库分离 V2.1.10</span></h3>
 
     <!-- 库切换 Tab -->
     <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -333,10 +332,10 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
     </div>
 
     <div class="import-hint" id="libHintStandard">
-      💡 <b>标准库</b>（公司格式）：含物料编码/名称/参数描述/品牌等 11 个字段，用于<b>「按A整理B」</b>输出公司线下 BOM。
+      💡 <b>标准库</b>（公司格式）：含物料编码/名称/参数描述/品牌等 11 个字段，用于<b>「按线下BOM模板整理立创BOM」</b>输出公司线下 BOM。
     </div>
     <div class="import-hint" id="libHintLcsc" style="display:none;background:#e8f4fc;border-left-color:#0078b8">
-      💡 <b>立创库</b>（嘉立创格式）：仅 4 个字段（Comment型号/Designator位号/Footprint封装/嘉立创元件编号），用于<b>「转嘉立创」</b>输出标准 4 列下单 BOM。<b>不要</b>把公司库混进来。
+      💡 <b>立创库</b>（嘉立创格式）：仅 4 个字段（Comment型号/Designator位号/Footprint封装/嘉立创元件编号），用于<b>「原理图转立创BOM」</b>输出标准 4 列下单 BOM。<b>不要</b>把公司库混进来。
     </div>
     <p style="font-size:13px;color:#666;margin-bottom:15px">
       当前库已加载 <span id="matCount" style="color:#0078b8;font-weight:bold">0</span> 条物料
@@ -443,7 +442,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 
 <script>
 // ==================== 全局变量 ====================
-var A=null,B=null,RES=null,F1='all',F2='all';
+var A=null,B=null,RES=null,F1='all',F2='all',COMPARE_DONE=false;
 
 // 双库存储（V2.1.5）
 //   materialDB_lcsc      — 立创格式库：4 字段（型号/位号/封装/嘉立创元件编号）
@@ -1796,7 +1795,17 @@ function exportMaterialData() {
 
 function clearMaterialData() {
   var libName = (currentLib === 'lcsc') ? '立创库' : '标准库';
-  if (!confirm('确定要清空当前【' + libName + '】所有物料数据吗？\n（另一个库不受影响）')) return;
+  var otherLibName = (currentLib === 'lcsc') ? '标准库' : '立创库';
+  var updKey = (currentLib === 'lcsc') ? 'material_db_lcsc_updated' : 'material_db_standard_updated';
+  var lastUpdated = localStorage.getItem(updKey) || '未导入';
+  var count = materialDB.length;
+  if (!confirm(
+    '确定要清空当前【' + libName + '】吗？\n\n'
+    + '当前库类型：' + libName + '\n'
+    + '当前数量：' + count + ' 条\n'
+    + '最近更新：' + lastUpdated + '\n\n'
+    + '【' + otherLibName + '】不会受影响。'
+  )) return;
   if (currentLib === 'lcsc') {
     materialDB_lcsc = [];
     setActiveLib('lcsc'); // 重新指向空数组
@@ -1809,7 +1818,7 @@ function clearMaterialData() {
     localStorage.removeItem('material_db_standard_updated');
   }
   loadMaterialTable();
-  alert('【' + libName + '】已清空');
+  alert('【' + libName + '】已清空\n当前库数量：0 条');
 }
 
 // 一键修复参数描述格式：把所有非标准分隔的旧数据刷成 ", " 逗号分隔
@@ -1964,6 +1973,7 @@ document.addEventListener('DOMContentLoaded', function(){
   var mp = document.getElementById('materialPanel');
   if (cp) cp.style.display = 'none';
   if (mp) { mp.style.display = 'block'; loadMaterialTable(); }
+  updateCompareActionState();
 });
 
 // Tab 切换：标准库 / 立创库
@@ -2097,7 +2107,10 @@ function bindUpload(btnId,boxId,msgId,fmId,side){
         var fm = document.getElementById(fmId);
         var h = ''; for (var k in p.fm) h += k + ' ← ' + p.fm[k] + '<br>';
         fm.innerHTML = h; fm.style.display = 'block';
-        document.getElementById('goBtn').disabled = !(A && B);
+        COMPARE_DONE = false;
+        RES = null;
+        document.getElementById('out').classList.remove('show');
+        updateCompareActionState();
       } catch(err) {
         alert('解析失败：' + err.message);
         console.error(err);
@@ -2108,6 +2121,23 @@ function bindUpload(btnId,boxId,msgId,fmId,side){
 }
 bindUpload('btnA','boxA','msgA','fmA','A');
 bindUpload('btnB','boxB','msgB','fmB','B');
+
+function setActionButtonState(id, enabled, disabledTitle) {
+  var btn = document.getElementById(id);
+  if (!btn) return;
+  btn.disabled = !enabled;
+  btn.title = enabled ? '' : disabledTitle;
+}
+
+function updateCompareActionState() {
+  var ready = !!(A && B);
+  setActionButtonState('goBtn', ready, '请先上传 BOM A（线下BOM参考模版）和 BOM B（立创BOM）');
+  var done = !!(COMPARE_DONE && RES && RES.res);
+  var actionTip = ready ? '请先点击“开始对比”' : '请先上传 BOM A（线下BOM参考模版）和 BOM B（立创BOM）';
+  setActionButtonState('expBtn', done, actionTip);
+  setActionButtonState('fmtAB', done, actionTip);
+  setActionButtonState('lcBtn', done, actionTip);
+}
 
 // 轻量级吐司提示（不打断 alert，3 秒自动消失）
 function showAutoImportToast(msg){
@@ -2613,14 +2643,14 @@ function doCompare(){
   });
   mB.forEach(function(rB,kB){if(!mb.has(kB)){var n=norm(kB),hit=false;fA.forEach(function(_,nA){if(nA===n)hit=true});if(!hit)res.push({s:'add',k:kB,rA:null,rB:rB,d:{}})}});
   var ord={mod:0,add:1,del:2,same:3};res.sort(function(a,b){return ord[a.s]-ord[b.s]});
-  RES={res:res,cf:cf,pk:pk};F1='all';F2='all';
+  RES={res:res,cf:cf,pk:pk};F1='all';F2='all';COMPARE_DONE=true;
   
   // 物料编码匹配分析
   analyzeMaterialMatch();
   
   render();renderDiff();
+  updateCompareActionState();
   document.getElementById('out').classList.add('show');
-  ['expBtn','fmtAB','fmtBA','lcBtn'].forEach(function(id){document.getElementById(id).style.display='inline-block'});
   document.getElementById('out').scrollIntoView({behavior:'smooth'});
 }
 
@@ -3375,7 +3405,6 @@ function fmt(dir){
   }
 }
 document.getElementById('fmtAB').onclick=function(){fmt('AB')};
-document.getElementById('fmtBA').onclick=function(){fmt('BA')};
 
 // ==================== 启动 ====================
 // 双库加载（V2.1.5）+ 老数据自动迁移
@@ -4199,8 +4228,8 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V2.1.7 · 开发者：David.hao</div>
-  <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v2.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v2.pages.dev</a></div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V2.1.10 · 开发者：David.hao</div>
+  <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom.pages.dev</a></div>
 </footer>
 </body>
 </html>
