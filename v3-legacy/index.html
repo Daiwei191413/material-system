@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V3.0.17 团队版</title>
+  <title>技象科技研发BOM 整理神器 V3.0.18 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -209,7 +209,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V3.0.17 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V3.0.18 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -448,7 +448,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   };
 
   BOM_API.scheduleSync = function(lib){
-    // V3.0.17：禁用“本地缓存变化自动整库回传”。
+    // V3.0.18：禁用“本地缓存变化自动整库回传”。
     // 云端库只由明确的库管理动作写入：导入、删除、清空。
     if (SYNC_DEBOUNCE[lib]) clearTimeout(SYNC_DEBOUNCE[lib]);
     delete SYNC_DEBOUNCE[lib];
@@ -744,7 +744,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.17 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.18 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -838,7 +838,6 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <button class="btn btn-blue" id="goBtn" disabled>🔍 开始对比</button>
   <button class="btn btn-green" id="expBtn" style="display:none">📥 导出报告</button>
   <button class="btn btn-purple" id="fmtAB" style="display:none">✨ 按线下BOM模板整理立创BOM</button>
-  <button class="btn btn-purple" id="fmtBA" style="display:none">📐 按B格式整理A</button>
   <button class="btn btn-orange" id="lcBtn" style="display:none">🛒 立创查询清单</button>
 </div>
 
@@ -887,7 +886,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.17</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.18</span></h3>
 
     <!-- 库切换 Tab -->
     <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -2186,7 +2185,7 @@ document.getElementById('btnImportMat').addEventListener('click', function(e){
         var parsed = parse(wb);
         if (!parsed.rows.length) { alert('未识别到物料数据，请检查表头'); return; }
 
-        // V3.0.17：库管理导入严格按当前 Tab 写入，标准库/立创库互不自动切换。
+        // V3.0.18：库管理导入严格按当前 Tab 写入，标准库/立创库互不自动切换。
         var detected = detectBomFormat(parsed.rows);
         if (detected !== 'unknown' && detected !== targetLib) {
           var detectedName = (detected === 'lcsc') ? '立创格式（4列）' : '公司标准格式（11列）';
@@ -3268,7 +3267,7 @@ function doCompare(){
   
   render();renderDiff();
   document.getElementById('out').classList.add('show');
-  ['expBtn','fmtAB','fmtBA','lcBtn'].forEach(function(id){document.getElementById(id).style.display='inline-block'});
+  ['expBtn','fmtAB','lcBtn'].forEach(function(id){document.getElementById(id).style.display='inline-block'});
   document.getElementById('out').scrollIntoView({behavior:'smooth'});
 }
 
@@ -4023,7 +4022,6 @@ function fmt(dir){
   }
 }
 document.getElementById('fmtAB').onclick=function(){fmt('AB')};
-document.getElementById('fmtBA').onclick=function(){fmt('BA')};
 
 // ==================== 启动 ====================
 // 双库加载（V2.1.5）+ 老数据自动迁移
@@ -4760,7 +4758,7 @@ function batchAutoFillAll(){
   function isAdmin(){ return role() === 'admin'; }
   function isReadonly(){ return role() === 'readonly'; }
 
-  // V3.0.17：不再 hook saveMaterialDB/localStorage 自动回传整库。
+  // V3.0.18：不再 hook saveMaterialDB/localStorage 自动回传整库。
   // 共享库只允许明确的库管理动作写云端，避免管理员浏览器旧缓存把云端库覆盖成残缺数据。
 
   function applyRoleUI(){
@@ -4857,7 +4855,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.17 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.18 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>
