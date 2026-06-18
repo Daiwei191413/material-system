@@ -24,7 +24,7 @@
  * 作者：开发助理 (hdv_dev_bot) for 戴纬哥 · 技象科技
  */
 
-const VERSION = 'v1.0.10';
+const VERSION = 'v1.0.11';
 const JLC_BASE = 'https://open-api.jlc.com';
 const JLC_PATH = '/smtOpenApi/smtComponent/selectComponentInfoByCodes';
 const JLC_SEARCH_PATH = '/smtOpenApi/order/selectComponentInfo';
@@ -205,19 +205,49 @@ function jlcParamToMap(paramTextAll) {
   return out;
 }
 
-function jlcToCompatData(query, jlcItem) {
-  if (!jlcItem) {
-    return { query, hit: false, error: '立创未找到该编号' };
-  }
-  const paramMap = jlcParamToMap(jlcItem.paramTextAll || '');
-
-  // 从 paramLinkedMap 提取关键电气参数，供前端精准组装描述（替代 autoDescribe 硬编码）
+function extractCompatParams(paramMap) {
+  paramMap = paramMap || {};
   const extract = (keys) => {
     for (const k of keys) {
       if (paramMap[k]) return paramMap[k];
     }
     return '';
   };
+  const dcr = extract(['直流电阻(RDC)', '直流电阻', 'DCR', 'RDC', '直流电阻值']);
+  return {
+    capacitance: extract(['容值', '电容量', 'Capacitance']),
+    resistance: extract(['阻值', '电阻值', 'Resistance']),
+    tolerance: extract(['精度', '容差', '误差', 'Tolerance', '容许差']),
+    voltage: extract(['额定电压', '耐压', 'Voltage', '工作电压']),
+    dielectric: extract(['介质材料', '材质', '温度系数', 'Dielectric']),
+    current: extract(['额定电流', '电流', 'Current']),
+    inductance: extract(['电感值', '感值', '电感量', 'Inductance']),
+    impedance: extract(['阻抗', '阻抗@频率', '阻抗@100MHz', 'Impedance']),
+    dcr,
+    dcResistance: dcr,
+    frequency: extract(['频率', '频点', 'Frequency']),
+    power: extract(['功率', 'Power']),
+  };
+}
+
+function upgradeCompatData(data) {
+  if (!data || !data.hit) return data;
+  if (data._extracted && (data._extracted.capacitance || data._extracted.resistance || data._extracted.inductance || data._extracted.impedance)) {
+    return data;
+  }
+  const paramMap = data.paramLinkedMap || jlcParamToMap(data.specification || '');
+  return {
+    ...data,
+    paramLinkedMap: data.paramLinkedMap || paramMap,
+    _extracted: extractCompatParams(paramMap),
+  };
+}
+
+function jlcToCompatData(query, jlcItem) {
+  if (!jlcItem) {
+    return { query, hit: false, error: '立创未找到该编号' };
+  }
+  const paramMap = jlcParamToMap(jlcItem.paramTextAll || '');
 
   return {
     query,
@@ -234,17 +264,7 @@ function jlcToCompatData(query, jlcItem) {
     paramLinkedMap: paramMap,
     specification: jlcParamToSpec(jlcItem.paramTextAll || ''),
     // 提取字段：前端优先用这些组装描述，比 autoDescribe 硬编码更准确
-    _extracted: {
-      capacitance: extract(['容值', '电容量', 'Capacitance']),
-      resistance: extract(['阻值', '电阻值', 'Resistance']),
-      tolerance: extract(['精度', '容差', '误差', 'Tolerance', '容许差']),
-      voltage: extract(['额定电压', '耐压', 'Voltage', '工作电压']),
-      dielectric: extract(['介质材料', '材质', '温度系数', 'Dielectric']),
-      current: extract(['额定电流', '电流', 'Current']),
-      inductance: extract(['电感值', '感值', '电感量', 'Inductance']),
-      frequency: extract(['频率', '频点', 'Frequency']),
-      power: extract(['功率', 'Power']),
-    },
+    _extracted: extractCompatParams(paramMap),
     stockNum: jlcItem.stockNum || 0,
     encapsulationNumber: jlcItem.encapsulationNumber || 0,
     priceLadder: jlcItem.smtComponentPriceInfoVOList || [],
@@ -344,7 +364,7 @@ async function handleBatchInternal(queryList, env, ctx) {
     );
     for (let i = 0; i < validCodes.length; i++) {
       if (cacheReads[i]) {
-        cacheMap[validCodes[i]] = cacheReads[i];
+        cacheMap[validCodes[i]] = upgradeCompatData(cacheReads[i]);
         cacheHits++;
       }
     }

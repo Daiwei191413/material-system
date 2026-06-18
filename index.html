@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V2.1.8</title>
+  <title>技象科技研发BOM 整理神器 V2.1.9</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -177,16 +177,16 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-        <h1>⚡ 技象科技研发BOM 整理神器 V2.1.8 <span style="font-size:14px;background:#1ABC9C;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">双库版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V2.1.9 <span style="font-size:14px;background:#1ABC9C;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">双库版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
 
 <!-- 导航 -->
 <div class="nav">
-  <button class="nav-btn active" onclick="showPanel('material')">📦 物料编码</button>
-  <button class="nav-btn" onclick="showPanel('convert')">🔄 转嘉立创</button>
-  <button class="nav-btn" onclick="showPanel('compare')">🔍 BOM对比</button>
+  <button class="nav-btn active" onclick="showPanel('material')">📦 物料库管理</button>
+  <button class="nav-btn" onclick="showPanel('convert')">🔄 原理图转立创BOM</button>
+  <button class="nav-btn" onclick="showPanel('compare')">🔍 BOM对比及转线下BOM</button>
 </div>
 
 <!-- 全局使用流程 -->
@@ -200,19 +200,19 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
       <div class="step">
         <div class="step-num">1</div>
         <h4>导入物料库</h4>
-        <p>在「📦 物料编码」页导入 <b>器件BOM库.xlsx</b>，物料会持久化存到浏览器，下次免重复导入。</p>
+        <p>在「📦 物料库管理」页导入 <b>标准库</b> 和 <b>立创库</b>，物料会持久化存到浏览器，下次免重复导入。</p>
         <span class="go" onclick="showPanelDirect('material')">→ 去导入</span>
       </div>
       <div class="step">
         <div class="step-num">2</div>
         <h4>上传两份 BOM</h4>
-        <p>在「🔍 BOM对比」页上传 <b>A（模板）</b> 和 <b>B（待整理）</b>。A 的字段格式就是输出的标准格式。<br><span style="color:#1ABC9C;font-weight:600">✨ A 上传后会自动把新物料增量入库（按型号+封装去重，已有不覆盖）</span></p>
+        <p>在「🔍 BOM对比及转线下BOM」页上传 <b>BOM A（线下BOM参考模版）</b> 和 <b>BOM B（立创BOM）</b>。BOM A 的字段格式就是输出的线下标准格式。<br><span style="color:#1ABC9C;font-weight:600">✨ A 上传后会自动把新物料增量入库（按型号+封装去重，已有不覆盖）</span></p>
         <span class="go" onclick="showPanelDirect('compare')">→ 去上传</span>
       </div>
       <div class="step">
         <div class="step-num">3</div>
         <h4>对比 + 一键整理</h4>
-        <p>点「开始对比」看差异；点 <b>✨ 按A格式整理B</b> 即按库自动补齐物料名称/参数/品牌等字段，输出 Excel。</p>
+        <p>点「开始对比」看差异；点 <b>✨ 按线下BOM模板整理立创BOM</b> 即按库自动补齐物料名称/参数/品牌等字段，输出 Excel。</p>
       </div>
     </div>
     <div class="match-strategy">
@@ -229,7 +229,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 
 <div class="upload-row">
   <div class="upload-card" id="boxA">
-    <h3>📄 BOM A（基准版本）</h3>
+    <h3>📄 BOM A（线下BOM参考模版）</h3>
     <p>支持 xlsx / xls / csv</p>
     <button class="file-btn" id="btnA">选择文件</button>
     <input type="file" id="fileA" accept=".xlsx,.xls,.csv" style="display:none">
@@ -237,7 +237,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
     <div class="fmap" id="fmA"></div>
   </div>
   <div class="upload-card" id="boxB">
-    <h3>📄 BOM B（对比版本）</h3>
+    <h3>📄 BOM B（立创BOM）</h3>
     <p>支持 xlsx / xls / csv</p>
     <button class="file-btn" id="btnB">选择文件</button>
     <input type="file" id="fileB" accept=".xlsx,.xls,.csv" style="display:none">
@@ -268,7 +268,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 <div class="bar">
   <button class="btn btn-blue" id="goBtn" disabled>🔍 开始对比</button>
   <button class="btn btn-green" id="expBtn" style="display:none">📥 导出报告</button>
-  <button class="btn btn-purple" id="fmtAB" style="display:none">✨ 按A格式整理B（自动补齐）</button>
+  <button class="btn btn-purple" id="fmtAB" style="display:none">✨ 按线下BOM模板整理立创BOM</button>
   <button class="btn btn-purple" id="fmtBA" style="display:none">📐 按B格式整理A</button>
   <button class="btn btn-orange" id="lcBtn" style="display:none">🛒 立创查询清单</button>
 </div>
@@ -318,7 +318,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">双库分离 V2.1.8</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">双库分离 V2.1.9</span></h3>
 
     <!-- 库切换 Tab -->
     <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -3560,62 +3560,93 @@ function autoDescribe(model, pkg){
   return null;
 }
 
-// ==================== V2.1.8：用立创 API _extracted 字段组装精准描述 ====================
+// ==================== V2.1.9：用立创 API _extracted 字段组装精准描述 ====================
 // 优先于 autoDescribe() 硬编码，确保容值/精度/耐压/材质与立创实际一致
 function buildSpecFromExtracted(ext, productType, pkg) {
   if (!ext) return '';
-  var type = String(productType || '').toLowerCase();
-  var size = String(pkg || '').trim().toUpperCase();
+  var rawType = String(productType || '');
+  var type = rawType.toLowerCase();
+  var sizeRaw = String(pkg || '').trim().toUpperCase();
+  var sizeMatch = sizeRaw.match(/(0201|0402|0603|0805|1206|1210|2010|2512)/);
+  var size = sizeMatch ? sizeMatch[1] : '';
+
+  function compact(v){
+    return String(v || '').replace(/\s+/g, '').trim();
+  }
+  function normCap(v){
+    return compact(v).replace(/μ/g, 'u').replace(/UF$/i, 'uF').replace(/NF$/i, 'nF').replace(/PF$/i, 'pF');
+  }
+  function normRes(v){
+    v = compact(v).replace(/k(?=Ω|$)/g, 'K').replace(/m(?=Ω|$)/g, 'M');
+    return /Ω/.test(v) ? v : (v ? v + 'Ω' : '');
+  }
+  function normInd(v){
+    return compact(v).replace(/NH$/i,'nH').replace(/UH$/i,'uH').replace(/MH$/i,'mH').replace(/PH$/i,'pH');
+  }
+  function normImp(v){
+    return compact(v).replace(/Ω/g, '欧').replace(/OHM/gi, '欧');
+  }
+  function normDielectric(v){
+    return compact(v).replace(/^COG$/i, 'C0G').replace(/^NPO$/i, 'NP0');
+  }
 
   // 电容
   if (type.indexOf('电容') >= 0 || ext.capacitance) {
-    var cap = ext.capacitance || '';
-    var tol = ext.tolerance || '';
-    var volt = ext.voltage || '';
-    var dia = ext.dielectric || '';
+    var cap = normCap(ext.capacitance);
+    var tol = compact(ext.tolerance);
+    var volt = compact(ext.voltage);
+    var dia = normDielectric(ext.dielectric);
     if (!cap) return '';
-    // V2.1.8 修复：小容值 COG/NP0 材质默认精度（立创常省略精度字段）
+    // V2.1.9 修复：小容值 COG/NP0 材质默认精度（立创常省略精度字段）
     if (!tol && /C0G|NP0/i.test(dia)) {
       var pfVal = parseFloat(cap);
       if (!isNaN(pfVal) && pfVal < 10) tol = '±0.1pF';
       else tol = '±5%';
     }
-    // 组装 A 风格：MLCC 容值 [精度] [耐压] [材质] SMD 封装（空字段跳过）
-    var parts = ['MLCC', cap];
-    if (tol) parts.push(tol);
-    if (volt) parts.push(volt);
-    if (dia) parts.push(dia);
-    parts.push('SMD');
-    if (size) parts.push(size);
-    return parts.join(' ');
+    // 关键字段不全时不要抢占，交给 data.specification → toAStyleSpec() 兜底保留原始立创描述。
+    if (!tol || !volt || !dia || !size) return '';
+    return ['MLCC', cap, tol, volt, dia, 'SMD', size].join(' ');
   }
 
   // 电阻
   if (type.indexOf('电阻') >= 0 || ext.resistance) {
-    var res = ext.resistance || '';
-    var tol = ext.tolerance || '';
-    var pwr = ext.power || '';
+    var res = normRes(ext.resistance);
+    var tol = compact(ext.tolerance);
+    var pwr = compact(ext.power);
     if (!res) return '';
-    var parts = ['厚膜电阻', res];
-    if (tol) parts.push('精度：' + tol);
-    if (pwr) parts.push(pwr);
-    parts.push('SMD');
-    if (size) parts.push(size);
-    return parts.join(',');
+    if (/62\.5mW/i.test(pwr)) pwr = '1/16W';
+    else if (/100mW/i.test(pwr)) pwr = '1/10W';
+    else if (/125mW/i.test(pwr)) pwr = '1/8W';
+    else if (/250mW/i.test(pwr)) pwr = '1/4W';
+    else if (/500mW/i.test(pwr)) pwr = '1/2W';
+    if (!tol || !pwr || !size) return '';
+    return ['厚膜电阻', res, tol, pwr, 'SMD', size].join(' ');
+  }
+
+  // 磁珠
+  if (type.indexOf('磁珠') >= 0 || ext.impedance) {
+    var imp = normImp(ext.impedance);
+    var dcr = compact(ext.dcr || ext.dcResistance);
+    var beadCurr = compact(ext.current);
+    var beadParts = ['磁珠'];
+    if (imp) beadParts.push(imp);
+    if (dcr) beadParts.push('直流电阻' + dcr);
+    if (beadCurr) beadParts.push('额定电流' + beadCurr);
+    if (size) beadParts.push(size + '封装');
+    return beadParts.length >= 3 ? beadParts.join('，') : '';
   }
 
   // 电感
   if (type.indexOf('电感') >= 0 || ext.inductance) {
-    var ind = ext.inductance || '';
-    var tol = ext.tolerance || '';
-    var curr = ext.current || '';
+    var ind = normInd(ext.inductance);
+    var indTol = compact(ext.tolerance);
+    var curr = compact(ext.current);
     if (!ind) return '';
-    var parts = ['绕线电感', ind];
-    if (tol) parts.push(tol);
-    if (curr) parts.push(curr);
-    parts.push('SMD');
-    if (size) parts.push(size);
-    return parts.join(' ');
+    var indParts = ['绕线电感', ind];
+    if (size) indParts.push(size);
+    if (indTol) indParts.push(indTol);
+    if (curr) indParts.push(curr);
+    return indParts.join('，');
   }
 
   // 兜底：无法识别的类型，但原始 specification 可用 → 返回原始描述
@@ -3665,8 +3696,8 @@ function applyLcscToRow(item, data){
     row['物料名称'] = data.productType;
   }
 
-  // V2.1.8 修复：优先用立创 API 返回的 _extracted 字段组装精准描述，替代 autoDescribe 硬编码
-  var extractedSpec = buildSpecFromExtracted(data._extracted, data.productType, data.package);
+  // V2.1.9 修复：优先用立创 API 返回的 _extracted 字段组装精准描述，替代 autoDescribe 硬编码
+  var extractedSpec = buildSpecFromExtracted(data._extracted, data.productType, data.package || row['封装']);
   if (extractedSpec && (isInductive || !row['参数描述'])) {
     row['参数描述'] = extractedSpec;
   } else if (data.specification && (isInductive || !row['参数描述'])) {
@@ -3748,9 +3779,19 @@ function batchAutoFetchAll(){
   if (!confirm('将通过立创代理批量拉取 '+miss.length+' 个器件的参数\n\n预计耗时 '+Math.max(3, Math.ceil(miss.length*0.25))+' 秒（3 路并发），确认继续？')) return;
 
   // 收集 C 编号 + idx 映射
-  var codes = miss.map(function(x){
-    return String(x.lcsc).toUpperCase().match(/C\d{3,}/)[0];
+  var seenCodes = {};
+  var codes = [];
+  miss.forEach(function(x){
+    var code = normLcsc(x.lcsc);
+    if (code && !seenCodes[code]) {
+      seenCodes[code] = true;
+      codes.push(code);
+    }
   });
+  if (codes.length === 0) {
+    alert('没有可批量补齐的有效立创 C 编号');
+    return;
+  }
   // 显示进度条
   var bar = document.getElementById('mmBulkInfo');
   var origInfo = bar ? bar.innerHTML : '';
@@ -3864,7 +3905,7 @@ function batchAutoFetchAll(){
       var seen = {};
       batch.results.forEach(function(r){
         if (!r || !r.data || !r.data.query) return;
-        var realCode = r.data.query;
+        var realCode = normLcsc(r.data.query) || String(r.data.query).toUpperCase();
         seen[realCode] = true;
         if (r.ok && r.data.hit) {
           resultByCode[realCode] = r.data;
@@ -3906,7 +3947,12 @@ function batchAutoFetchAll(){
     // 第三阶段：把结果应用到 miss 列表
     var ok = 0, notHit = 0, fail = 0, failCodes = [];
     miss.forEach(function(item){
-      var code = String(item.lcsc).toUpperCase().match(/C\d{3,}/)[0];
+      var code = normLcsc(item.lcsc);
+      if (!code) {
+        fail++;
+        failCodes.push(String(item.lcsc || '').trim() || '(空编号)');
+        return;
+      }
       var data = resultByCode[code];
       if (data && data._notHit) {
         notHit++;
