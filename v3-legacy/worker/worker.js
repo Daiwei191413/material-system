@@ -1,12 +1,12 @@
 // ============================================================
-// 技象科技 BOM 整理神器 V3.0.21 - 团队版 API
+// 技象科技 BOM 整理神器 V3.0.22 - 团队版 API
 // Cloudflare Worker + D1 数据库 + KV 缓存
 // ============================================================
 
 // ----- 配置 -----
 const CONFIG = {
   APP_NAME: '技象科技研发BOM整理神器',
-  VERSION: 'V3.0.21',
+  VERSION: 'V3.0.22',
   JWT_EXPIRE_DAYS: 7,
   MAX_LOGIN_ATTEMPTS: 5,
   LOGIN_LOCKOUT_MINUTES: 15,
@@ -189,7 +189,13 @@ function materialParams(item, userId, lib, syncKey, includeCreators) {
 function jsonResponse(data, status = 200, origin) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders(origin) },
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      ...corsHeaders(origin),
+    },
   });
 }
 
@@ -636,18 +642,28 @@ export default {
 
         if (request.method === 'POST') {
           const data = await request.json();
-          if (!data.username || !data.password) return errorResponse('用户名和密码必填', 400, origin);
+          const username = String(data.username || '').trim();
+          const password = String(data.password || '');
+          const phone = data.phone ? String(data.phone).trim() : null;
+          const displayName = String(data.display_name || '').trim() || username;
+          const role = ['admin', 'member', 'readonly'].includes(data.role) ? data.role : 'member';
+          if (!username || !password) return errorResponse('用户名和密码必填', 400, origin);
+          if (!/^[a-zA-Z0-9_]{2,32}$/.test(username)) return errorResponse('账号只能用字母/数字/下划线，2-32 位', 400, origin);
+          if (password.length < 6) return errorResponse('初始密码至少 6 位', 400, origin);
 
-          const existing = await dbQuery(env.BOM_DB, 'SELECT id FROM users WHERE username = ?', [data.username]);
-          if (existing.length > 0) return errorResponse('用户名已存在', 409, origin);
+          const existing = phone
+            ? await dbQuery(env.BOM_DB, 'SELECT id FROM users WHERE username = ? OR phone = ?', [username, phone])
+            : await dbQuery(env.BOM_DB, 'SELECT id FROM users WHERE username = ?', [username]);
+          if (existing.length > 0) return errorResponse('账号或手机号已存在', 409, origin);
 
-          const hash = await hashPassword(data.password);
+          const hash = await hashPassword(password);
           await dbRun(env.BOM_DB,
             'INSERT INTO users (username, phone, display_name, password_hash, role, must_change_password) VALUES (?, ?, ?, ?, ?, ?)',
-            [data.username, data.phone || null, data.display_name || data.username, hash, data.role || 'member', data.mustChangePassword ? 1 : 0]
+            [username, phone, displayName, hash, role, data.mustChangePassword ? 1 : 0]
           );
 
-          return jsonResponse({ success: true, message: '创建成功' }, 201, origin);
+          const users = await dbQuery(env.BOM_DB, 'SELECT id, username, phone, display_name, role, created_at, updated_at FROM users ORDER BY created_at DESC');
+          return jsonResponse({ success: true, message: '创建成功', data: users }, 201, origin);
         }
       }
 
@@ -687,8 +703,10 @@ export default {
         await dbRun(env.BOM_DB, 'UPDATE audit_log SET user_id = NULL WHERE user_id = ?', [targetId]);
         await dbRun(env.BOM_DB, 'UPDATE material_library SET created_by = NULL WHERE created_by = ?', [targetId]);
         await dbRun(env.BOM_DB, 'UPDATE material_library SET updated_by = NULL WHERE updated_by = ?', [targetId]);
+        await dbRun(env.BOM_DB, 'DELETE FROM login_attempts WHERE username = ?', [targetUsername]);
         const r = await dbRun(env.BOM_DB, 'DELETE FROM users WHERE id = ?', [targetId]);
-        return jsonResponse({ success: true, message: '已删除', changes: r.meta?.changes }, 200, origin);
+        const users = await dbQuery(env.BOM_DB, 'SELECT id, username, phone, display_name, role, created_at, updated_at FROM users ORDER BY created_at DESC');
+        return jsonResponse({ success: true, message: '已删除', changes: r.meta?.changes, data: users }, 200, origin);
       }
 
       // ----- 重置密码（admin 或自己）-----

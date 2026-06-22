@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V3.0.21 团队版</title>
+  <title>技象科技研发BOM 整理神器 V3.0.22 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -209,7 +209,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V3.0.21 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V3.0.22 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -235,7 +235,11 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <div style="width:760px;max-width:95vw;max-height:88vh;background:#fff;border-radius:10px;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;font-family:-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       <h3 style="margin:0;color:#0078b8;font-size:18px;">👥 团队成员管理</h3>
-      <span id="v3UsersClose" style="cursor:pointer;color:#94a3b8;font-size:22px;line-height:1">×</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button id="v3UsersRefreshBtn" type="button" style="height:28px;padding:0 10px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:5px;font-size:12px;color:#334155;cursor:pointer">刷新列表</button>
+        <span id="v3UsersCount" style="font-size:12px;color:#64748b;min-width:56px;text-align:right"></span>
+        <span id="v3UsersClose" style="cursor:pointer;color:#94a3b8;font-size:22px;line-height:1">×</span>
+      </div>
     </div>
 
     <!-- 新建账号 -->
@@ -320,10 +324,16 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
       opts = opts || {};
       var headers = Object.assign({'Content-Type':'application/json'}, opts.headers || {});
       if (this.token) headers.Authorization = 'Bearer ' + this.token;
-      var resp = await fetch(this.base + path, {
-        method: opts.method || 'GET',
+      var method = (opts.method || 'GET').toUpperCase();
+      var url = this.base + path;
+      if (method === 'GET') {
+        url += (url.indexOf('?') >= 0 ? '&' : '?') + '_ts=' + Date.now();
+      }
+      var resp = await fetch(url, {
+        method: method,
         headers: headers,
         body: opts.body ? JSON.stringify(opts.body) : undefined,
+        cache: 'no-store',
       });
       var ct = resp.headers.get('content-type') || '';
       var data = ct.includes('json') ? await resp.json() : { success: resp.ok, text: await resp.text() };
@@ -448,7 +458,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   };
 
   BOM_API.scheduleSync = function(lib){
-    // V3.0.21：禁用“本地缓存变化自动整库回传”。
+    // V3.0.22：禁用“本地缓存变化自动整库回传”。
     // 云端库只由明确的库管理动作写入：导入、删除、清空。
     if (SYNC_DEBOUNCE[lib]) clearTimeout(SYNC_DEBOUNCE[lib]);
     delete SYNC_DEBOUNCE[lib];
@@ -547,6 +557,9 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
       usersMask.classList.add('show');
       refreshUsers();
     });
+    document.getElementById('v3UsersRefreshBtn').addEventListener('click', function(){
+      refreshUsers();
+    });
     document.getElementById('v3UsersClose').addEventListener('click', function(){
       usersMask.classList.remove('show');
     });
@@ -567,87 +580,133 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
       BOM_API.createUser({
         username: u, display_name: d || u, phone: p || null,
         role: r, password: pw, mustChangePassword: true
-      }).then(function(){
+      }).then(function(rsp){
         BOM_API.toast('已创建：' + u);
         document.getElementById('v3NewU').value = '';
         document.getElementById('v3NewD').value = '';
         document.getElementById('v3NewP').value = '';
         document.getElementById('v3NewPw').value = 'Tx@123456';
-        refreshUsers();
+        if (rsp && Array.isArray(rsp.data)) {
+          renderUsers(rsp.data);
+          return null;
+        }
+        return refreshUsers();
       }).catch(function(e){ alert('创建失败：' + e.message); })
       .finally(function(){ btn.disabled = false; btn.textContent = '创建'; });
     });
 
+    function escHtml(v){
+      return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
+        return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]);
+      });
+    }
+
+    function setUsersBusy(busy){
+      var btn = document.getElementById('v3UsersRefreshBtn');
+      if (!btn) return;
+      btn.disabled = !!busy;
+      btn.textContent = busy ? '刷新中...' : '刷新列表';
+      btn.style.cursor = busy ? 'wait' : 'pointer';
+      btn.style.opacity = busy ? '.65' : '1';
+    }
+
+    function setUsersCount(count){
+      var el = document.getElementById('v3UsersCount');
+      if (el) el.textContent = typeof count === 'number' ? ('共 ' + count + ' 人') : '';
+    }
+
+    function renderUsers(rows){
+      var body = document.getElementById('v3UsersBody');
+      rows = rows || [];
+      setUsersCount(rows.length);
+      if (rows.length === 0) {
+        body.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#94a3b8">暂无成员</td></tr>';
+        return;
+      }
+      var roleLabels = {admin:'管理员', member:'成员', readonly:'只读'};
+      var roleColors = {admin:'#dc2626', member:'#0078b8', readonly:'#64748b'};
+      body.innerHTML = rows.map(function(x){
+        var username = String(x.username || '');
+        var roleValue = ['admin','member','readonly'].includes(x.role) ? x.role : 'member';
+        var isMe = BOM_API.user && BOM_API.user.username === username;
+        var isAdminBuiltin = username === 'admin';
+        var disabled = isMe || isAdminBuiltin;
+        var roleSelect = '<select data-user="' + escHtml(username) + '" class="v3-role-sel" '
+          + (disabled?'disabled':'') + ' style="height:26px;padding:0 6px;border:1px solid #cbd5e1;border-radius:4px;font-size:12px;background:#fff;color:'+roleColors[roleValue]+'">'
+          + ['admin','member','readonly'].map(function(rk){
+              return '<option value="'+rk+'"'+(rk===roleValue?' selected':'')+'>'+roleLabels[rk]+'</option>';
+            }).join('') + '</select>';
+        var actions = '';
+        actions += '<button data-act="resetpwd" data-user="'+escHtml(username)+'" style="height:26px;padding:0 8px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;font-size:12px;cursor:pointer;color:#334155">重置密码</button>';
+        if (!disabled) {
+          actions += ' <button data-act="del" data-user="'+escHtml(username)+'" style="height:26px;padding:0 8px;background:#fef2f2;border:1px solid #fecaca;border-radius:4px;font-size:12px;cursor:pointer;color:#dc2626">删除</button>';
+        }
+        return '<tr style="border-bottom:1px solid #f1f5f9">'
+          + '<td style="padding:8px 12px"><strong>'+escHtml(username)+'</strong>'+(isMe?' <span style="color:#0078b8;font-size:11px">(我)</span>':'')+'</td>'
+          + '<td style="padding:8px 12px">'+escHtml(x.display_name || '-')+'</td>'
+          + '<td style="padding:8px 12px;color:#64748b">'+escHtml(x.phone || '-')+'</td>'
+          + '<td style="padding:8px 12px">'+roleSelect+'</td>'
+          + '<td style="padding:8px 12px;color:#94a3b8;font-size:12px">'+escHtml((x.created_at||'').slice(0,16).replace('T',' '))+'</td>'
+          + '<td style="padding:8px 12px;text-align:right;white-space:nowrap">'+actions+'</td>'
+          + '</tr>';
+      }).join('');
+
+      // 绑定行内事件
+      body.querySelectorAll('.v3-role-sel').forEach(function(sel){
+        sel.addEventListener('change', function(){
+          var uname = this.dataset.user; var newRole = this.value;
+          if (!confirm('将 ' + uname + ' 的角色改为「' + roleLabels[newRole] + '」？')) {
+            refreshUsers(); return;
+          }
+          this.disabled = true;
+          BOM_API.setUserRole(uname, newRole).then(function(){
+            BOM_API.toast('角色已更新');
+            return refreshUsers();
+          }).catch(function(e){ alert('修改失败：' + e.message); refreshUsers(); });
+        });
+      });
+      body.querySelectorAll('button[data-act="resetpwd"]').forEach(function(b){
+        b.addEventListener('click', function(){
+          var uname = this.dataset.user;
+          var newPwd = prompt('为「' + uname + '」设置新密码（至少 6 位，登录后会强制改密）：', 'Tx@123456');
+          if (!newPwd || newPwd.length < 6) return;
+          this.disabled = true; this.textContent = '重置中...';
+          BOM_API.resetUserPwd(uname, newPwd).then(function(){
+            alert('已重置 ' + uname + ' 的密码为：' + newPwd + '\n请告知该成员，登录后会强制改密。');
+          }).catch(function(e){ alert('重置失败：' + e.message); })
+          .finally(function(){ refreshUsers(); });
+        });
+      });
+      body.querySelectorAll('button[data-act="del"]').forEach(function(b){
+        b.addEventListener('click', function(){
+          var uname = this.dataset.user;
+          if (!confirm('确认删除账号「' + uname + '」？此操作不可撤销。')) return;
+          this.disabled = true; this.textContent = '删除中...';
+          BOM_API.deleteUser(uname).then(function(rsp){
+            BOM_API.toast('已删除 ' + uname);
+            if (rsp && Array.isArray(rsp.data)) {
+              renderUsers(rsp.data);
+              return null;
+            }
+            return refreshUsers();
+          }).catch(function(e){ alert('删除失败：' + e.message); refreshUsers(); });
+        });
+      });
+    }
+
     function refreshUsers(){
       var body = document.getElementById('v3UsersBody');
+      setUsersBusy(true);
+      setUsersCount();
       body.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#94a3b8">加载中...</td></tr>';
-      BOM_API.listUsers().then(function(r){
-        var rows = r.data || [];
-        if (rows.length === 0) {
-          body.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#94a3b8">暂无成员</td></tr>';
-          return;
-        }
-        var roleLabels = {admin:'管理员', member:'成员', readonly:'只读'};
-        var roleColors = {admin:'#dc2626', member:'#0078b8', readonly:'#64748b'};
-        body.innerHTML = rows.map(function(x){
-          var isMe = BOM_API.user && BOM_API.user.username === x.username;
-          var isAdminBuiltin = x.username === 'admin';
-          var disabled = isMe || isAdminBuiltin;
-          var roleSelect = '<select data-user="' + x.username + '" class="v3-role-sel" '
-            + (disabled?'disabled':'') + ' style="height:26px;padding:0 6px;border:1px solid #cbd5e1;border-radius:4px;font-size:12px;background:#fff;color:'+roleColors[x.role]+'">'
-            + ['admin','member','readonly'].map(function(rk){
-                return '<option value="'+rk+'"'+(rk===x.role?' selected':'')+'>'+roleLabels[rk]+'</option>';
-              }).join('') + '</select>';
-          var actions = '';
-          actions += '<button data-act="resetpwd" data-user="'+x.username+'" style="height:26px;padding:0 8px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;font-size:12px;cursor:pointer;color:#334155">重置密码</button>';
-          if (!disabled) {
-            actions += ' <button data-act="del" data-user="'+x.username+'" style="height:26px;padding:0 8px;background:#fef2f2;border:1px solid #fecaca;border-radius:4px;font-size:12px;cursor:pointer;color:#dc2626">删除</button>';
-          }
-          return '<tr style="border-bottom:1px solid #f1f5f9">'
-            + '<td style="padding:8px 12px"><strong>'+x.username+'</strong>'+(isMe?' <span style="color:#0078b8;font-size:11px">(我)</span>':'')+'</td>'
-            + '<td style="padding:8px 12px">'+(x.display_name||'-')+'</td>'
-            + '<td style="padding:8px 12px;color:#64748b">'+(x.phone||'-')+'</td>'
-            + '<td style="padding:8px 12px">'+roleSelect+'</td>'
-            + '<td style="padding:8px 12px;color:#94a3b8;font-size:12px">'+(x.created_at||'').slice(0,16).replace('T',' ')+'</td>'
-            + '<td style="padding:8px 12px;text-align:right;white-space:nowrap">'+actions+'</td>'
-            + '</tr>';
-        }).join('');
-
-        // 绑定行内事件
-        body.querySelectorAll('.v3-role-sel').forEach(function(sel){
-          sel.addEventListener('change', function(){
-            var uname = this.dataset.user; var newRole = this.value;
-            if (!confirm('将 ' + uname + ' 的角色改为「' + roleLabels[newRole] + '」？')) {
-              refreshUsers(); return;
-            }
-            BOM_API.setUserRole(uname, newRole).then(function(){
-              BOM_API.toast('角色已更新');
-              refreshUsers();
-            }).catch(function(e){ alert('修改失败：' + e.message); refreshUsers(); });
-          });
-        });
-        body.querySelectorAll('button[data-act="resetpwd"]').forEach(function(b){
-          b.addEventListener('click', function(){
-            var uname = this.dataset.user;
-            var newPwd = prompt('为「' + uname + '」设置新密码（至少 6 位，登录后会强制改密）：', 'Tx@123456');
-            if (!newPwd || newPwd.length < 6) return;
-            BOM_API.resetUserPwd(uname, newPwd).then(function(){
-              alert('已重置 ' + uname + ' 的密码为：' + newPwd + '\n请告知该成员，登录后会强制改密。');
-            }).catch(function(e){ alert('重置失败：' + e.message); });
-          });
-        });
-        body.querySelectorAll('button[data-act="del"]').forEach(function(b){
-          b.addEventListener('click', function(){
-            var uname = this.dataset.user;
-            if (!confirm('确认删除账号「' + uname + '」？此操作不可撤销。')) return;
-            BOM_API.deleteUser(uname).then(function(){
-              BOM_API.toast('已删除 ' + uname);
-              refreshUsers();
-            }).catch(function(e){ alert('删除失败：' + e.message); });
-          });
-        });
+      return BOM_API.listUsers().then(function(r){
+        renderUsers(r.data || []);
+        return r.data || [];
       }).catch(function(e){
+        setUsersCount();
         body.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#dc2626">加载失败：'+e.message+'</td></tr>';
+      }).finally(function(){
+        setUsersBusy(false);
       });
     }
   }
@@ -744,7 +803,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.21 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.22 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -886,7 +945,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.21</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.22</span></h3>
 
     <!-- 库切换 Tab -->
     <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -2185,7 +2244,7 @@ document.getElementById('btnImportMat').addEventListener('click', function(e){
         var parsed = parse(wb);
         if (!parsed.rows.length) { alert('未识别到物料数据，请检查表头'); return; }
 
-        // V3.0.21：库管理导入严格按当前 Tab 写入，标准库/立创库互不自动切换。
+        // V3.0.22：库管理导入严格按当前 Tab 写入，标准库/立创库互不自动切换。
         var detected = detectBomFormat(parsed.rows);
         if (detected !== 'unknown' && detected !== targetLib) {
           var detectedName = (detected === 'lcsc') ? '立创格式（4列）' : '公司标准格式（11列）';
@@ -4769,7 +4828,7 @@ function batchAutoFillAll(){
   function isAdmin(){ return role() === 'admin'; }
   function isReadonly(){ return role() === 'readonly'; }
 
-  // V3.0.21：不再 hook saveMaterialDB/localStorage 自动回传整库。
+  // V3.0.22：不再 hook saveMaterialDB/localStorage 自动回传整库。
   // 共享库只允许明确的库管理动作写云端，避免管理员浏览器旧缓存把云端库覆盖成残缺数据。
 
   function applyRoleUI(){
@@ -4866,7 +4925,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.21 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.22 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>
