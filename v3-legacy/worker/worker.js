@@ -1,12 +1,12 @@
 // ============================================================
-// 技象科技 BOM 整理神器 V3.0.25 - 团队版 API
+// 技象科技 BOM 整理神器 V3.0.26 - 团队版 API
 // Cloudflare Worker + D1 数据库 + KV 缓存
 // ============================================================
 
 // ----- 配置 -----
 const CONFIG = {
   APP_NAME: '技象科技研发BOM整理神器',
-  VERSION: 'V3.0.25',
+  VERSION: 'V3.0.26',
   JWT_EXPIRE_DAYS: 7,
   MAX_LOGIN_ATTEMPTS: 5,
   LOGIN_LOCKOUT_MINUTES: 15,
@@ -573,6 +573,7 @@ export default {
 
       // ----- 导出（按库导出，或全部）-----
       if (path === '/library/export') {
+        if (userRole !== 'admin') return errorResponse('只有管理员可导出物料库', 403, origin);
         const libRaw = url.searchParams.get('lib');
         let items;
         if (libRaw) {
