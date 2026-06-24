@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V2.1.11</title>
+  <title>技象科技研发BOM 整理神器 V2.1.12</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -63,6 +63,8 @@ header p{font-size:13px;opacity:.9}
 .btn-green{background:#34a853;color:#fff}
 .btn-purple{background:#7c4dff;color:#fff}
 .btn-orange{background:#ff9800;color:#fff}
+.btn-danger{background:#d93025;color:#fff}
+.btn-danger:hover:not(:disabled){background:#b3261e}
 
 /* 统计 */
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
@@ -177,7 +179,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-        <h1>⚡ 技象科技研发BOM 整理神器 V2.1.11 <span style="font-size:14px;background:#1ABC9C;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">双库版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V2.1.12 <span style="font-size:14px;background:#1ABC9C;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">双库版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -317,7 +319,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">双库分离 V2.1.11</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">双库分离 V2.1.12</span></h3>
 
     <!-- 库切换 Tab -->
     <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -345,7 +347,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
       <button class="btn btn-blue" id="btnImportMat">📥 导入物料库 Excel</button>
       <button class="btn btn-green" onclick="exportMaterialData()">📤 导出当前库</button>
       <button class="btn" style="background:#9c27b0;color:#fff" onclick="cleanAllSpecs()">✨ 一键修复参数格式</button>
-      <button class="btn btn-orange" onclick="clearMaterialData()">🗑️ 清空当前库</button>
+      <button class="btn btn-danger" onclick="clearMaterialData()" title="清空当前选中的物料库，另一个库不受影响">🗑️ 清空当前库</button>
     </div>
   </div>
 
@@ -1803,7 +1805,8 @@ function clearMaterialData() {
     ? '\n标准库相关的手动/自动补齐缓存也会同步清理，避免刷新后回填。'
     : '';
   if (!confirm(
-    '确定要清空当前【' + libName + '】吗？\n\n'
+    '危险操作：确定要清空当前【' + libName + '】吗？\n'
+    + '清空后不可撤销，请确认已备份或不再需要当前库数据。\n\n'
     + '当前库类型：' + libName + '\n'
     + '当前数量：' + count + ' 条\n'
     + '最近更新：' + lastUpdated + '\n\n'
@@ -4236,7 +4239,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V2.1.11 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V2.1.12 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom.pages.dev</a></div>
 </footer>
 </body>
