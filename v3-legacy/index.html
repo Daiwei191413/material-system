@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V3.0.27 团队版</title>
+  <title>技象科技研发BOM 整理神器 V3.0.28 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -211,7 +211,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V3.0.27 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V3.0.28 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -460,7 +460,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   };
 
   BOM_API.scheduleSync = function(lib){
-    // V3.0.27：禁用“本地缓存变化自动整库回传”。
+    // V3.0.28：禁用“本地缓存变化自动整库回传”。
     // 云端库只由明确的库管理动作写入：导入、删除、清空。
     if (SYNC_DEBOUNCE[lib]) clearTimeout(SYNC_DEBOUNCE[lib]);
     delete SYNC_DEBOUNCE[lib];
@@ -805,7 +805,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.27 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.28 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -815,6 +815,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <button class="nav-btn active" onclick="showPanel('material')">📦 物料库管理</button>
   <button class="nav-btn" onclick="showPanel('convert')">🔄 原理图转立创BOM</button>
   <button class="nav-btn" onclick="showPanel('compare')">🔍 BOM对比及转线下BOM</button>
+  <button class="nav-btn" onclick="showPanel('offline')">📊 线下BOM对比</button>
 </div>
 
 <!-- 全局使用流程 -->
@@ -944,10 +945,77 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 
 </div>
 
+<!-- 线下BOM纯对比面板 -->
+<div id="offlineComparePanel" style="display:none;">
+  <div class="panel">
+    <h3>📊 线下BOM对比 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">纯对比 · 不调用物料库</span></h3>
+    <div class="import-hint" style="background:#eef7ff;border-left-color:#0078b8">
+      💡 上传两份公司线下标准格式 BOM，只做字段差异对比和报告导出。此功能不会读取、写入或修改标准库/立创库。
+    </div>
+
+    <div class="upload-row">
+      <div class="upload-card" id="offBoxA">
+        <h3>📄 BOM A（线下BOM基准版本）</h3>
+        <p>支持 xlsx / xls / csv</p>
+        <p class="upload-example">作为对比基准，例如旧版本、已归档版本或评审参考版本。</p>
+        <button class="file-btn" id="offBtnA">选择文件</button>
+        <input type="file" id="offlineFileA" accept=".xlsx,.xls,.csv" style="display:none">
+        <div class="info" id="offMsgA"></div>
+        <div class="fmap" id="offFmA"></div>
+      </div>
+      <div class="upload-card" id="offBoxB">
+        <h3>📄 BOM B（线下BOM对比版本）</h3>
+        <p>支持 xlsx / xls / csv</p>
+        <p class="upload-example">作为待确认版本，例如新版本、变更后版本或供应链反馈版本。</p>
+        <button class="file-btn" id="offBtnB">选择文件</button>
+        <input type="file" id="offlineFileB" accept=".xlsx,.xls,.csv" style="display:none">
+        <div class="info" id="offMsgB"></div>
+        <div class="fmap" id="offFmB"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cfg">
+    <h3>⚙️ 对比配置</h3>
+    <div class="cfg-row">
+      <label>匹配主键：</label>
+      <select id="offPk">
+        <option value="位号">位号</option>
+        <option value="物料编码">物料编码</option>
+        <option value="型号封装">型号 + 封装</option>
+      </select>
+    </div>
+    <div class="cmp-checks">
+      <b style="font-size:13px">对比维度：</b>
+      <label><input type="checkbox" class="off-cf" value="位号" checked> 位号</label>
+      <label><input type="checkbox" class="off-cf" value="物料编码" checked> 物料编码</label>
+      <label><input type="checkbox" class="off-cf" value="物料名称" checked> 物料名称</label>
+      <label><input type="checkbox" class="off-cf" value="型号" checked> 型号</label>
+      <label><input type="checkbox" class="off-cf" value="参数描述" checked> 参数描述</label>
+      <label><input type="checkbox" class="off-cf" value="封装" checked> 封装</label>
+      <label><input type="checkbox" class="off-cf" value="品牌" checked> 品牌</label>
+      <label><input type="checkbox" class="off-cf" value="数量" checked> 数量</label>
+      <label><input type="checkbox" class="off-cf" value="单位"> 单位</label>
+      <label><input type="checkbox" class="off-cf" value="备注"> 备注</label>
+    </div>
+  </div>
+
+  <div class="bar">
+    <button class="btn btn-blue" id="offGoBtn" disabled>🔍 开始对比</button>
+    <button class="btn btn-green" id="offExpBtn" disabled title="请先完成对比">📥 导出报告</button>
+  </div>
+
+  <div id="offlineOut" style="display:none;">
+    <div class="stats" id="offSt"></div>
+    <div class="panel"><h3>📋 线下BOM对比总览</h3><div class="pills" id="offFp"></div><div style="overflow-x:auto"><table id="offTb"><thead></thead><tbody></tbody></table></div></div>
+    <div class="panel"><h3>🔎 线下BOM差异明细</h3><div class="pills" id="offDp"></div><div id="offDl"></div></div>
+  </div>
+</div>
+
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.27</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.28</span></h3>
 
     <!-- 库切换 Tab -->
     <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -1074,6 +1142,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <script>
 // ==================== 全局变量 ====================
 var A=null,B=null,RES=null,F1='all',F2='all';
+var OFF_A=null,OFF_B=null,OFF_RES=null,OFF_F1='all',OFF_F2='all';
 
 // 双库存储（V2.1.5）
 //   materialDB_lcsc      — 立创格式库：4 字段（型号/位号/封装/嘉立创元件编号）
@@ -2155,6 +2224,7 @@ function showPanel(panel) {
   if (event && event.target) event.target.classList.add('active');
 
   document.getElementById('comparePanel').style.display = (panel === 'compare') ? 'block' : 'none';
+  document.getElementById('offlineComparePanel').style.display = (panel === 'offline') ? 'block' : 'none';
   document.getElementById('materialPanel').style.display = (panel === 'material') ? 'block' : 'none';
   document.getElementById('convertPanel').style.display = (panel === 'convert') ? 'block' : 'none';
 
@@ -2165,11 +2235,12 @@ function showPanel(panel) {
 function showPanelDirect(panel){
   var btns = document.querySelectorAll('.nav-btn');
   btns.forEach(b => b.classList.remove('active'));
-  var idxMap = {material:0, compare:1, convert:2};
+  var idxMap = {material:0, convert:1, compare:2, offline:3};
   var idx = idxMap[panel] != null ? idxMap[panel] : 0;
   if (btns[idx]) btns[idx].classList.add('active');
 
   document.getElementById('comparePanel').style.display = (panel === 'compare') ? 'block' : 'none';
+  document.getElementById('offlineComparePanel').style.display = (panel === 'offline') ? 'block' : 'none';
   document.getElementById('materialPanel').style.display = (panel === 'material') ? 'block' : 'none';
   document.getElementById('convertPanel').style.display = (panel === 'convert') ? 'block' : 'none';
 
@@ -2179,6 +2250,7 @@ function showPanelDirect(panel){
   setTimeout(function(){
     var target;
     if (panel === 'compare') target = document.querySelector('.upload-row');
+    else if (panel === 'offline') target = document.getElementById('offlineComparePanel');
     else if (panel === 'convert') target = document.getElementById('convertPanel');
     else target = document.getElementById('materialPanel');
     if (target) target.scrollIntoView({behavior:'smooth', block:'start'});
@@ -2256,7 +2328,7 @@ document.getElementById('btnImportMat').addEventListener('click', function(e){
         var parsed = parse(wb);
         if (!parsed.rows.length) { alert('未识别到物料数据，请检查表头'); return; }
 
-        // V3.0.27：库管理导入严格按当前 Tab 写入，标准库/立创库互不自动切换。
+        // V3.0.28：库管理导入严格按当前 Tab 写入，标准库/立创库互不自动切换。
         var detected = detectBomFormat(parsed.rows);
         if (detected !== 'unknown' && detected !== targetLib) {
           var detectedName = (detected === 'lcsc') ? '立创格式（4列）' : '公司标准格式（11列）';
@@ -2672,8 +2744,10 @@ document.addEventListener('DOMContentLoaded', function(){
   if (s) s.addEventListener('input', loadMaterialTable);
   // 默认显示物料编码面板（符合使用流程顺序）
   var cp = document.getElementById('comparePanel');
+  var op = document.getElementById('offlineComparePanel');
   var mp = document.getElementById('materialPanel');
   if (cp) cp.style.display = 'none';
+  if (op) op.style.display = 'none';
   if (mp) { mp.style.display = 'block'; loadMaterialTable(); }
 });
 
@@ -2832,6 +2906,271 @@ function bindUpload(btnId,boxId,msgId,fmId,side){
 }
 bindUpload('btnA','boxA','msgA','fmA','A');
 bindUpload('btnB','boxB','msgB','fmB','B');
+
+// ==================== 线下BOM纯对比 ====================
+function setOfflineActionsReady(ready){
+  var exp = document.getElementById('offExpBtn');
+  if (!exp) return;
+  exp.disabled = !ready;
+  exp.title = ready ? '' : '请先完成对比';
+}
+
+function bindOfflineUpload(btnId, boxId, msgId, fmId, side){
+  var inpId = side === 'A' ? 'offlineFileA' : 'offlineFileB';
+  var btn = document.getElementById(btnId);
+  var inp = document.getElementById(inpId);
+  if (!btn || !inp) return;
+  btn.addEventListener('click', function(e){
+    e.stopPropagation();
+    inp.value = '';
+    inp.click();
+  });
+  inp.addEventListener('change', function(){
+    var f = inp.files && inp.files[0];
+    if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function(ev){
+      try {
+        var wb = XLSX.read(ev.target.result, {type:'array'});
+        var p = parse(wb);
+        if (!p.rows.length) { alert('未识别到线下 BOM 数据，请检查表头'); return; }
+        p._fn = f.name;
+        if (side === 'A') OFF_A = p; else OFF_B = p;
+        document.getElementById(boxId).classList.add('ok');
+        document.getElementById(msgId).textContent = '✅ ' + f.name + '（' + p.rows.length + '条物料）';
+        var h = '';
+        for (var k in p.fm) h += k + ' ← ' + p.fm[k] + '<br>';
+        var fm = document.getElementById(fmId);
+        fm.innerHTML = h || '未识别到标准字段映射';
+        fm.style.display = 'block';
+        document.getElementById('offGoBtn').disabled = !(OFF_A && OFF_B);
+        setOfflineActionsReady(false);
+        document.getElementById('offlineOut').style.display = 'none';
+      } catch(err) {
+        alert('解析失败：' + err.message);
+        console.error(err);
+      }
+    };
+    rd.readAsArrayBuffer(f);
+  });
+}
+
+function normalizeOfflineRefKey(v){
+  return String(v || '').trim().toUpperCase()
+    .replace(/[，;；\s]+/g, ',')
+    .replace(/,+/g, ',')
+    .replace(/^,|,$/g, '');
+}
+
+function offlineBaseKey(row, pk){
+  if (pk === '型号封装') {
+    var model = normModel(row['型号'] || '');
+    var pkg = normPkg(row['封装'] || '');
+    return (model || pkg) ? (model + '|' + pkg) : '';
+  }
+  if (pk === '位号') return normalizeOfflineRefKey(row['位号'] || '');
+  if (pk === '物料编码') return String(row['物料编码'] || '').trim().toUpperCase();
+  return String(row[pk] || '').trim();
+}
+
+function offlineDisplayKey(row, pk, fallback){
+  if (pk === '型号封装') {
+    var model = String(row['型号'] || '').trim();
+    var pkg = String(row['封装'] || '').trim();
+    return (model || pkg) ? (model + ' / ' + pkg) : fallback;
+  }
+  return String(row[pk] || '').trim() || fallback;
+}
+
+function offlineBuildMap(rows, pk){
+  var map = new Map();
+  var order = [];
+  var seen = {};
+  rows.forEach(function(row, idx){
+    var base = offlineBaseKey(row, pk) || ('__row_' + (idx + 1));
+    seen[base] = (seen[base] || 0) + 1;
+    var key = base + (seen[base] > 1 ? ' #' + seen[base] : '');
+    var label = offlineDisplayKey(row, pk, '行 ' + (idx + 1));
+    if (seen[base] > 1) label += ' #' + seen[base];
+    map.set(key, { row: row, key: key, label: label, idx: idx });
+    order.push(key);
+  });
+  return { map: map, order: order };
+}
+
+function offlineNormValue(field, value){
+  var s = String(value == null ? '' : value).trim().replace(/\s+/g, ' ');
+  if (field === '数量') {
+    var n = Number(s.replace(/,/g, ''));
+    if (!isNaN(n) && s !== '') return String(n);
+  }
+  if (field === '位号') return normalizeOfflineRefKey(s);
+  return s;
+}
+
+function doOfflineCompare(){
+  if (!OFF_A || !OFF_B) return;
+  var pk = document.getElementById('offPk').value;
+  var cf = [];
+  document.querySelectorAll('.off-cf:checked').forEach(function(c){ cf.push(c.value); });
+  if (!cf.length) { alert('请至少选择一个对比维度'); return; }
+
+  var aMap = offlineBuildMap(OFF_A.rows, pk);
+  var bMap = offlineBuildMap(OFF_B.rows, pk);
+  var usedB = new Set();
+  var res = [];
+
+  aMap.order.forEach(function(key){
+    var a = aMap.map.get(key);
+    if (bMap.map.has(key)) {
+      var b = bMap.map.get(key);
+      var d = {}, changed = false;
+      cf.forEach(function(f){
+        var av = offlineNormValue(f, a.row[f]);
+        var bv = offlineNormValue(f, b.row[f]);
+        if (av !== bv) {
+          d[f] = { a: String(a.row[f] || '').trim(), b: String(b.row[f] || '').trim() };
+          changed = true;
+        }
+      });
+      res.push({ s: changed ? 'mod' : 'same', k: a.label, rA: a.row, rB: b.row, d: d });
+      usedB.add(key);
+    } else {
+      res.push({ s: 'del', k: a.label, rA: a.row, rB: null, d: {} });
+    }
+  });
+
+  bMap.order.forEach(function(key){
+    if (usedB.has(key)) return;
+    var b = bMap.map.get(key);
+    res.push({ s: 'add', k: b.label, rA: null, rB: b.row, d: {} });
+  });
+
+  var ord = { mod:0, add:1, del:2, same:3 };
+  res.sort(function(a,b){ return ord[a.s] - ord[b.s]; });
+  OFF_RES = { res: res, cf: cf, pk: pk, aName: OFF_A._fn || 'BOM_A', bName: OFF_B._fn || 'BOM_B' };
+  OFF_F1 = 'all';
+  OFF_F2 = 'all';
+  renderOffline();
+  renderOfflineDiff();
+  document.getElementById('offlineOut').style.display = 'block';
+  setOfflineActionsReady(true);
+  document.getElementById('offlineOut').scrollIntoView({behavior:'smooth'});
+}
+
+function offlineStatusCounts(){
+  var c = { mod:0, add:0, del:0, same:0 };
+  if (!OFF_RES) return c;
+  OFF_RES.res.forEach(function(x){ c[x.s]++; });
+  return c;
+}
+
+function renderOffline(){
+  if (!OFF_RES) return;
+  var r = OFF_RES.res, cf = OFF_RES.cf, pk = OFF_RES.pk;
+  var c = offlineStatusCounts();
+  var diffTotal = c.mod + c.add + c.del;
+  document.getElementById('offSt').innerHTML =
+    '<div class="sc mod"><div class="n">'+c.mod+'</div><div class="l">🟡 字段变更</div></div>'
+    + '<div class="sc add"><div class="n">'+c.add+'</div><div class="l">🟢 B独有</div></div>'
+    + '<div class="sc del"><div class="n">'+c.del+'</div><div class="l">🔴 A独有</div></div>'
+    + '<div class="sc same"><div class="n">'+c.same+'</div><div class="l">⚪ 一致</div></div>';
+  var pills = [['all','全部',r.length],['diff','🔺所有差异',diffTotal],['mod','🟡字段变更',c.mod],['add','🟢B独有',c.add],['del','🔴A独有',c.del],['same','⚪一致',c.same]];
+  document.getElementById('offFp').innerHTML = pills.map(function(p){
+    return '<div class="pill'+(OFF_F1===p[0]?' on':'')+'" onclick="OFF_F1=\''+p[0]+'\';renderOffline()">'+p[1]+' ('+p[2]+')</div>';
+  }).join('');
+  var fl = OFF_F1 === 'all' ? r : (OFF_F1 === 'diff' ? r.filter(function(x){ return x.s !== 'same'; }) : r.filter(function(x){ return x.s === OFF_F1; }));
+  var df = [pk === '型号封装' ? '型号' : pk];
+  cf.forEach(function(f){ if (df.indexOf(f) < 0) df.push(f); });
+  if (pk === '型号封装' && df.indexOf('封装') < 0) df.push('封装');
+  var th = '<tr><th>状态</th><th>匹配项</th>';
+  df.forEach(function(f){ th += '<th>'+f+'(A)</th><th>'+f+'(B)</th>'; });
+  th += '</tr>';
+  var sm = { add:'<span class="badge b-add">B独有</span>', del:'<span class="badge b-del">A独有</span>', mod:'<span class="badge b-mod">字段变更</span>', same:'<span class="badge b-same">一致</span>' };
+  var rc = { add:'r-add', del:'r-del', mod:'r-mod', same:'' };
+  var tb = '';
+  fl.forEach(function(x){
+    tb += '<tr class="'+rc[x.s]+'"><td>'+sm[x.s]+'</td><td><b>'+esc(x.k)+'</b></td>';
+    df.forEach(function(f){
+      var a = x.rA ? (x.rA[f] || '') : '';
+      var b = x.rB ? (x.rB[f] || '') : '';
+      var ch = x.d[f] ? ' class="chg"' : '';
+      tb += '<td'+ch+'>'+esc(a)+'</td><td'+ch+'>'+esc(b)+'</td>';
+    });
+    tb += '</tr>';
+  });
+  document.querySelector('#offTb thead').innerHTML = th;
+  document.querySelector('#offTb tbody').innerHTML = tb || '<tr><td colspan="'+(2 + df.length * 2)+'" style="text-align:center;color:#999;padding:20px">无数据</td></tr>';
+}
+
+function renderOfflineDiff(){
+  if (!OFF_RES) return;
+  var items = [];
+  OFF_RES.res.forEach(function(x){
+    if (x.s === 'mod') {
+      for (var f in x.d) items.push({ t:'c', k:x.k, f:f, a:x.d[f].a, b:x.d[f].b });
+    } else if (x.s === 'del') items.push({ t:'a', k:x.k });
+    else if (x.s === 'add') items.push({ t:'b', k:x.k });
+  });
+  var c = { c:0, a:0, b:0 };
+  items.forEach(function(d){ c[d.t]++; });
+  var pills = [['all','全部差异',items.length],['c','🟡字段变更',c.c],['a','🔴A独有',c.a],['b','🟢B独有',c.b]];
+  document.getElementById('offDp').innerHTML = pills.map(function(p){
+    return '<div class="pill'+(OFF_F2===p[0]?' on':'')+'" onclick="OFF_F2=\''+p[0]+'\';renderOfflineDiff()">'+p[1]+' ('+p[2]+')</div>';
+  }).join('');
+  var fl = OFF_F2 === 'all' ? items : items.filter(function(d){ return d.t === OFF_F2; });
+  if (!fl.length) {
+    document.getElementById('offDl').innerHTML = '<div style="text-align:center;color:#999;padding:20px">🎉 没有差异</div>';
+    return;
+  }
+  var h = '';
+  fl.forEach(function(d){
+    if (d.t === 'c') h += '<div class="di dc"><b>'+esc(d.k)+'</b><span class="tag tag-c">'+d.f+'不同</span><br>A: <span class="va">'+esc(d.a || '(空)')+'</span> → B: <span class="vb">'+esc(d.b || '(空)')+'</span></div>';
+    else if (d.t === 'a') h += '<div class="di da"><b>'+esc(d.k)+'</b><span class="tag tag-a">A独有</span><br>B中不存在此物料</div>';
+    else h += '<div class="di db"><b>'+esc(d.k)+'</b><span class="tag tag-b">B独有</span><br>A中不存在此物料</div>';
+  });
+  document.getElementById('offDl').innerHTML = h;
+}
+
+function exportOfflineReport(){
+  if (!OFF_RES) return;
+  var r = OFF_RES.res, cf = OFF_RES.cf, pk = OFF_RES.pk;
+  var df = [pk === '型号封装' ? '型号' : pk];
+  cf.forEach(function(f){ if (df.indexOf(f) < 0) df.push(f); });
+  if (pk === '型号封装' && df.indexOf('封装') < 0) df.push('封装');
+  var sm = { add:'B独有', del:'A独有', mod:'字段变更', same:'一致' };
+  var report = [];
+  r.forEach(function(x){
+    var row = { '状态': sm[x.s], '匹配项': x.k };
+    df.forEach(function(f){
+      row[f + '(A)'] = x.rA ? (x.rA[f] || '') : '';
+      row[f + '(B)'] = x.rB ? (x.rB[f] || '') : '';
+    });
+    report.push(row);
+  });
+  var details = [];
+  r.forEach(function(x){
+    if (x.s === 'mod') {
+      for (var f in x.d) details.push({ '差异类型':'字段变更', '匹配项':x.k, '字段':f, 'A值':x.d[f].a || '', 'B值':x.d[f].b || '' });
+    } else if (x.s === 'del') details.push({ '差异类型':'A独有', '匹配项':x.k, '字段':'', 'A值':'存在', 'B值':'不存在' });
+    else if (x.s === 'add') details.push({ '差异类型':'B独有', '匹配项':x.k, '字段':'', 'A值':'不存在', 'B值':'存在' });
+  });
+  var wb = XLSX.utils.book_new();
+  var ws1 = XLSX.utils.json_to_sheet(report);
+  var reportCols = [{wch:10},{wch:28}];
+  df.forEach(function(){ reportCols.push({wch:18}, {wch:18}); });
+  ws1['!cols'] = reportCols;
+  XLSX.utils.book_append_sheet(wb, ws1, '对比报告');
+  var ws2 = XLSX.utils.json_to_sheet(details.length ? details : [{ '差异类型':'无差异', '匹配项':'', '字段':'', 'A值':'', 'B值':'' }]);
+  ws2['!cols'] = [{wch:12},{wch:28},{wch:16},{wch:36},{wch:36}];
+  XLSX.utils.book_append_sheet(wb, ws2, '差异明细');
+  XLSX.writeFile(wb, '线下BOM对比报告_' + _ts() + '.xlsx');
+}
+
+bindOfflineUpload('offBtnA','offBoxA','offMsgA','offFmA','A');
+bindOfflineUpload('offBtnB','offBoxB','offMsgB','offFmB','B');
+document.getElementById('offGoBtn').onclick = doOfflineCompare;
+document.getElementById('offExpBtn').onclick = exportOfflineReport;
 
 // 轻量级吐司提示（不打断 alert，3 秒自动消失）
 function showAutoImportToast(msg){
@@ -4844,11 +5183,11 @@ function batchAutoFillAll(){
   function isAdmin(){ return role() === 'admin'; }
   function isReadonly(){ return role() === 'readonly'; }
 
-  // V3.0.27：不再 hook saveMaterialDB/localStorage 自动回传整库。
+  // V3.0.28：不再 hook saveMaterialDB/localStorage 自动回传整库。
   // 共享库只允许明确的库管理动作写云端，避免管理员浏览器旧缓存把云端库覆盖成残缺数据。
 
   function enableBomUploadInputs(){
-    ['convFile','fileA','fileB'].forEach(function(id){
+    ['convFile','fileA','fileB','offlineFileA','offlineFileB'].forEach(function(id){
       var el = document.getElementById(id);
       if (!el) return;
       el.disabled = false;
@@ -4952,7 +5291,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.27 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.28 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>
