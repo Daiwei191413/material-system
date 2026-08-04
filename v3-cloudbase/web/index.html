@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -6,15 +6,16 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V3.0.41 团队版</title>
-<link rel="icon" type="image/png" href="assets/favicon.png">
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <title>技象科技研发BOM 整理神器 V1.0.17 团队版</title>
+<link rel="icon" type="image/png" href="assets/favicon.png?v=3.0.23-cb1">
+<script src="assets/vendor/xlsx.full.min.js?v=0.18.5"></script>
+<script src="assets/vendor/jszip.min.js?v=3.10.1"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:#f0f2f5;min-height:100vh;display:flex;flex-direction:column}
 /* 品牌顶部条 */
 .brand-bar{position:relative;background:#fff;border-bottom:1px solid #e8ecef;padding:16px 24px;display:flex;align-items:center;justify-content:flex-start;gap:24px;min-height:76px;box-sizing:border-box}
+.brand-bar .logo-wrap{display:flex;align-items:center;min-width:0}
 .brand-bar .logo{height:60px;width:auto}
 .brand-bar .subtitle{position:absolute;right:28px;bottom:12px;font-size:17px;color:#0078b8;letter-spacing:1px;font-weight:500;white-space:nowrap}
 /* 产品 header */
@@ -201,7 +202,8 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 .lcsc-quarantine-code{font-weight:700;color:#0078b8}
 .lcsc-quarantine-reason{color:#b3261e;max-width:360px;white-space:normal}
 
-@media(max-width:768px){.brand-bar{padding:14px 16px;flex-direction:column;align-items:flex-start;gap:6px}.brand-bar .logo{height:50px}.brand-bar .subtitle{position:static;font-size:15px}.upload-row{flex-direction:column}.stats{grid-template-columns:1fr 1fr}}
+body:not(.v3-not-logged) .brand-bar{padding-right:280px}
+@media(max-width:768px){.brand-bar{padding:14px 16px;flex-direction:column;align-items:flex-start;gap:6px}.brand-bar .logo{height:50px;max-width:100%}.brand-bar .subtitle{position:static;font-size:15px}.upload-row{flex-direction:column}.stats{grid-template-columns:1fr 1fr}body:not(.v3-not-logged) .brand-bar{padding:62px 16px 14px}}
 </style>
 <style>
 /* ============ V3 团队版：登录/权限 UI ============ */
@@ -238,7 +240,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V3.0.41 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V1.0.17 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -317,11 +319,12 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 
   // -------- 配置 --------
   var WORKER_BASE = (function(){
-    // 部署后通过 /v3 路径走同域 worker；本地开发直连 worker.dev
+    // CloudBase 国内版：默认走同域 HTTP 云函数网关。
+    // 若静态托管和 HTTP API 不在同一域名下，可在部署前把下面的路径改成完整 API 地址。
     if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-      return 'http://localhost:8787/v3';
+      return 'http://localhost:9000/v3';
     }
-    return 'https://techphant-bom-tools-v3.steidleyestephani737.workers.dev/v3';
+    return '/v3';
   })();
 
   var TOKEN_KEY = 'v3_auth_token';
@@ -496,7 +499,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   };
 
   BOM_API.scheduleSync = function(lib){
-    // V3.0.41：禁用“本地缓存变化自动整库回传”。
+    // V1.0.17：禁用“本地缓存变化自动整库回传”。
     // 云端库只由明确的库管理动作写入：导入、删除、清空。
     if (SYNC_DEBOUNCE[lib]) clearTimeout(SYNC_DEBOUNCE[lib]);
     delete SYNC_DEBOUNCE[lib];
@@ -844,11 +847,11 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 
 <!-- 品牌顶部栏 -->
 <div class="brand-bar">
-  <img src="assets/logo.jpg" alt="技象科技" class="logo">
+  <span class="logo-wrap"><img src="assets/logo.jpg?v=3.0.23-cb1" alt="技象科技" class="logo"></span>
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.41 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.17 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -949,7 +952,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 
 <div id="out">
   <div class="stats" id="st"></div>
-  
+
   <!-- 物料编码匹配信息 -->
   <div class="match-info" id="matchInfo" style="display:none">
     <h4>📦 物料库匹配情况（三级引擎）</h4>
@@ -1110,7 +1113,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.41</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.17</span></h3>
 
     <!-- 库切换 Tab -->
     <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -2203,6 +2206,7 @@ function validateLcscMapping(row, data) {
   if (!data || !data.hit) errors.push('立创编号不存在');
   if (sourcePkgIsStandard && !officialPkg) errors.push('官方数据缺少封装');
   else if (sourcePkgIsStandard && officialPkg && sourcePkg !== officialPkg) errors.push('封装不一致：原理图 ' + sourcePkg + ' / 立创 ' + officialPkg);
+
   var typeText = String((data && data.productType) || '');
   if (sourceNumber != null && kind === 'cap' && typeText && !/电容|CAPACITOR/i.test(typeText)) errors.push('器件类型不一致：原理图为电容，立创为' + typeText);
   if (sourceNumber != null && kind === 'res' && typeText && !/电阻|RESISTOR/i.test(typeText)) errors.push('器件类型不一致：原理图为电阻，立创为' + typeText);
@@ -2222,7 +2226,10 @@ function validateLcscMapping(row, data) {
 function applyOfficialVerification(row, result) {
   var activeCode = normLcsc(row.lcsc || row.rejectedLcsc || '');
   if (!result || !result.ok || !result.data) {
-    row.rejectedLcsc = activeCode; row.lcsc = ''; row.status = 'invalid'; row.verification = 'invalid';
+    row.rejectedLcsc = activeCode;
+    row.lcsc = '';
+    row.status = 'invalid';
+    row.verification = 'invalid';
     row.verifyError = (result && result.error) || '立创编号核验失败';
     return;
   }
@@ -2239,9 +2246,15 @@ function applyOfficialVerification(row, result) {
     return !(row.allowPackageMismatch && String(msg || '').indexOf('封装不一致') === 0);
   });
   if (blockingErrors.length) {
-    row.rejectedLcsc = activeCode; row.lcsc = ''; row.status = 'invalid'; row.verification = 'invalid'; row.verifyError = errors.join('；');
+    row.rejectedLcsc = activeCode;
+    row.lcsc = '';
+    row.status = 'invalid';
+    row.verification = 'invalid';
+    row.verifyError = errors.join('；');
   } else {
-    row.lcsc = row.officialCode; row.rejectedLcsc = ''; row.status = 'matched';
+    row.lcsc = row.officialCode;
+    row.rejectedLcsc = '';
+    row.status = 'matched';
     row.verification = (packageErrors.length && row.allowPackageMismatch) ? 'manual_confirmed' : 'verified';
     row.verifyError = (packageErrors.length && row.allowPackageMismatch) ? ('人工确认：' + packageErrors.join('；')) : '';
   }
@@ -2739,8 +2752,7 @@ function runLcscSearch(page) {
   var url = LCSC_WORKER_URL + '/search?q=' + encodeURIComponent(q) + '&page=' + page;
   if (pkg) url += '&pkg=' + encodeURIComponent(pkg);
 
-  fetch(url, { mode: 'cors' })
-    .then(function(r){ return r.json(); })
+  lcscJson(url, { mode: 'cors' })
     .then(function(data){
       document.getElementById('lcscSearchBtn').disabled = false;
       if (!data || !data.ok) {
@@ -2894,8 +2906,7 @@ function runLcscSearchByBrand() {
     var kw = q + ' ' + b.kw;
     var url = LCSC_WORKER_URL + '/search?q=' + encodeURIComponent(kw) + '&page=1';
     if (pkg) url += '&pkg=' + encodeURIComponent(pkg);
-    return fetch(url, { mode: 'cors' })
-      .then(function(r){ return r.json(); })
+    return lcscJson(url, { mode: 'cors' })
       .catch(function(){ return { ok: false }; });
   });
 
@@ -3084,8 +3095,7 @@ function runLcscSearchTopN(q, pkg, n, label) {
   document.getElementById('lcscSearchBtn').disabled = true;
   var url = LCSC_WORKER_URL + '/search?q=' + encodeURIComponent(q) + '&page=1';
   if (pkg) url += '&pkg=' + encodeURIComponent(pkg);
-  fetch(url, { mode: 'cors' })
-    .then(function(r){ return r.json(); })
+  lcscJson(url, { mode: 'cors' })
     .then(function(data){
       document.getElementById('lcscSearchBtn').disabled = false;
       if (!data || !data.ok) {
@@ -3169,8 +3179,7 @@ function renderLcscSearchResults(data) {
 function enrichLcscCandidates(items) {
   var codes = items.map(function(it){ return it.componentCode; }).filter(Boolean);
   if (codes.length === 0) return;
-  fetch(LCSC_WORKER_URL + '/batch?codes=' + codes.join(','), { mode: 'cors' })
-    .then(function(r){ return r.json(); })
+  lcscJson(LCSC_WORKER_URL + '/batch?codes=' + codes.join(','), { mode: 'cors' })
     .then(function(data){
       if (!data || !data.ok) return;
       var resByCode = {};
@@ -3304,31 +3313,36 @@ function renderLcscParamSummary(pm) {
 }
 
 function searchLcscOnline(q, pkg) {
-  var url = LCSC_WORKER_URL + '/search?q=' + encodeURIComponent(q);
+  var url = LCSC_WORKER_URL + '/search?q=' + encodeURIComponent(q) + '&page=1';
   if (pkg) url += '&pkg=' + encodeURIComponent(pkg);
-  return convFetchJson(url).then(function(data){
-    return data.items || data.result || data.data || [];
-  });
+  return lcscJson(url, { mode:'cors' }).then(function(data){
+    return (data && data.ok && data.items) ? data.items : [];
+  }).catch(function(){ return []; });
 }
 
 function collectOnlineLcscCandidates(row) {
-  var pkg = normPkg(row.footprint);
-  var seeds = [];
-  getLcscBrandPlan(row).forEach(function(plan){
-    plan.aliases.forEach(function(alias){
-      seeds.push({ q:[row.comment, alias].filter(Boolean).join(' '), rule:plan });
+  var q = String(row.comment || '').trim();
+  var pkg = extractStdPkg(row.footprint) || normPkg(row.footprint || '');
+  if (!q) return Promise.resolve([]);
+  var plan = getLcscBrandPlan(row);
+  if (!plan) {
+    return searchLcscOnline(q, pkg).then(function(items){
+      var strict = pkg ? items.filter(function(it){ return strictMatchPkg(it.componentSpecification, pkg); }) : items;
+      var pool = strict.slice(0, 20);
+      return fetchDetailsForSearchItems(dedupeLcscItems(pool)).then(function(detailed){
+        return detailed.filter(function(it){ return it._detail && lcscCandidateIsStrictForRow(row, it); });
+      });
     });
-  });
-  if (!seeds.length) seeds.push({ q:row.comment, rule:null });
+  }
 
-  return Promise.all(seeds.map(function(seed){
-    return searchLcscOnline(seed.q, pkg).then(function(items){
-      return (items || []).slice(0, 12).map(function(it){
-        var copy = Object.assign({}, it);
-        if (seed.rule) {
-          copy._targetBrand = seed.rule.name;
-          copy._targetBrandRule = seed.rule;
-        }
+  return Promise.all(plan.brands.map(function(b){
+    return searchLcscOnline(q + ' ' + b.kw, pkg).then(function(items){
+      var strict = pkg ? items.filter(function(it){ return strictMatchPkg(it.componentSpecification, pkg); }) : items;
+      return strict.slice(0, Math.max(18, b.n * 6)).map(function(it){
+        var copy = {};
+        for (var k in it) { if (it.hasOwnProperty(k)) copy[k] = it[k]; }
+        copy._targetBrand = b.name;
+        copy._targetBrandRule = b;
         return copy;
       });
     });
@@ -3337,8 +3351,8 @@ function collectOnlineLcscCandidates(row) {
     groups.forEach(function(g){ pool = pool.concat(g); });
     return fetchDetailsForSearchItems(dedupeLcscItems(pool)).then(function(detailed){
       return detailed.filter(function(it){
-        if (!it._detail) return false;
-        if (it._targetBrandRule && !lcscBrandMatches(it._detail.brand || it.componentBrand, it._targetBrandRule)) return false;
+        if (!it._detail || !it._targetBrandRule) return false;
+        if (!lcscBrandMatches(it._detail.brand || it.componentBrand, it._targetBrandRule)) return false;
         return lcscCandidateIsStrictForRow(row, it);
       });
     });
@@ -3695,6 +3709,7 @@ async function validateLcscLibraryItems(items) {
     else candidates.push(item);
   });
   if (!candidates.length) return { valid:[], quarantined:quarantined };
+
   var detailMap = await fetchLcscDetailsByCodes(candidates.map(function(item){ return item.lcsc_code; }));
   var valid = [];
   candidates.forEach(function(item){
@@ -3705,7 +3720,10 @@ async function validateLcscLibraryItems(items) {
     }
     var probe = { model:item.model || '', comment:item.model || '', package:item.package || '', footprint:item.package || '', refs:[] };
     var errors = validateLcscMapping(probe, result.data);
-    if (errors.length) { quarantined.push(makeLcscQuarantineEntry(item, errors.join('；'), result.data)); return; }
+    if (errors.length) {
+      quarantined.push(makeLcscQuarantineEntry(item, errors.join('；'), result.data));
+      return;
+    }
     item.package = result.data.package || item.package || '';
     item._verified = true;
     item._official_model = result.data.productModel || '';
@@ -3801,7 +3819,7 @@ document.getElementById('btnImportMat').addEventListener('click', function(e){
         var parsed = parse(wb);
         if (!parsed.rows.length) { alert('未识别到物料数据，请检查表头'); return; }
 
-        // V3.0.41：库管理导入严格按当前 Tab 写入，标准库/立创库互不自动切换。
+        // V1.0.17：库管理导入严格按当前 Tab 写入，标准库/立创库互不自动切换。
         var detected = detectBomFormat(parsed.rows);
         if (detected !== 'unknown' && detected !== targetLib) {
           var detectedName = (detected === 'lcsc') ? '立创库格式（3个有效字段，位号忽略）' : '公司标准格式（11列）';
@@ -4218,7 +4236,7 @@ function deleteMaterialRow(idx) {
     ? (m.model || '') + ' / ' + (m.package || '') + ' / ' + (m.lcsc_code || '')
     : (m.name || '') + ' / ' + (m.model || '') + ' / ' + (m.material_code || '');
   if (!confirm('确定删除这条记录吗？\n\n' + desc)) return;
-  
+
   // 从对应库中删除
   if (currentLib === 'lcsc') {
     materialDB_lcsc.splice(idx, 1);
@@ -4229,7 +4247,7 @@ function deleteMaterialRow(idx) {
     setActiveLib('standard');
     saveMaterialDB();
   }
-  
+
   loadMaterialTable(); // 重新渲染表格
   if (window.BOM_API && typeof window.BOM_API.deleteOne === 'function' && window.BOM_API.isAdmin && window.BOM_API.isAdmin() && cloudKey) {
     window.BOM_API.deleteOne(lib, cloudKey).catch(function(e){
@@ -5247,7 +5265,7 @@ function matchMaterial(row, options){
       }
     }
   }
-  // L3a: 规范化型号完全相同（无封装要求，容差用于型号/封装字段互串的情况）
+  // L3 仅供普通整理兼容历史脏数据；原理图转嘉立创的严格模式禁止脱离封装匹配。
   if (modelB && options.allowPackageFree !== false && !options.requirePackage) {
     for (var i=0; i<materialDB.length; i++){
       var m = materialDB[i];
@@ -5604,10 +5622,10 @@ function doCompare(){
   mB.forEach(function(rB,kB){if(!mb.has(kB)){var n=norm(kB),hit=false;fA.forEach(function(_,nA){if(nA===n)hit=true});if(!hit)res.push({s:'add',k:kB,rA:null,rB:rB,d:{}})}});
   var ord={mod:0,add:1,del:2,same:3};res.sort(function(a,b){return ord[a.s]-ord[b.s]});
   RES={res:res,cf:cf,pk:pk};F1='all';F2='all';
-  
+
   // 物料编码匹配分析
   analyzeMaterialMatch();
-  
+
   render();renderDiff();
   document.getElementById('out').classList.add('show');
   setCompareActionsReady(true);
@@ -5767,7 +5785,7 @@ document.getElementById('lcBtn').onclick = function() {
     alert('没有需要查询的器件');
     return;
   }
-  
+
   var data = window.needQueryList.map(function(item) {
     var ref = (item.ref || '').toUpperCase();
     var type = '其他';
@@ -5779,7 +5797,7 @@ document.getElementById('lcBtn').onclick = function() {
     else if (ref.indexOf('U') >= 0) type = 'IC芯片';
     else if (ref.indexOf('J') >= 0 || ref.indexOf('XS') >= 0) type = '连接器';
     else if (ref.indexOf('SW') >= 0 || ref.indexOf('S') >= 0) type = '开关';
-    
+
     // 立创链接优先用立创编号（C+数字），否则用型号
     var lcscNum = '';
     var rawLcsc = String(item.lcsc || '').toUpperCase();
@@ -5800,7 +5818,7 @@ document.getElementById('lcBtn').onclick = function() {
       '待补充': '→ 物料名称 / 参数描述 / 品牌'
     };
   });
-  
+
   var ws = XLSX.utils.json_to_sheet(data);
   // 列宽
   ws['!cols'] = [{wch:14},{wch:20},{wch:14},{wch:12},{wch:12},{wch:24},{wch:50},{wch:28}];
@@ -6642,27 +6660,44 @@ function buildSpecFromExtracted(ext, productType, pkg) {
 
 // ==================== 立创代理 Worker（一键补齐 / 批量补齐） ====================
 // 双后端自动适配：
-//   - EdgeOne 部署（国内主用） → 同域 /api/lcsc
-//   - Cloudflare Pages 部署（海外/兜底） → 走 lcsc-proxy.workers.dev
-//   - 本地调试 / 直接打开 file:// → 默认走 CF Worker
+//   - CloudBase 国内版 → 同域 /lcsc（独立 HTTP 云函数，不受数据库 VPC 网络限制）
+//   - Cloudflare Pages 海外版仍在 v3-legacy 中维护，不使用本文件
+//   - 本地调试 / 直接打开 file:// → 默认走 CF Worker，方便未配置 CloudBase 函数时兜底
 var LCSC_WORKER_URL = (function(){
   try {
     var h = (location.hostname || '').toLowerCase();
-    // 腾讯云 EdgeOne 域名特征：*.edgeone.cool / *.edgeone.app / 自定义已备案域名
-    // 凡是「不是 cloudflare pages 也不是 workers.dev 也不是 github.io 也不是 localhost」，都按同域走
-    var isCFPages   = h.endsWith('.pages.dev');
-    var isCFWorkers = h.endsWith('.workers.dev');
-    var isGithub    = h.endsWith('.github.io');
     var isLocal     = (h === 'localhost' || h === '127.0.0.1' || h === '');
-    if (isCFPages || isCFWorkers || isGithub || isLocal) {
+    if (isLocal) {
       return 'https://lcsc-proxy.steidleyestephani737.workers.dev';
     }
-    // 其它（EdgeOne / 自定义国内域名）走同域 Functions
-    return '/api/lcsc';
+    return 'https://techphant-bom-v3-d9e3pqqb0b46c88.service.tcloudbase.com/lcsc';
   } catch (e) {
     return 'https://lcsc-proxy.steidleyestephani737.workers.dev';
   }
 })();
+
+// 统一校验立创代理响应，避免把 404 HTML 当作 JSON 后显示 Unexpected token。
+function lcscJson(url, options) {
+  options = options || {};
+  var fetchOptions = Object.assign({}, options, {
+    cache: 'no-store',
+    headers: Object.assign({ 'Accept': 'application/json' }, options.headers || {})
+  });
+  return fetch(url, fetchOptions).then(function(resp){
+    var contentType = (resp.headers.get('content-type') || '').toLowerCase();
+    return resp.text().then(function(text){
+      var data = null;
+      if (contentType.indexOf('json') >= 0 || /^[\s\r\n]*[\[{]/.test(text)) {
+        try { data = JSON.parse(text); } catch (e) { data = null; }
+      }
+      if (!resp.ok) {
+        throw new Error((data && data.error) || ('立创查询服务异常（HTTP ' + resp.status + '）'));
+      }
+      if (!data) throw new Error('立创查询服务返回格式异常，请稍后重试');
+      return data;
+    });
+  });
+}
 
 // 把 Worker 返回的 LCSC 数据写入一行 B BOM
 function applyLcscToRow(item, data){
@@ -6725,8 +6760,7 @@ function autoFetchRow(idx){
   var originalHtml = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.innerHTML = '⏳ 拉取中...'; }
 
-  fetch(LCSC_WORKER_URL + '/?k=' + encodeURIComponent(code), { mode: 'cors' })
-    .then(function(r){ return r.json(); })
+  lcscJson(LCSC_WORKER_URL + '/?k=' + encodeURIComponent(code), { mode: 'cors' })
     .then(function(resp){
       if (!resp.ok) throw new Error(resp.error || '代理请求失败');
       if (!resp.data || !resp.data.hit) throw new Error('立创未找到该编号商品');
@@ -6799,13 +6833,12 @@ function batchAutoFetchAll(){
   function fetchChunk(chunk, attempt){
     var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var timer = ctl ? setTimeout(function(){ ctl.abort(); }, TIMEOUT_BATCH) : null;
-    return fetch(LCSC_WORKER_URL + '/batch?codes=' + chunk.join(','), {
+    return lcscJson(LCSC_WORKER_URL + '/batch?codes=' + chunk.join(','), {
       mode: 'cors',
       signal: ctl ? ctl.signal : undefined
-    }).then(function(r){
+    }).then(function(data){
       if (timer) clearTimeout(timer);
-      if (!r.ok) throw new Error('HTTP '+r.status);
-      return r.json();
+      return data;
     }).catch(function(err){
       if (timer) clearTimeout(timer);
       if (attempt < MAX_BATCH_ATTEMPTS) {
@@ -6823,13 +6856,12 @@ function batchAutoFetchAll(){
   function fetchSingle(code){
     var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var timer = ctl ? setTimeout(function(){ ctl.abort(); }, TIMEOUT_SINGLE) : null;
-    return fetch(LCSC_WORKER_URL + '/?k=' + encodeURIComponent(code), {
+    return lcscJson(LCSC_WORKER_URL + '/?k=' + encodeURIComponent(code), {
       mode: 'cors',
       signal: ctl ? ctl.signal : undefined
-    }).then(function(r){
+    }).then(function(data){
       if (timer) clearTimeout(timer);
-      if (!r.ok) throw new Error('HTTP '+r.status);
-      return r.json();
+      return data;
     }).catch(function(err){
       if (timer) clearTimeout(timer);
       return { ok: false, _code: code, _error: err.message || String(err) };
@@ -7134,7 +7166,7 @@ function batchAutoFillAll(){
   function isAdmin(){ return role() === 'admin'; }
   function isReadonly(){ return role() === 'readonly'; }
 
-  // V3.0.41：不再 hook saveMaterialDB/localStorage 自动回传整库。
+  // V1.0.17：不再 hook saveMaterialDB/localStorage 自动回传整库。
   // 共享库只允许明确的库管理动作写云端，避免管理员浏览器旧缓存把云端库覆盖成残缺数据。
 
   function enableBomUploadInputs(){
@@ -7242,7 +7274,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.41 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.17 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>

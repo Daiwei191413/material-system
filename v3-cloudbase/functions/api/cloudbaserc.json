@@ -1,0 +1,19 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "version": "2.0",
+  "envId": "techphant-bom-v3-d9e3pqqb0b46c88",
+  "region": "ap-shanghai",
+  "functionRoot": ".",
+  "functions": [
+    {
+      "name": "bom-v3-api",
+      "type": "HTTP",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "dir": ".",
+      "timeout": 15,
+      "memorySize": 512,
+      "installDependency": true
+    }
+  ]
+}

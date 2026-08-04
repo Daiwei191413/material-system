@@ -1,0 +1,12 @@
+{
+  "name": "techphant-bom-v3-lcsc-proxy",
+  "version": "1.0.17",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

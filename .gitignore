@@ -10,3 +10,6 @@ cloudflare-worker/.wrangler/
 cloudflare-worker/node_modules/
 .env.cloudflare
 _deploy/
+.wrangler/
+.deploy-pages-v3-*/
+v3-cloudbase/functions/lcsc-proxy/cloudbaserc.json

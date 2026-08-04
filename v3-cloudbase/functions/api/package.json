@@ -1,0 +1,16 @@
+﻿{
+  "name": "techphant-bom-v3-cloudbase-api",
+  "version": "1.0.17",
+  "private": true,
+  "description": "技象科技研发 BOM 整理神器 V3 CloudBase HTTP 云函数 API",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "set PORT=9000&& node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.12.0"
+  }
+}

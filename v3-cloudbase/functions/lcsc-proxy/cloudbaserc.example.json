@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "version": "2.0",
+  "envId": "techphant-bom-v3-d9e3pqqb0b46c88",
+  "region": "ap-shanghai",
+  "functionRoot": ".",
+  "functions": [
+    {
+      "name": "bom-v3-lcsc",
+      "type": "HTTP",
+      "runtime": "Nodejs20.19",
+      "dir": ".",
+      "timeout": 15,
+      "memorySize": 256,
+      "installDependency": false,
+      "envVariables": {
+        "JLC_APP_ID": "replace_with_jlc_app_id",
+        "JLC_ACCESS_KEY": "replace_with_jlc_access_key",
+        "JLC_SECRET_KEY": "replace_with_jlc_secret_key"
+      }
+    }
+  ]
+}
