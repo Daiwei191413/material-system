@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V1.0.19 团队版</title>
+  <title>技象科技研发BOM 整理神器 V1.0.20 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png?v=3.0.23-cb1">
 <script src="assets/vendor/xlsx.full.min.js?v=0.18.5"></script>
 <script src="assets/vendor/jszip.min.js?v=3.10.1"></script>
@@ -166,6 +166,7 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 .workflow-kicker{display:block;margin-bottom:3px;font-size:11px;font-weight:700;color:#0078b8}
 .workflow-prep h4,.workflow-route h4{margin:0;color:#263238;font-size:14px}
 .workflow-prep p,.workflow-route p{margin:5px 0 0;color:#5f6b73;font-size:12px;line-height:1.6}
+.workflow-route p.workflow-route-note{margin-top:4px;color:#d93025;font-weight:600}
 .workflow-role-status{flex:0 0 auto;padding:6px 10px;border:1px solid #b5e0c2;border-radius:5px;background:#f0fff4;color:#2e7d32;font-size:12px;font-weight:600;white-space:nowrap}
 .workflow-routes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:12px;border:1px solid #dbe5eb;border-radius:8px;overflow:hidden;background:#fff}
 .workflow-route{display:flex;min-width:0;min-height:132px;padding:14px 16px;flex-direction:column;background:#fff}
@@ -251,7 +252,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V1.0.19 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V1.0.20 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -862,7 +863,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.19 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.20 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -896,6 +897,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
       <div class="workflow-route">
         <div class="workflow-route-head"><span class="workflow-route-tag">任务 A</span><h4>原理图转立创BOM</h4></div>
         <p>上传含 Value、Reference、Footprint 的原理图BOM。系统合并位号、匹配立创编号、剔除 NC/DNP，并校验型号与封装；确认异常后可导出立创BOM、映射表和校验报告。</p>
+        <p class="workflow-route-note">备注：原理图BOM导入前，请删除不需要贴片的物料项，导出会更准确。</p>
         <button class="workflow-go" type="button" onclick="showPanelDirect('convert')">去转换 →</button>
       </div>
       <div class="workflow-route">
@@ -1139,7 +1141,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.19</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.20</span></h3>
 
     <!-- 库切换 Tab -->
     <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -7352,7 +7354,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.19 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.20 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>
