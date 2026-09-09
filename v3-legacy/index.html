@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V3.0.47 团队版</title>
+  <title>技象科技研发BOM 整理神器 V3.0.48 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -254,7 +254,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V3.0.47 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V3.0.48 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -890,7 +890,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.47 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.48 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1169,7 +1169,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.47</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.48</span></h3>
 
     <!-- 库切换 Tab -->
     <div class="lib-tabs" style="margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -6568,8 +6568,158 @@ function appendReportSheet(zip, enrichStats, enrichDetails){
 }
 
 // ==================== 格式整理（带物料库自动补齐） ====================
+function parseInductanceNh(raw) {
+  var text = String(raw == null ? '' : raw).replace(/μ/g, 'u');
+  var match = text.match(/(\d+(?:\.\d+)?)\s*(pH|nH|uH|mH)\b/i);
+  if (!match) return null;
+  var value = parseFloat(match[1]);
+  var unit = match[2].toLowerCase();
+  var factor = unit === 'ph' ? 0.001 : unit === 'nh' ? 1 : unit === 'uh' ? 1000 : 1000000;
+  return value * factor;
+}
+
+function getRowInductanceNh(row) {
+  var fields = ['型号', '参数描述', '物料名称'];
+  for (var i = 0; i < fields.length; i++) {
+    var value = parseInductanceNh(row && row[fields[i]]);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
+function isInductorAuthorityRow(row) {
+  var ref = String(row && row['位号'] || '').trim().toUpperCase();
+  return /(^|[,;\s])(L|FB)\d+/.test(ref)
+    || isFerrite(row)
+    || detectMaterialType(row) === 'inductor';
+}
+
+function snapshotInductorAuthority(row) {
+  var snapshot = Object.create(null);
+  ['型号', '物料名称', '参数描述', '品牌', '立创编号', '封装', '_mfgPart'].forEach(function(field){
+    snapshot[field] = row && row[field] != null ? row[field] : '';
+  });
+  return snapshot;
+}
+
+function restoreInductorAuthority(row, snapshot) {
+  if (!row || !snapshot) return row;
+  ['型号', '物料名称', '参数描述', '品牌', '立创编号', '封装'].forEach(function(field){
+    if (String(snapshot[field] == null ? '' : snapshot[field]).trim()) row[field] = snapshot[field];
+  });
+  if (String(snapshot['_mfgPart'] == null ? '' : snapshot['_mfgPart']).trim()) {
+    row['_mfgPart'] = snapshot['_mfgPart'];
+  } else {
+    delete row['_mfgPart'];
+  }
+  return row;
+}
+
+function extractInductorDcr(raw) {
+  var text = String(raw == null ? '' : raw);
+  var pattern = /直流电阻(?:\(DCR\))?\s*[:：]\s*([^,，|]+)/gi;
+  var match;
+  while ((match = pattern.exec(text)) !== null) {
+    var value = String(match[1] || '').trim();
+    if (value && value !== '-' && value !== '--') return value;
+  }
+  var english = text.match(/\bDCR\s*[:：]?\s*([0-9.]+\s*(?:mΩ|Ω|mOhm|Ohm))/i);
+  return english ? String(english[1]).replace(/\s+/g, '') : '';
+}
+
+function applyOfficialInductorIdentity(row, data) {
+  if (!row || !data || !data.hit) return row;
+  if (data.productModel) row['_mfgPart'] = String(data.productModel).trim();
+  if (data.productCode) row['立创编号'] = String(data.productCode).trim();
+  if (data.brand) row['品牌'] = String(data.brand).trim();
+  if (data.productType) row['物料名称'] = String(data.productType).trim();
+  var spec = buildSpecFromExtracted(data._extracted, data.productType, data.package);
+  if (!spec && data.specification) spec = data.specification;
+  var dcr = (data._extracted && (data._extracted.dcr || data._extracted.dcResistance))
+    || extractInductorDcr(data.specification);
+  if (spec && dcr && !/\bDCR\b/i.test(spec)) {
+    spec = spec.indexOf('，') >= 0
+      ? spec + '，DCR ' + dcr
+      : spec.indexOf(' SMD') >= 0
+      ? spec.replace(' SMD', ' DCR ' + dcr + ' SMD')
+      : spec + ' DCR ' + dcr;
+  }
+  if (spec) row['参数描述'] = cleanSpec(String(spec).trim());
+  return row;
+}
+
+function verifyInductorAuthority(rows) {
+  var targets = [];
+  (rows || []).forEach(function(row){
+    var code = normLcsc(row && row['立创编号']);
+    if (code && isInductorAuthorityRow(row)) targets.push({row:row, code:code});
+  });
+  if (!targets.length) return Promise.resolve({byCode:Object.create(null), failedCodes:[], mismatches:[]});
+
+  return fetchLcscDetailsByCodes(targets.map(function(item){ return item.code; })).then(function(details){
+    var byCode = Object.create(null);
+    var failedCodes = [];
+    var mismatches = [];
+    targets.forEach(function(item){
+      var result = details[item.code];
+      if (!result || !result.ok || !result.data || !result.data.hit) {
+        if (failedCodes.indexOf(item.code) < 0) failedCodes.push(item.code);
+        return;
+      }
+      byCode[item.code] = result.data;
+      var bomNh = getRowInductanceNh(item.row);
+      var officialNh = parseInductanceNh(result.data._extracted && result.data._extracted.inductance);
+      if (bomNh !== null && officialNh !== null && Math.abs(bomNh - officialNh) > Math.max(bomNh, officialNh) * 0.000001) {
+        mismatches.push({
+          ref:String(item.row['位号'] || ''),
+          code:item.code,
+          bom:String(item.row['型号'] || item.row['参数描述'] || ''),
+          official:String(result.data._extracted.inductance || '')
+        });
+      }
+    });
+    return {byCode:byCode, failedCodes:failedCodes, mismatches:mismatches};
+  });
+}
+
+var fmtBusy = false;
 function fmt(dir){
   if(!A||!B)return;
+  if (dir !== 'AB') return fmtCore(dir, Object.create(null));
+  if (fmtBusy) return;
+  fmtBusy = true;
+  var btn = document.getElementById('fmtAB');
+  var originalHtml = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ 正在核验电感料号...'; }
+
+  function finish(){
+    fmtBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+  }
+
+  verifyInductorAuthority(B.rows).then(function(result){
+    if (result.mismatches.length) {
+      var lines = result.mismatches.slice(0, 8).map(function(item){
+        return item.ref + ' / ' + item.code + '：B表 ' + item.bom + '，立创 ' + item.official;
+      });
+      alert('⛔ 已停止导出：B表电感值与立创编号对应商品不一致。\n\n' + lines.join('\n') + '\n\n请修正 B 表后重新导出。');
+      return;
+    }
+    if (result.failedCodes.length) {
+      var proceed = confirm('⚠️ 以下电感编号未能完成立创核验：\n' + result.failedCodes.join('、')
+        + '\n\n继续导出会严格保留 B 表现有数据，不会引用 A 模板数据。是否继续？');
+      if (!proceed) return;
+    }
+    fmtCore(dir, result.byCode);
+  }).catch(function(error){
+    var proceed = confirm('⚠️ 立创电感核验服务暂时不可用：' + (error && error.message ? error.message : error)
+      + '\n\n继续导出会严格保留 B 表现有数据，不会引用 A 模板数据。是否继续？');
+    if (proceed) fmtCore(dir, Object.create(null));
+  }).then(finish, finish);
+}
+
+function fmtCore(dir, lcscIdentityByCode){
+  lcscIdentityByCode = lcscIdentityByCode || Object.create(null);
   var tpl = dir==='AB' ? A : B;
   var dat = dir==='AB' ? B : A;
   var tl = dir==='AB' ? 'A' : 'B';
@@ -6587,6 +6737,9 @@ function fmt(dir){
     if (clone['参数描述']) clone['参数描述'] = cleanSpec(clone['参数描述']);
     // 强制单位为 PCS（按 A BOM 标准）
     clone['单位'] = 'PCS';
+    var bInductorIdentity = dir === 'AB' && isInductorAuthorityRow(clone)
+      ? snapshotInductorAuthority(clone)
+      : null;
 
     var emptyBefore = [];
     ['物料编码','物料名称','参数描述','品牌','立创编号'].forEach(function(f){
@@ -6614,26 +6767,12 @@ function fmt(dir){
       }
     }
 
-    // AB 方向：位号反查 A BOM，用 A 的数据补齐电感/磁珠的型号、物料名称、参数描述
-    // 场景：B BOM 型号写"22nH"，A BOM 同位号写"LQW15AN22NJ00D" + "绕线电感" + 完整参数
-    if (dir === 'AB' && tpl && tpl.rows) {
-      var bRef = String(clone['位号'] || '').trim();
-      if (bRef) {
-        var aRow = null;
-        for (var ai = 0; ai < tpl.rows.length; ai++) {
-          if (String(tpl.rows[ai]['位号'] || '').trim() === bRef) { aRow = tpl.rows[ai]; break; }
-        }
-        if (aRow) {
-          var isInd = isFerrite(clone) || isFerrite(aRow) || detectMaterialType(clone) === 'inductor' || detectMaterialType(aRow) === 'inductor';
-          if (isInd) {
-            // 型号：A BOM 的型号就是厂家料号
-            if (aRow['型号']) clone['_mfgPart'] = String(aRow['型号']).trim();
-            // 物料名称：优先用 A 的（"绕线电感"比 B 的"功率电感"更标准）
-            if (aRow['物料名称']) clone['物料名称'] = String(aRow['物料名称']).trim();
-            // 参数描述：A 的更完整（含精度/电流/DCR）
-            if (aRow['参数描述']) clone['参数描述'] = cleanSpec(String(aRow['参数描述']).trim());
-          }
-        }
+    // 库只能补空字段，不能改写 B 表已有的电感身份；A 模板只提供列顺序、封面和样式。
+    if (bInductorIdentity) {
+      restoreInductorAuthority(clone, bInductorIdentity);
+      var lcscCode = normLcsc(clone['立创编号']);
+      if (lcscCode && lcscIdentityByCode[lcscCode]) {
+        applyOfficialInductorIdentity(clone, lcscIdentityByCode[lcscCode]);
       }
     }
 
@@ -6994,13 +7133,14 @@ function buildSpecFromExtracted(ext, productType, pkg) {
     var ind = ext.inductance || '';
     var tol = ext.tolerance || '';
     var curr = ext.current || '';
+    var dcr = ext.dcr || ext.dcResistance || '';
     if (!ind) return '';
-    var parts = ['绕线电感', ind];
+    var parts = [String(productType || '电感').trim(), ind];
+    if (size) parts.push(size);
     if (tol) parts.push(tol);
     if (curr) parts.push(curr);
-    parts.push('SMD');
-    if (size) parts.push(size);
-    return parts.join(' ');
+    if (dcr) parts.push('DCR ' + dcr);
+    return parts.join('，');
   }
 
   // 兜底：无法识别的类型，但原始 specification 可用 → 返回原始描述
@@ -7610,7 +7750,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.47 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.48 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>

@@ -25,8 +25,8 @@ assert(edgePath, 'Microsoft Edge executable not found; set EDGE_PATH to run this
 
 const repoRoot = path.resolve(__dirname, '..');
 const targets = [
-  ['domestic', 'v3-cloudbase/web/index.html', 'V1.0.23'],
-  ['overseas', 'v3-legacy/index.html', 'V3.0.47'],
+  ['domestic', 'v3-cloudbase/web/index.html', 'V1.0.24'],
+  ['overseas', 'v3-legacy/index.html', 'V3.0.48'],
 ];
 
 (async () => {
