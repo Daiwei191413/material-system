@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 
 const CONFIG = {
-  version: 'V1.0.17',
+  version: 'V1.0.18',
   jwtExpireDays: 7,
   maxLoginAttempts: 5,
   loginLockoutMinutes: 15,
@@ -114,6 +114,7 @@ function makeMaterialSyncKey(lib, item) {
   const spec = cleanText(item.specification || item['参数描述']);
 
   if (lib === 'lcsc') return lcsc ? `lcsc:${lcsc}` : '';
+  if (lib === 'cost') return model && pkg ? `cost:${normText(model)}|${normText(pkg)}` : '';
   if (materialCode) return `mat:${normText(materialCode)}`;
   if (lcsc) return `lcsc:${lcsc}`;
   if (model || pkg || brand || name || spec) {
@@ -123,9 +124,14 @@ function makeMaterialSyncKey(lib, item) {
 }
 
 function materialIdentityError(lib) {
-  return lib === 'lcsc'
-    ? '立创库需填写立创编号'
-    : '标准库需至少填写物料编码、立创编号、型号/封装/品牌或物料名称/参数描述';
+  if (lib === 'lcsc') return '立创库需填写立创编号';
+  if (lib === 'cost') return '关键器件成本库需填写型号和封装';
+  return '标准库需至少填写物料编码、立创编号、型号/封装/品牌或物料名称/参数描述';
+}
+
+function validCostPrice(item) {
+  const price = Number(cleanText(item.price ?? item['单价']));
+  return Number.isFinite(price) && price > 0;
 }
 
 function materialParams(item, userId, lib, syncKey) {
@@ -152,7 +158,7 @@ function materialParams(item, userId, lib, syncKey) {
 
 function requireLib(raw) {
   const lib = (raw || '').toLowerCase();
-  return lib === 'lcsc' || lib === 'standard' ? lib : null;
+  return lib === 'lcsc' || lib === 'standard' || lib === 'cost' ? lib : null;
 }
 
 function hashPassword(password) {
@@ -310,7 +316,7 @@ app.post('/v3/auth/change-password', authRequired, async (req, res) => {
 
 app.get('/v3/library', authRequired, async (req, res) => {
   const lib = requireLib(req.query.lib);
-  if (!lib) return error(res, 'lib 参数必填且必须为 lcsc 或 standard', 400);
+  if (!lib) return error(res, 'lib 参数必填且必须为 lcsc、standard 或 cost', 400);
 
   const page = Math.max(1, Number(req.query.page || 1));
   const limit = Math.min(10000, Math.max(1, Number(req.query.limit || 50)));
@@ -338,11 +344,12 @@ app.get('/v3/library', authRequired, async (req, res) => {
 
 app.post('/v3/library', authRequired, adminRequired, async (req, res) => {
   const lib = requireLib(req.query.lib);
-  if (!lib) return error(res, 'lib 参数必填且必须为 lcsc 或 standard', 400);
+  if (!lib) return error(res, 'lib 参数必填且必须为 lcsc、standard 或 cost', 400);
 
   const data = req.body || {};
   const syncKey = makeMaterialSyncKey(lib, data);
   if (!syncKey) return error(res, materialIdentityError(lib), 400);
+  if (lib === 'cost' && !validCostPrice(data)) return error(res, '关键器件成本库单价必须为大于 0 的数字', 400);
 
   const params = materialParams(data, req.user.id, lib, syncKey);
   try {
@@ -369,7 +376,7 @@ app.get('/v3/library/export', authRequired, adminRequired, async (req, res) => {
   let items;
   if (libRaw) {
     const lib = requireLib(libRaw);
-    if (!lib) return error(res, 'lib 必须为 lcsc 或 standard', 400);
+    if (!lib) return error(res, 'lib 必须为 lcsc、standard 或 cost', 400);
     items = await dbQuery('SELECT * FROM material_library WHERE lib_type = $1 ORDER BY updated_at DESC', [lib]);
     await dbRun(
       'INSERT INTO audit_log (user_id, action, target, lib_type, ip) VALUES ($1,$2,$3,$4,$5)',
@@ -387,7 +394,7 @@ app.get('/v3/library/export', authRequired, adminRequired, async (req, res) => {
 
 app.post('/v3/library/import', authRequired, adminRequired, async (req, res) => {
   const lib = requireLib(req.body?.lib || req.query.lib);
-  if (!lib) return error(res, 'lib 字段必填且必须为 lcsc 或 standard', 400);
+  if (!lib) return error(res, 'lib 字段必填且必须为 lcsc、standard 或 cost', 400);
 
   const items = req.body?.items;
   if (!Array.isArray(items) || items.length === 0) return error(res, 'items 为空', 400);
@@ -397,7 +404,7 @@ app.post('/v3/library/import', authRequired, adminRequired, async (req, res) => 
   for (const raw of items) {
     const item = { ...raw };
     const syncKey = makeMaterialSyncKey(lib, item);
-    if (!syncKey) {
+    if (!syncKey || (lib === 'cost' && !validCostPrice(item))) {
       failed++;
       continue;
     }
@@ -471,7 +478,7 @@ app.post('/v3/library/import', authRequired, adminRequired, async (req, res) => 
 app.post('/v3/library/clear', authRequired, adminRequired, async (req, res) => {
   const libRaw = req.body?.lib || req.query.lib;
   const lib = requireLib(libRaw);
-  if (!lib) return error(res, `lib 字段必填且必须为 lcsc 或 standard（收到：${libRaw || '空'}）`, 400);
+  if (!lib) return error(res, `lib 字段必填且必须为 lcsc、standard 或 cost（收到：${libRaw || '空'}）`, 400);
 
   const before = await dbQuery('SELECT COUNT(*)::int AS cnt FROM material_library WHERE lib_type = $1', [lib]);
   await dbRun('DELETE FROM material_library WHERE lib_type = $1', [lib]);
@@ -484,7 +491,7 @@ app.post('/v3/library/clear', authRequired, adminRequired, async (req, res) => {
 
 app.all('/v3/library/:code', authRequired, async (req, res) => {
   const lib = requireLib(req.query.lib);
-  if (!lib) return error(res, 'lib 参数必填且必须为 lcsc 或 standard', 400);
+  if (!lib) return error(res, 'lib 参数必填且必须为 lcsc、standard 或 cost', 400);
 
   const code = decodeURIComponent(req.params.code);
   const fallbackKey = code.includes(':') ? code : makeMaterialSyncKey(lib, { lcsc_code: code, material_code: code });
@@ -517,6 +524,7 @@ app.all('/v3/library/:code', authRequired, async (req, res) => {
     const merged = { ...old, ...data };
     const nextSyncKey = makeMaterialSyncKey(lib, merged);
     if (!nextSyncKey) return error(res, materialIdentityError(lib), 400);
+    if (lib === 'cost' && !validCostPrice(merged)) return error(res, '关键器件成本库单价必须为大于 0 的数字', 400);
     await dbRun(
       `UPDATE material_library SET
          sync_key = $1, lcsc_code = $2,

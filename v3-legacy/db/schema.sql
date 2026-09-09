@@ -1,6 +1,6 @@
--- V3.0.21 数据库 Schema（v3-legacy 改造版：双库分离）
+-- V3 数据库 Schema（v3-legacy 改造版：三库分离）
 -- 技象科技 BOM 整理神器 - 团队版
--- 对齐 V2.1.8 双库结构：lcsc（立创库，4 字段精简）+ standard（标准库，13 字段完整）
+-- 三库结构：lcsc（立创库）+ standard（标准库）+ cost（关键器件成本库）
 
 -- ============================================================
 -- 用户表
@@ -18,24 +18,24 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ============================================================
--- 物料库（团队共享，双库分离）
+-- 物料库（团队共享，三库分离）
 -- lib_type:
 --   'lcsc'     → 立创库（来源：立创API批量补齐 / 立创搜索回填）
 --   'standard' → 标准库（来源：A BOM / 公司格式 BOM 导入）
--- 唯一约束：同一库内 sync_key 唯一；标准库允许没有立创编号
+--   'cost'     → 关键器件成本库（型号+封装唯一，立创编号可空）
+-- 唯一约束：同一库内 sync_key 唯一；标准库和成本库允许没有立创编号
 -- ============================================================
 CREATE TABLE IF NOT EXISTS material_library (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    lib_type TEXT NOT NULL CHECK (lib_type IN ('lcsc', 'standard')),
+    lib_type TEXT NOT NULL CHECK (lib_type IN ('lcsc', 'standard', 'cost')),
 
-    -- 云端唯一定位字段：lcsc 库用立创编号；standard 库优先用物料编码，其次用立创编号或型号/封装/品牌
+    -- 云端唯一定位字段：lcsc 用立创编号；standard 用物料编码等；cost 用型号+封装
     sync_key TEXT NOT NULL,
 
-    -- 立创编号（V2 中文字段：立创编号）。标准库可为空，立创库必填由接口校验。
+    -- 立创编号（V2 中文字段：立创编号）。标准库、成本库可为空，立创库必填由接口校验。
     lcsc_code TEXT,
 
-    -- 标准库 13 字段全集（与 V2 中文字段一一对应）
-    -- 立创库只填其中 4 个：name / model / specification / brand
+    -- 标准库字段全集；立创库仅使用型号/封装/立创编号，成本库另使用 price。
     name TEXT,              -- V2: 物料名称
     model TEXT,             -- V2: 型号
     specification TEXT,     -- V2: 参数描述
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS material_library (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 
-    -- 同一库内 sync_key 唯一；两个库分开
+    -- 同一库内 sync_key 唯一；三个库相互分开
     UNIQUE (lib_type, sync_key)
 );
 
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     user_id INTEGER REFERENCES users(id),
     action TEXT NOT NULL,  -- login / logout / create / update / delete / import / export / change_password
     target TEXT,           -- 资源标识（sync_key / lcsc_code / batch-时间戳 等）
-    lib_type TEXT,         -- 操作的是哪个库（lcsc / standard / NULL）
+    lib_type TEXT,         -- 操作的是哪个库（lcsc / standard / cost / NULL）
     old_value TEXT,
     new_value TEXT,
     ip TEXT,

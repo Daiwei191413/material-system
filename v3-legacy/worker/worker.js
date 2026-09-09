@@ -1,12 +1,12 @@
 // ============================================================
-// 技象科技 BOM 整理神器 V3.0.41 - 团队版 API
+// 技象科技 BOM 整理神器 V3.0.42 - 团队版 API
 // Cloudflare Worker + D1 数据库 + KV 缓存
 // ============================================================
 
 // ----- 配置 -----
 const CONFIG = {
   APP_NAME: '技象科技研发BOM整理神器',
-  VERSION: 'V3.0.41',
+  VERSION: 'V3.0.42',
   JWT_EXPIRE_DAYS: 7,
   MAX_LOGIN_ATTEMPTS: 5,
   LOGIN_LOCKOUT_MINUTES: 15,
@@ -149,6 +149,7 @@ function makeMaterialSyncKey(lib, item) {
   const spec = cleanText(item.specification || item['参数描述']);
 
   if (lib === 'lcsc') return lcsc ? `lcsc:${lcsc}` : '';
+  if (lib === 'cost') return model && pkg ? `cost:${normText(model)}|${normText(pkg)}` : '';
   if (materialCode) return `mat:${normText(materialCode)}`;
   if (lcsc) return `lcsc:${lcsc}`;
   if (model || pkg || brand || name || spec) {
@@ -158,9 +159,14 @@ function makeMaterialSyncKey(lib, item) {
 }
 
 function materialIdentityError(lib) {
-  return lib === 'lcsc'
-    ? '立创库需填写立创编号'
-    : '标准库需至少填写物料编码、立创编号、型号/封装/品牌或物料名称/参数描述';
+  if (lib === 'lcsc') return '立创库需填写立创编号';
+  if (lib === 'cost') return '关键器件成本库需填写型号和封装';
+  return '标准库需至少填写物料编码、立创编号、型号/封装/品牌或物料名称/参数描述';
+}
+
+function validCostPrice(item) {
+  const price = Number(cleanText(item.price ?? item['单价']));
+  return Number.isFinite(price) && price > 0;
 }
 
 function materialParams(item, userId, lib, syncKey, includeCreators) {
@@ -345,18 +351,18 @@ export default {
       const userId = payload.userId;
       const userRole = payload.role;
 
-      // ===== 物料库 CRUD（双库分离：lcsc / standard）=====
-      // 所有 /library 接口都强制要求 lib 参数（'lcsc' | 'standard'）
+      // ===== 物料库 CRUD（三库分离：lcsc / standard / cost）=====
+      // 所有 /library 接口都强制要求 lib 参数。
       function requireLib(libRaw) {
         const lib = (libRaw || '').toLowerCase();
-        if (lib !== 'lcsc' && lib !== 'standard') return null;
+        if (lib !== 'lcsc' && lib !== 'standard' && lib !== 'cost') return null;
         return lib;
       }
 
       // ----- 物料库列表 / 新增 -----
       if (path === '/library') {
         const lib = requireLib(url.searchParams.get('lib'));
-        if (!lib) return errorResponse('lib 参数必填且必须为 lcsc 或 standard', 400, origin);
+        if (!lib) return errorResponse('lib 参数必填且必须为 lcsc、standard 或 cost', 400, origin);
 
         if (request.method === 'GET') {
           const search = url.searchParams.get('search') || '';
@@ -402,6 +408,7 @@ export default {
           const data = await request.json();
           const syncKey = makeMaterialSyncKey(lib, data);
           if (!syncKey) return errorResponse(materialIdentityError(lib), 400, origin);
+          if (lib === 'cost' && !validCostPrice(data)) return errorResponse('关键器件成本库单价必须为大于 0 的数字', 400, origin);
           data.lcsc_code = normLcsc(data.lcsc_code || data.componentCode || data['立创编号']) || '';
           data.sync_key = syncKey;
 
@@ -429,7 +436,7 @@ export default {
       if (materialMatch && !path.startsWith('/library/import') && !path.startsWith('/library/export') && !path.startsWith('/library/clear')) {
         const code = decodeURIComponent(materialMatch[1]);
         const lib = requireLib(url.searchParams.get('lib'));
-        if (!lib) return errorResponse('lib 参数必填且必须为 lcsc 或 standard', 400, origin);
+        if (!lib) return errorResponse('lib 参数必填且必须为 lcsc、standard 或 cost', 400, origin);
         const fallbackKey = code.includes(':') ? code : makeMaterialSyncKey(lib, { lcsc_code: code, material_code: code });
         const lookupSql = 'SELECT * FROM material_library WHERE lib_type = ? AND (sync_key = ? OR sync_key = ? OR lcsc_code = ?)';
         const lookupParams = [lib, code, fallbackKey, code];
@@ -451,6 +458,7 @@ export default {
           const merged = { ...o, ...data };
           const nextSyncKey = makeMaterialSyncKey(lib, merged);
           if (!nextSyncKey) return errorResponse(materialIdentityError(lib), 400, origin);
+          if (lib === 'cost' && !validCostPrice(merged)) return errorResponse('关键器件成本库单价必须为大于 0 的数字', 400, origin);
           await dbRun(env.BOM_DB,
             `UPDATE material_library SET
              sync_key = ?, lcsc_code = ?,
@@ -496,7 +504,7 @@ export default {
 
         const body = await request.json();
         const lib = requireLib(body.lib || url.searchParams.get('lib'));
-        if (!lib) return errorResponse('lib 字段必填且必须为 lcsc 或 standard', 400, origin);
+        if (!lib) return errorResponse('lib 字段必填且必须为 lcsc、standard 或 cost', 400, origin);
 
         const items = body.items;
         if (!Array.isArray(items) || items.length === 0) return errorResponse('items 为空', 400, origin);
@@ -506,7 +514,7 @@ export default {
         const seen = new Set();
         for (const item of items) {
           const syncKey = makeMaterialSyncKey(lib, item);
-          if (!syncKey) { failed++; continue; }
+          if (!syncKey || (lib === 'cost' && !validCostPrice(item))) { failed++; continue; }
           item.sync_key = syncKey;
           item.lcsc_code = normLcsc(item.lcsc_code || item.componentCode || item['立创编号']) || '';
           // 同一批里相同 sync_key 只保留最后一条，避免 batch 内互相反复更新。
@@ -578,7 +586,7 @@ export default {
         let items;
         if (libRaw) {
           const lib = requireLib(libRaw);
-          if (!lib) return errorResponse('lib 必须为 lcsc 或 standard', 400, origin);
+          if (!lib) return errorResponse('lib 必须为 lcsc、standard 或 cost', 400, origin);
           items = await dbQuery(env.BOM_DB,
             'SELECT * FROM material_library WHERE lib_type = ? ORDER BY updated_at DESC', [lib]);
           await dbRun(env.BOM_DB,
@@ -600,7 +608,7 @@ export default {
         const body = await request.json().catch(() => ({}));
         const libRaw = body.lib || url.searchParams.get('lib');
         const lib = requireLib(libRaw);
-        if (!lib) return errorResponse(`lib 字段必填且必须为 lcsc 或 standard（收到：${libRaw || '空'}）`, 400, origin);
+        if (!lib) return errorResponse(`lib 字段必填且必须为 lcsc、standard 或 cost（收到：${libRaw || '空'}）`, 400, origin);
 
         const before = await dbQuery(env.BOM_DB,
           'SELECT COUNT(*) as cnt FROM material_library WHERE lib_type = ?', [lib]);

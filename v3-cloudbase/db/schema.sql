@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS material_library (
     id BIGSERIAL PRIMARY KEY,
-    lib_type TEXT NOT NULL CHECK (lib_type IN ('lcsc', 'standard')),
+    lib_type TEXT NOT NULL CHECK (lib_type IN ('lcsc', 'standard', 'cost')),
     sync_key TEXT NOT NULL,
     lcsc_code TEXT,
     name TEXT,
