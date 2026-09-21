@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V1.0.24 团队版</title>
+  <title>技象科技研发BOM 整理神器 V1.0.25 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png?v=3.0.23-cb1">
 <script src="assets/vendor/xlsx.full.min.js?v=0.18.5"></script>
 <script src="assets/vendor/jszip.min.js?v=3.10.1"></script>
@@ -248,7 +248,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 .lib-tabs{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px!important;align-items:stretch;}
 .lib-tabs button{min-width:0;min-height:48px;margin-left:0!important;padding:9px 10px!important;line-height:1.35;white-space:normal;}
 .cost-library-table th,.cost-library-table td{white-space:nowrap;}
-@media(max-width:600px){.lib-tabs{grid-template-columns:repeat(2,minmax(0,1fr));}.lib-tabs button:last-child{grid-column:1/-1;}.cost-library-table{min-width:680px;}}
+@media(max-width:600px){.lib-tabs{grid-template-columns:repeat(2,minmax(0,1fr));}.lib-tabs button:last-child{grid-column:1/-1;}.cost-library-table{min-width:820px;}}
 </style>
 </head>
 <body class="v3-not-logged">
@@ -256,7 +256,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V1.0.24 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V1.0.25 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -486,6 +486,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
         if (lib === 'cost') {
           var costItem = {
             lcsc_code: BOM_API.normLcsc(m.lcsc_code || m['立创编号']),
+            name: BOM_API.cleanText(m.name || m['物料名称']),
             model: m.model || m['型号'] || '',
             package: m.package || m['封装'] || '',
             price: m.price || m['单价'] || '',
@@ -812,6 +813,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
             return {
               sync_key: m.sync_key,
               lcsc_code: m.lcsc_code || '',
+              name: m.name || '',
               model: m.model || '',
               package: m.package || '',
               price: m.price || ''
@@ -893,7 +895,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.24 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.25 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -902,7 +904,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="nav">
   <button class="nav-btn active" onclick="showPanel('material')">📦 物料库管理</button>
   <button class="nav-btn" onclick="showPanel('convert')">🔄 原理图转立创BOM</button>
-  <button class="nav-btn" onclick="showPanel('compare')">🔍 BOM对比及转线下BOM</button>
+  <button class="nav-btn" onclick="showPanel('compare')">🔄 立创BOM转线下BOM</button>
   <button class="nav-btn" onclick="showPanel('offline')">📊 线下BOM对比</button>
   <button class="nav-btn" onclick="showPanel('cost')">💰 BOM成本评估</button>
 </div>
@@ -932,7 +934,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
       </div>
       <div class="workflow-route">
         <div class="workflow-route-head"><span class="workflow-route-tag">任务 B</span><h4>立创BOM转线下BOM</h4></div>
-        <p>上传 BOM A（线下BOM参考模板）和 BOM B（立创BOM），先查看差异，再按参考模板和标准库补齐物料信息，导出公司线下BOM及对比报告。</p>
+        <p>上传线下BOM参考样表和立创BOM，检查差异后按样表格式与标准库信息生成线下BOM；差异报告可单独导出。</p>
         <button class="workflow-go" type="button" onclick="showPanelDirect('compare')">去整理 →</button>
       </div>
       <div class="workflow-route">
@@ -964,7 +966,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 
 <div class="upload-row">
   <div class="upload-card" id="boxA">
-    <h3>📄 BOM A（线下BOM参考模版）</h3>
+    <h3>1. 上传线下BOM参考样表</h3>
     <p>支持 xlsx / xls / csv</p>
     <p class="upload-example">公司线下 BOM 参考模板，决定整理后的表头和字段顺序。</p>
     <button class="file-btn" id="btnA">选择文件</button>
@@ -973,9 +975,9 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
     <div class="fmap" id="fmA"></div>
   </div>
   <div class="upload-card" id="boxB">
-    <h3>📄 BOM B（立创BOM）</h3>
+    <h3>2. 上传立创BOM</h3>
     <p>支持 xlsx / xls / csv</p>
-    <p class="upload-example">请上传立创 BOM 文件，用于与左侧线下 BOM 参考模板做对比。</p>
+    <p class="upload-example">请上传要整理的立创 BOM，系统会检查与参考样表的差异。</p>
     <button class="file-btn" id="btnB">选择文件</button>
     <input type="file" id="fileB" accept=".xlsx,.xls,.csv" style="display:none">
     <div class="info" id="msgB"></div>
@@ -984,7 +986,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 </div>
 
 <div class="cfg">
-  <h3>⚙️ 对比配置</h3>
+  <h3>⚙️ 差异检查设置</h3>
   <div class="cfg-row">
     <label>匹配主键：</label>
     <select id="pk"><option value="位号">位号</option><option value="型号">型号</option></select>
@@ -1003,10 +1005,10 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 </div>
 
 <div class="bar">
-  <button class="btn btn-blue" id="goBtn" disabled>🔍 开始对比</button>
-  <button class="btn btn-green" id="expBtn" disabled title="请先完成对比">📥 导出报告</button>
-  <button class="btn btn-purple" id="fmtAB" disabled title="请先完成对比">✨ 按线下BOM模板整理立创BOM</button>
-  <button class="btn btn-orange" id="lcBtn" disabled title="请先完成对比">🛒 立创查询清单</button>
+  <button class="btn btn-blue" id="goBtn" disabled>3. 检查两份BOM差异</button>
+  <button class="btn btn-purple" id="fmtAB" disabled title="请先检查差异">4. 生成线下BOM</button>
+  <button class="btn btn-green" id="expBtn" disabled title="请先检查差异">📥 导出差异报告</button>
+  <button class="btn btn-orange" id="lcBtn" disabled title="请先检查差异">🛒 立创查询清单</button>
 </div>
 
 <div id="out">
@@ -1172,7 +1174,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.24</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.25</span></h3>
 
     <!-- 库切换 Tab -->
     <div class="lib-tabs" style="margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -1191,13 +1193,13 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
     </div>
 
     <div class="import-hint" id="libHintStandard">
-      💡 <b>标准库</b>（公司格式）：含物料编码/名称/参数描述/品牌等 11 个字段，用于<b>「按线下BOM模板整理立创BOM」</b>输出公司线下 BOM。
+      💡 <b>标准库</b>（公司格式）：含物料编码/名称/参数描述/品牌等 11 个字段，用于<b>「立创BOM转线下BOM」</b>输出公司线下 BOM。
     </div>
     <div class="import-hint" id="libHintLcsc" style="display:none;background:#e8f4fc;border-left-color:#0078b8">
       💡 <b>立创库</b>（嘉立创格式）：仅保存 3 个字段（Comment型号/Footprint封装/嘉立创元件编号），导入文件中的 Designator 位号会自动忽略，用于<b>「原理图转立创BOM」</b>匹配。<b>不要</b>把公司库混进来。
     </div>
     <div class="import-hint" id="libHintCost" style="display:none;background:#f0fdf4;border-left-color:#16a34a">
-      💡 <b>关键器件成本库</b>：导入“型号 / 封装 / 立创编号（可空）/ 单价”。成本评估必须先匹配型号；双方都有立创编号时同时校验编号，成本库未填编号时校验封装。
+      💡 <b>关键器件成本库</b>：导入“序号 / 物料名称（可空）/ 型号 / 封装 / 立创编号（可空）/ 单价”，兼容不含序号和物料名称的旧表；序号自动生成。成本评估必须先匹配型号；双方都有立创编号时同时校验编号，成本库未填编号时校验封装。
     </div>
     <p style="font-size:13px;color:#666;margin-bottom:15px">
       当前库已加载 <span id="matCount" style="color:#0078b8;font-weight:bold">0</span> 条物料
@@ -1397,6 +1399,7 @@ function sanitizeCostLibraryItem(item) {
   var priceRaw = item.price != null ? item.price : (item['单价'] != null ? item['单价'] : '');
   return {
     sync_key: item.sync_key || '',
+    name: String(item.name || item['物料名称'] || '').trim(),
     model: String(item.model || item['型号'] || '').trim(),
     package: String(item.package || item['封装'] || '').trim(),
     lcsc_code: normLcsc(item.lcsc_code || item['立创编号'] || ''),
@@ -3413,7 +3416,7 @@ function enrichLcscCandidates(items) {
           if (rowEl) rowEl.setAttribute('data-stock', '0');
           return;
         }
-        // 把候选表里这条的详情存起来（pickLcscCandidate 入库时复用）
+        // 保留候选详情，供选用后核验与回填。
         items[i]._detail = detail;
         // 品牌以官方详情为准，不能用搜索关键词或分组名代替。
         if (brandCell && detail.brand) {
@@ -3655,7 +3658,7 @@ function lcscPageNext() {
   if (_LCSC_SEARCH_HAS_NEXT) runLcscSearch(_LCSC_SEARCH_PAGE + 1);
 }
 
-// 选用某条候选 → 回填到 CONV_OUT[_LCSC_SEARCH_IDX] + 询问是否入库
+// 选用某条候选，仅回填到 CONV_OUT[_LCSC_SEARCH_IDX]
 function pickLcscCandidate(itemIdx) {
   var idx = _LCSC_SEARCH_IDX;
   if (idx < 0 || !CONV_OUT[idx]) { closeLcscSearch(); return; }
@@ -3684,7 +3687,7 @@ function pickLcscCandidate(itemIdx) {
     row.allowPackageMismatch = false;
     row.manualConfirmReason = '';
   }
-  // 回填后必须再走一次官方详情核验，核验通过前不能导出或入库。
+  // 回填后必须再走一次官方详情核验，核验通过前不能导出。
   row.lcsc = item.componentCode;
   row.rejectedLcsc = '';
   row.status = 'verifying';
@@ -3708,54 +3711,10 @@ function pickLcscCandidate(itemIdx) {
     if (row.verification === 'manual_confirmed') {
       alert('已按人工确认回填编号：' + row.lcsc + '\n\n'
         + (row.verifyError || '该编号存在需要人工确认的差异') + '\n\n'
-        + '本次会保留在转换结果中，但不会自动写入立创库。');
+        + '本次会保留在转换结果中，不会写入立创库。');
       return;
     }
-    var isAdmin = window.BOM_API && typeof window.BOM_API.isAdmin === 'function' && window.BOM_API.isAdmin();
-    if (!isAdmin) return;
-    setTimeout(function(){
-      var ok = confirm('编号 ' + row.lcsc + ' 已通过官方核验。\n\n是否把这条映射加入【立创库】？\n\n名称：' + (row.comment || '-')
-        + '\n型号：' + (row.officialModel || item.componentModel || '-')
-        + '\n封装：' + (row.officialPackage || candidatePkg || row.footprint || '-')
-        + '\n品牌：' + (row.officialBrand || item.componentBrand || '-')
-        + '\n立创：' + row.lcsc
-        + '\n\n（点【确定】入库后下次自动匹配，点【取消】仅本次回填）');
-      if (ok) {
-        try { addManualToMaterialDb(row, item); }
-        catch (e) { alert('入库失败：' + e.message); }
-      }
-    }, 100);
   });
-}
-
-// 把手工选用的候选写入物料库（字段名对齐 saveMaterialDB / exportMaterialData）
-// V2.1.5：立创搜索回来的是 LCSC 4 字段范式，强制入【立创库】（不走当前 Tab）
-function addManualToMaterialDb(row, item) {
-  // 防重复：同 lcsc_code 已存在就跳过（在立创库中查）
-  for (var i = 0; i < materialDB_lcsc.length; i++) {
-    if (materialDB_lcsc[i].lcsc_code === item.componentCode) {
-      alert('立创库中已存在 ' + item.componentCode + '，本次仅回填、未重复入库');
-      return;
-    }
-  }
-  // 立创库严格只保存型号、封装、嘉立创元件编号。
-  var rec = sanitizeLcscLibraryItem({
-    lcsc_code: row.lcsc || item.componentCode,
-    model: row.comment || item.componentModel || '',
-    package: row.officialPackage || item.componentSpecification || row.footprint || ''
-  });
-  if (row.verification !== 'verified') throw new Error('该编号尚未通过立创官方核验');
-  materialDB_lcsc.push(rec);
-  // 持久化立创库（不依赖 currentLib）
-  try {
-    localStorage.setItem('material_db_lcsc', JSON.stringify(materialDB_lcsc));
-    localStorage.setItem('material_db_lcsc_updated', new Date().toLocaleString('zh-CN'));
-  } catch (e) { console.error('addManual 保存失败：', e); }
-  // 如果当前 Tab 是立创库，刷新表格视图
-  if (currentLib === 'lcsc') {
-    setActiveLib('lcsc');
-    if (typeof loadMaterialTable === 'function') loadMaterialTable();
-  }
 }
 
 // 上传绑定
@@ -3885,6 +3844,7 @@ function toggleWorkflow(){
 // ==================== 物料库导入（Excel 真导入） ====================
 // 探测库文件格式：返回 'lcsc' / 'standard' / 'cost' / 'unknown'
 //   lcsc:    含 Comment型号 / Footprint封装 / 嘉立创元件编号，Designator 位号存在时忽略
+//   cost:    型号/封装/单价齐全，可含物料名称、立创编号和序号
 //   standard: 含 物料名称 或 参数描述
 //   unknown: 都不像
 function detectBomFormat(rows){
@@ -3904,7 +3864,10 @@ function detectBomFormat(rows){
   }
   var avgFields = fieldCnt / sampleN;
 
-  // 标准库特征强：物料名称或参数描述至少有一个
+  // 成本表允许名称，但不能借此把带公司专有字段的标准 BOM 判为成本表。
+  var costFields = ['序号', '#', '物料名称', '型号', '封装', '立创编号', '单价'];
+  var onlyCostFields = Object.keys(sample || {}).every(function(k){ return costFields.indexOf(k) >= 0; });
+  if (hasCostHeader && onlyCostFields) return 'cost';
   if (hasName || hasSpec) return 'standard';
   if (hasCostHeader) return 'cost';
   // 立创库特征：三个有效字段齐全；兼容旧 4 列文件，但忽略位号。
@@ -4059,7 +4022,7 @@ document.getElementById('btnImportMat').addEventListener('click', function(e){
         // V1.0.17：库管理导入严格按当前 Tab 写入，标准库/立创库互不自动切换。
         var detected = detectBomFormat(parsed.rows);
         if (detected !== 'unknown' && detected !== targetLib) {
-          var detectedName = ({lcsc:'立创库格式（3个有效字段，位号忽略）', standard:'公司标准格式（11列）', cost:'关键器件成本库格式（型号/封装/立创编号可空/单价）'}[detected] || detected);
+          var detectedName = ({lcsc:'立创库格式（3个有效字段，位号忽略）', standard:'公司标准库格式（含名称/参数等字段）', cost:'关键器件成本库格式（可含序号和物料名称）'}[detected] || detected);
           if (isCostLibraryBoundaryConflict(targetLib, detected)) {
             alert('检测到导入文件属于' + detectedName + '，与当前【' + targetLibName + '】不一致。\n\n为保证关键器件成本库与原有两个库相互独立，本次导入已阻止。请切换到正确的库 Tab 后重新导入。');
             return;
@@ -4095,6 +4058,7 @@ document.getElementById('btnImportMat').addEventListener('click', function(e){
           if (targetLib === 'cost') {
             var costItem = sanitizeCostLibraryItem({
               lcsc_code: lcscClean,
+              name: r['物料名称'],
               model: r['型号'],
               package: r['封装'],
               price: r['单价']
@@ -4223,6 +4187,7 @@ document.getElementById('btnImportMat').addEventListener('click', function(e){
             var oldScore = fieldScore(oldM);
             var newScore = fieldScore(m);
             if (targetLib === 'cost') {
+              if (m.name) oldM.name = m.name;
               oldM.model = m.model;
               oldM.package = m.package;
               if (m.lcsc_code) oldM.lcsc_code = m.lcsc_code;
@@ -4315,6 +4280,7 @@ function exportMaterialData() {
     data = exportRows.map(function(m, idx){
       return {
         '序号': idx + 1,
+        '物料名称': m.name || '',
         '型号': m.model || '',
         '封装': m.package || '',
         '立创编号': m.lcsc_code || '',
@@ -4405,8 +4371,8 @@ async function clearMaterialData() {
 
 // 一键修复参数描述格式：把所有非标准分隔的旧数据刷成 ", " 逗号分隔
 function cleanAllSpecs() {
-  var fixedDB = 0, fixedManual = 0;
-  // 1. 修标准库（立创库本身没参数描述字段，跳过）
+  var fixedDB = 0;
+  // 修标准库（立创库本身没参数描述字段，跳过）
   materialDB_standard.forEach(function(m){
     if (m.specification) {
       var before = m.specification;
@@ -4421,23 +4387,8 @@ function cleanAllSpecs() {
     localStorage.setItem('material_db_standard', JSON.stringify(materialDB_standard));
     localStorage.setItem('material_db_standard_updated', new Date().toLocaleString('zh-CN'));
   }
-  // 2. 修 MANUAL_DB（一键补齐 / 粘贴录入的库）
-  if (typeof MANUAL_DB === 'object' && MANUAL_DB) {
-    Object.keys(MANUAL_DB).forEach(function(k){
-      var v = MANUAL_DB[k];
-      if (v && v.specification) {
-        var before = v.specification;
-        var after = cleanSpec(before);
-        if (after !== before) {
-          v.specification = after;
-          fixedManual++;
-        }
-      }
-    });
-    if (fixedManual && typeof saveManualDB === 'function') saveManualDB();
-  }
   loadMaterialTable();
-  alert('✨ 修复完成！\n\n物料库：'+fixedDB+' 条\n手动补齐库：'+fixedManual+' 条\n\n下次导出 BOM 即按线下 BOM 模板格式输出：\n字段A：值A, 字段B：值B, 字段C：值C');
+  alert('✨ 修复完成！\n\n标准库：'+fixedDB+' 条\n\n下次导出 BOM 即按线下 BOM 模板格式输出：\n字段A：值A, 字段B：值B, 字段C：值C');
 }
 
 function renderCostLibraryTable(tbody, kw) {
@@ -4451,11 +4402,12 @@ function renderCostLibraryTable(tbody, kw) {
   if (lcscBadge) lcscBadge.textContent = materialDB_lcsc.length;
   if (stdBadge) stdBadge.textContent = materialDB_standard.length;
   if (costBadgeEl) costBadgeEl.textContent = materialDB_cost.length;
-  document.getElementById('matTableHead').innerHTML = '<tr><th>#</th><th>型号</th><th>封装</th><th>立创编号</th><th>单价</th><th>操作</th></tr>';
+  document.getElementById('matTableHead').innerHTML = '<tr><th>序号</th><th>物料名称</th><th>型号</th><th>封装</th><th>立创编号</th><th>单价</th><th>操作</th></tr>';
   var list = materialDB_cost;
   if (kw) {
     list = list.filter(function(m){
-      return (m.model || '').toLowerCase().indexOf(kw) >= 0
+      return (m.name || '').toLowerCase().indexOf(kw) >= 0
+        || (m.model || '').toLowerCase().indexOf(kw) >= 0
         || (m.package || '').toLowerCase().indexOf(kw) >= 0
         || (m.lcsc_code || '').toLowerCase().indexOf(kw) >= 0
         || String(m.price || '').toLowerCase().indexOf(kw) >= 0;
@@ -4464,13 +4416,14 @@ function renderCostLibraryTable(tbody, kw) {
   var h = list.slice(0, 5000).map(function(m, i){
     var realIdx = materialDB_cost.indexOf(m);
     return '<tr><td>' + (i + 1) + '</td>'
+      + '<td>' + esc(m.name || '') + '</td>'
       + '<td><b>' + esc(m.model || '') + '</b></td>'
       + '<td>' + esc(m.package || '') + '</td>'
       + '<td style="color:#0078b8">' + esc(m.lcsc_code || '-') + '</td>'
       + '<td><b>' + costMoney(costStrictPositivePrice(m.price), 6) + '</b></td>'
       + '<td><button onclick="deleteMaterialRow(' + realIdx + ')" style="background:#e74c3c;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px">删除</button></td></tr>';
   }).join('');
-  tbody.innerHTML = h || '<tr><td colspan="6" style="text-align:center;color:#999;padding:30px">暂无关键器件成本，请导入包含型号、封装、立创编号（可空）和单价的 Excel</td></tr>';
+  tbody.innerHTML = h || '<tr><td colspan="7" style="text-align:center;color:#999;padding:30px">暂无关键器件成本，请导入包含型号、封装、立创编号（可空）和单价的 Excel，序号和物料名称可选</td></tr>';
   renderLcscQuarantine();
 }
 
@@ -4664,74 +4617,11 @@ function updateMaterialSearchPlaceholder(){
   s.placeholder = currentLib === 'lcsc'
     ? '🔍 搜索 Comment型号 / Footprint封装 / 嘉立创元件编号...'
     : (currentLib === 'cost'
-      ? '🔍 搜索型号 / 封装 / 立创编号 / 单价...'
+      ? '🔍 搜索物料名称 / 型号 / 封装 / 立创编号 / 单价...'
       : '🔍 搜索物料编码 / 物料名称 / 型号 / 参数描述 / 品牌 / 立创编号...');
 }
 
 // ==================== 上传 ====================
-// A BOM 上传后自动入库：把 A 中"型号+封装"在物料库不存在的物料追加进库
-// 原则：增量合并，不覆盖已有，避免 A 里的脏数据冲掉历史良好记录
-// V2.1.5：强制入【标准库】（A BOM 是公司格式，含完整字段）
-function autoImportFromBom(parsed, sourceName){
-  if (!parsed || !parsed.rows || !parsed.rows.length) return {added:0, skipped:0};
-  var isCloudAdmin = window.BOM_API && typeof window.BOM_API.isAdmin === 'function' && window.BOM_API.isAdmin();
-  if (!isCloudAdmin) return {added:0, skipped:0, invalid:0, total: parsed.rows.length, permissionSkipped:true};
-  // 直接操作 materialDB_standard，不动当前 Tab
-  var targetDB = materialDB_standard;
-  var seen = {};
-  targetDB.forEach(function(m){
-    var k = ((m.model||'')+'|'+(m.package||'')).toLowerCase();
-    if (k !== '|') seen[k] = true;
-  });
-  var added = 0, skipped = 0, invalid = 0;
-  parsed.rows.forEach(function(r){
-    var model = (r['型号'] || '').toString().trim();
-    var pkg = (r['封装'] || '').toString().trim();
-    var name = (r['物料名称'] || '').toString().trim();
-    var spec = (r['参数描述'] || '').toString().trim();
-    // 净化参数描述（与手动导入一致）
-    if (spec) spec = cleanSpec(spec);
-    // 关键字段缺失则跳过
-    if (!model && !pkg) { invalid++; return; }
-    if (!model || (!name && !spec)) { invalid++; return; }
-    var k = (model+'|'+pkg).toLowerCase();
-    if (seen[k]) { skipped++; return; }
-    // 立创编号严格只从立创编号列取（与手动导入逻辑一致）
-    var rawLcsc = (r['立创编号'] || '').toString().trim();
-    var lcscClean = '';
-    var lm = rawLcsc.toUpperCase().match(/C\d{3,}/);
-    if (lm) lcscClean = lm[0];
-    targetDB.push({
-      idx: targetDB.length + 1,
-      lcsc_code: lcscClean,
-      model: model,
-      package: pkg,
-      name: name,
-      specification: spec,
-      brand: (r['品牌'] || '').toString().trim(),
-      material_code: (r['物料编码'] || '').toString().trim(),
-      unit: (r['单位'] || 'PCS').toString().trim(),
-      mfg_part: model,  // A BOM 型号列就是厂家料号，存入 mfg_part 供电感/磁珠型号替换
-      _src: 'standard',
-      _source: 'bom-auto:' + (sourceName || 'A'),
-      _imported_at: new Date().toLocaleString('zh-CN')
-    });
-    seen[k] = true;
-    added++;
-  });
-  if (added > 0) {
-    // 持久化标准库（不依赖 currentLib 状态）
-    try {
-      localStorage.setItem('material_db_standard', JSON.stringify(materialDB_standard));
-      localStorage.setItem('material_db_standard_updated', new Date().toLocaleString('zh-CN'));
-    } catch(e){ console.error('autoImport 保存失败：', e); }
-    // 如果当前 Tab 是标准库，刷新视图；指针可能已失效，重新指
-    if (currentLib === 'standard') setActiveLib('standard');
-    loadMaterialTable();
-  }
-  return {added: added, skipped: skipped, invalid: invalid, total: parsed.rows.length};
-}
-
 function bindUpload(btnId,boxId,msgId,fmId,side){
   var inpId = 'file' + side;  // fileA / fileB（静态 input，避免被扩展拦截动态创建）
   var btn = document.getElementById(btnId);
@@ -4759,14 +4649,6 @@ function bindUpload(btnId,boxId,msgId,fmId,side){
           A._wb = wb;
           A._dataStartRow = p._hi;
           A._bomSheetName = p._sn;
-          try {
-            var imp = autoImportFromBom(p, f.name);
-            if (imp.added > 0) {
-              showAutoImportToast('✨ A BOM 已自动入库 ' + imp.added + ' 条新物料（库内已有 ' + imp.skipped + ' 条跳过）');
-            }
-          } catch(impErr) {
-            console.warn('A BOM 自动入库失败：', impErr);
-          }
         } else {
           B = p; B._fn = f.name;
         }
@@ -5465,24 +5347,6 @@ bindOfflineUpload('offBtnB','offBoxB','offMsgB','offFmB','B');
 document.getElementById('offGoBtn').onclick = doOfflineCompare;
 document.getElementById('offExpBtn').onclick = exportOfflineReport;
 
-// 轻量级吐司提示（不打断 alert，3 秒自动消失）
-function showAutoImportToast(msg){
-  var existing = document.getElementById('autoImpToast');
-  if (existing) existing.parentNode.removeChild(existing);
-  var t = document.createElement('div');
-  t.id = 'autoImpToast';
-  t.style.cssText = 'position:fixed;top:80px;right:20px;background:linear-gradient(135deg,#1ABC9C,#16a085);color:#fff;padding:12px 20px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15);font-size:14px;z-index:10000;max-width:360px;line-height:1.5;animation:slideIn 0.3s ease-out';
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(function(){
-    if (t.parentNode) {
-      t.style.transition = 'opacity 0.4s';
-      t.style.opacity = '0';
-      setTimeout(function(){ if (t.parentNode) t.parentNode.removeChild(t); }, 400);
-    }
-  }, 4000);
-}
-
 // ==================== 解析BOM ====================
 function parse(wb){
   var sn=wb.SheetNames.find(function(n){return n.includes('BOM')||n.includes('bom')})||wb.SheetNames[0];
@@ -5963,7 +5827,7 @@ function setCompareActionsReady(ready){
     var btn = document.getElementById(id);
     if (!btn) return;
     btn.disabled = !ready;
-    btn.title = ready ? '' : '请先完成对比';
+    btn.title = ready ? '' : '请先检查差异';
   });
 }
 
@@ -6185,7 +6049,7 @@ document.getElementById('lcBtn').onclick = function() {
   ws['!cols'] = [{wch:14},{wch:20},{wch:14},{wch:12},{wch:12},{wch:24},{wch:50},{wch:28}];
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '立创查询清单');
-  XLSX.writeFile(wb, '立创查询清单_待补录入库_'+new Date().toISOString().split('T')[0]+'.xlsx');
+  XLSX.writeFile(wb, '立创查询清单_待补齐_'+new Date().toISOString().split('T')[0]+'.xlsx');
 };
 
 // ==================== 渲染总览 ====================
@@ -6885,7 +6749,7 @@ function fmtCore(dir, lcscIdentityByCode){
 document.getElementById('fmtAB').onclick=function(){fmt('AB')};
 
 // ==================== 启动 ====================
-// 三库加载 + 老数据自动迁移
+// 三库加载；旧版单库缓存不自动迁入标准库。
 (function loadDualLib(){
   var lcscRaw = localStorage.getItem('material_db_lcsc');
   var stdRaw = localStorage.getItem('material_db_standard');
@@ -6904,26 +6768,6 @@ document.getElementById('fmtAB').onclick=function(){fmt('AB')};
       materialDB_cost = sanitizeCostLibraryItems(JSON.parse(costRaw) || []);
       localStorage.setItem('material_db_cost', JSON.stringify(materialDB_cost));
     } catch(e){ materialDB_cost = []; }
-  }
-  // 一次性迁移：老 material_db → material_db_standard
-  // 旧版本只有一个库，里面混着两类数据，按公司标准库迁移最安全（字段最全）
-  // 迁移后保留旧 key 7 天供回滚（不主动删）
-  if (!stdRaw && !lcscRaw) {
-    var legacyRaw = localStorage.getItem('material_db');
-    if (legacyRaw) {
-      try {
-        var legacy = JSON.parse(legacyRaw) || [];
-        materialDB_standard = legacy;
-        localStorage.setItem('material_db_standard', JSON.stringify(legacy));
-        var nowTs = new Date().toLocaleString('zh-CN');
-        var legacyUpd = localStorage.getItem('material_db_updated') || nowTs;
-        localStorage.setItem('material_db_standard_updated', legacyUpd);
-        localStorage.setItem('material_db_migrated_at', nowTs);
-        console.log('[V2.1.5 迁移] 老库 ' + legacy.length + ' 条已迁移到 material_db_standard，老 key 保留供回滚');
-      } catch(e){
-        console.error('[V2.1.5 迁移] 老库解析失败：', e);
-      }
-    }
   }
   // 默认激活标准库
   setActiveLib('standard');
@@ -6989,39 +6833,6 @@ function matchForLcsc(row){
 function matchForStandard(row){
   return matchInLib('standard', function(){ return matchMaterial(row); });
 }
-
-// ==================== 手动补齐库（localStorage） ====================
-// 存结构：{ "MODEL|PKG": {model, package, name, specification, brand, lcsc_code, material_code, unit} }
-var MANUAL_DB = {};
-try { MANUAL_DB = JSON.parse(localStorage.getItem('manual_enrich_db') || '{}'); } catch(e){ MANUAL_DB = {}; }
-
-function manualKey(model, pkg){
-  return (normModel(model) + '|' + normPkg(pkg));
-}
-function saveManualDB(){
-  localStorage.setItem('manual_enrich_db', JSON.stringify(MANUAL_DB));
-  // 合并进【标准库】（V2.1.5：手动补齐的都是公司格式，含 name/specification）
-  var existing = new Set(materialDB_standard.map(function(m){ return manualKey(m.model, m.package); }));
-  var changed = false;
-  Object.keys(MANUAL_DB).forEach(function(k){
-    if (!existing.has(k)) { materialDB_standard.push(MANUAL_DB[k]); changed = true; }
-  });
-  if (changed) {
-    try {
-      localStorage.setItem('material_db_standard', JSON.stringify(materialDB_standard));
-    } catch(e){}
-    if (currentLib === 'standard') setActiveLib('standard');
-  }
-}
-// 启动时合并手动库到标准库
-(function mergeManualOnBoot(){
-  var existing = new Set(materialDB_standard.map(function(m){ return manualKey(m.model, m.package); }));
-  Object.keys(MANUAL_DB).forEach(function(k){
-    if (!existing.has(k)) materialDB_standard.push(MANUAL_DB[k]);
-  });
-  // 重指当前指针（数组内容变了，指针仍是同一个数组对象，无需重指；但保险起见同步）
-  if (currentLib === 'standard') setActiveLib('standard');
-})();
 
 // ==================== 自动生成描述（规律型器件） ====================
 // 返回 {name, specification, brand, type} 或 null
@@ -7235,19 +7046,6 @@ function applyLcscToRow(item, data){
 
   // 关键：把参数描述转 A 风格紧凑式（电容/电阻/电感）
   if (row['参数描述']) row['参数描述'] = toAStyleSpec(row['参数描述'], row);
-  // 同步存入 MANUAL_DB（下次同型号秒命中，跨 BOM 持续生效）
-  MANUAL_DB[manualKey(item.model, item.pkg)] = {
-    model: item.model,
-    package: item.pkg || data.package || '',
-    name: data.productType || '',
-    specification: row['参数描述'] || data.specification || '',
-    brand: data.brand || '',
-    lcsc_code: data.productCode || '',
-    material_code: '',
-    unit: data.unit || 'PCS',
-    mfg_part: data.productModel || '',
-    _source: 'lcsc-worker'
-  };
   return true;
 }
 
@@ -7274,7 +7072,6 @@ function autoFetchRow(idx){
       if (!resp.data || !resp.data.hit) throw new Error('立创未找到该编号商品');
       var ok = applyLcscToRow(item, resp.data);
       if (!ok) throw new Error('数据应用失败');
-      saveManualDB();
       // 重跑匹配刷 UI
       analyzeMaterialMatch();
       // 友好提示
@@ -7285,7 +7082,7 @@ function autoFetchRow(idx){
           + '封装：'+(d.package||'')+'\n'
           + '类目：'+(d.productType||'')+'\n'
           + '参数：'+(d.specification||'(无)')+'\n\n'
-          + '已存入「手动补齐库」，下次同型号秒命中。');
+          + '已填入当前 BOM，不会写入物料库。');
     })
     .catch(function(e){
       alert('❌ 拉取立创参数失败：' + e.message + '\n\n建议改用「📋 贴参数」手动录入。');
@@ -7473,7 +7270,6 @@ function batchAutoFetchAll(){
         fail++; failCodes.push(code);
       }
     });
-    saveManualDB();
     analyzeMaterialMatch();
     var msg = '✅ 批量补齐完成\n\n'
         + '成功：'+ok+'\n'
@@ -7483,7 +7279,7 @@ function batchAutoFetchAll(){
       msg += '\n（其中 batch 重试 '+stats.batchRetry+' 次，单颗兜底救回 '+stats.singleOK+' 颗）';
     }
     if (failCodes.length) msg += '\n\n失败编号：'+failCodes.slice(0,8).join(', ')+(failCodes.length>8?' ...':'');
-    msg += '\n\n所有成功项已存入「手动补齐库」，下次秒命中。';
+    msg += '\n\n所有成功项仅填入当前 BOM，不会写入物料库。';
     if (bar) bar.innerHTML = origInfo;
     alert(msg);
   }).catch(function(e){
@@ -7492,7 +7288,7 @@ function batchAutoFetchAll(){
   });
 }
 
-// 单行自动生成 → 写入 B 行 + 存手动库
+// 单行自动生成，仅填入当前 B BOM
 function autoFillRow(idx){
   var item = MM_RESULT[idx];
   if (!item) return;
@@ -7501,22 +7297,9 @@ function autoFillRow(idx){
   var row = item.row;
   if (!row['物料名称']) row['物料名称'] = desc.name;
   if (!row['参数描述']) row['参数描述'] = desc.specification;
-  // 存手动库（方便下次同型号复用）
-  MANUAL_DB[manualKey(item.model, item.pkg)] = {
-    model: item.model,
-    package: item.pkg,
-    name: desc.name,
-    specification: desc.specification,
-    brand: desc.brand || '',
-    lcsc_code: '',
-    material_code: '',
-    unit: 'PCS',
-    _source: 'auto'
-  };
-  saveManualDB();
   // 重跑匹配刷新 UI
   analyzeMaterialMatch();
-  alert('✅ 已按 A 风格生成并填入：\n\n'+desc.specification+'\n\n也已存入「手动补齐库」，下次同型号秒命中。');
+  alert('✅ 已按参考样表格式填入当前 BOM：\n\n'+desc.specification);
 }
 
 // ==================== 粘贴立创参数 → 翻译 ====================
@@ -7624,19 +7407,6 @@ function pdApply(){
   if (!item.row['物料名称']) item.row['物料名称'] = name;
   if (!item.row['参数描述']) item.row['参数描述'] = spec;
   if (!item.row['品牌']) item.row['品牌'] = brand;
-  // 存手动库
-  MANUAL_DB[manualKey(item.model, item.pkg)] = {
-    model: item.model,
-    package: item.pkg,
-    name: name,
-    specification: spec,
-    brand: brand,
-    lcsc_code: item.lcsc || '',
-    material_code: '',
-    unit: 'PCS',
-    _source: 'paste'
-  };
-  saveManualDB();
   closePasteDlg();
   analyzeMaterialMatch();
 }
@@ -7651,15 +7421,9 @@ function batchAutoFillAll(){
     if (!desc) return;
     if (!x.row['物料名称']) x.row['物料名称'] = desc.name;
     if (!x.row['参数描述']) x.row['参数描述'] = desc.specification;
-    MANUAL_DB[manualKey(x.model, x.pkg)] = {
-      model: x.model, package: x.pkg,
-      name: desc.name, specification: desc.specification, brand: '',
-      lcsc_code: '', material_code: '', unit: 'PCS', _source: 'auto'
-    };
     ok++;
   });
   if (ok > 0) {
-    saveManualDB();
     analyzeMaterialMatch();
     alert('✅ 自动补齐 '+ok+' 项（电阻/电容等规律型器件）\n剩下 '+(miss.length-ok)+' 项需要「📋 贴参数」手动录入');
   } else {
@@ -7707,17 +7471,12 @@ function batchAutoFillAll(){
           var t = ev.target;
           if (!t || t.tagName !== 'BUTTON') return;
           var oc = t.getAttribute('onclick') || '';
-          if (/deleteMaterialRow|addManualToMaterialDb/.test(oc)) {
+          if (/deleteMaterialRow/.test(oc)) {
             ev.preventDefault(); ev.stopPropagation();
             alert('只有管理员可以修改共享物料库器件');
           }
         }, true);
       }
-      // 「✅ 应用填入 & 存入库」（粘贴立创参数对话框）→ 改文案 + 拦截存库副作用
-      document.querySelectorAll('#pasteDlg button[onclick^="pdApply"]').forEach(function(b){
-        b.textContent = '✅ 应用填入（仅本次 BOM）';
-        b.title = '成员账号：参数只贴回当前 BOM，不会写入共享物料库';
-      });
     }
 
     // ---- readonly：所有写动作禁用 ----
@@ -7777,12 +7536,12 @@ function batchAutoFillAll(){
     </div>
     <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
       <button onclick="closePasteDlg()" style="background:#eee;border:none;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:13px">取消</button>
-      <button onclick="pdApply()" style="background:#34a853;color:#fff;border:none;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:13px">✅ 应用填入 &amp; 存入库</button>
+      <button onclick="pdApply()" style="background:#34a853;color:#fff;border:none;border-radius:6px;padding:8px 18px;cursor:pointer;font-size:13px">✅ 应用填入当前BOM</button>
     </div>
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.24 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.25 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>

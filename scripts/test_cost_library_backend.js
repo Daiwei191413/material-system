@@ -15,6 +15,7 @@ const helperNames = [
   'makeMaterialSyncKey',
   'materialIdentityError',
   'validCostPrice',
+  'materialParams',
   'requireLib',
 ];
 
@@ -49,6 +50,9 @@ for (const target of targets) {
   );
   assert.strictEqual(h.makeMaterialSyncKey('cost', { model: 'Key-A' }), '', `${target}: package was not required`);
   assert.strictEqual(h.makeMaterialSyncKey('cost', { package: 'QFN-32' }), '', `${target}: model was not required`);
+  const namedCostItem = { model: 'Key-A', package: 'QFN 32', name: '无线收发芯片', idx: 99, price: '3.21' };
+  assert.strictEqual(h.makeMaterialSyncKey('cost', namedCostItem), 'cost:key-a|qfn 32', `${target}: optional metadata changed cost identity`);
+  assert.strictEqual(h.materialParams(namedCostItem, 1, 'cost', 'cost:key-a|qfn 32', false)[3], namedCostItem.name, `${target}: cost name was not included in database parameters`);
   assert(h.validCostPrice({ price: '3.21' }), `${target}: valid cost price rejected`);
   assert(!h.validCostPrice({ price: '0' }), `${target}: zero cost price accepted`);
   assert(!h.validCostPrice({ price: '-1' }), `${target}: negative cost price accepted`);
