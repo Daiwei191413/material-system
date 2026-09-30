@@ -1,0 +1,149 @@
+﻿[
+    {
+        "id":  [
+                   "1",
+                   "admin",
+                   null,
+                   "管理员",
+                   "/mJ6ufXDzh9dK2lhYs603Q==.2MJ9ckIMlWacbtqi034HV/zP4vYS9W+Ix4SAjolPgcc=",
+                   "admin",
+                   "0",
+                   "2026-06-22 16:04:12.088057+08",
+                   "2026-06-22 16:51:42.538572+08"
+               ],
+        "username":  null,
+        "phone":  null,
+        "display_name":  null,
+        "password_hash":  null,
+        "role":  null,
+        "must_change_password":  null,
+        "created_at":  null,
+        "updated_at":  null
+    },
+    {
+        "id":  [
+                   "2",
+                   "wangxin",
+                   null,
+                   "王鑫",
+                   "m8+F4u2ltIUb5t4cqio03Q==.1x9j8MqZmgpXMk8HXalW+x15FTKK0hD7fduNBXvLHbA=",
+                   "admin",
+                   "1",
+                   "2026-06-22 16:52:45.653287+08",
+                   "2026-06-22 16:59:37.876233+08"
+               ],
+        "username":  null,
+        "phone":  null,
+        "display_name":  null,
+        "password_hash":  null,
+        "role":  null,
+        "must_change_password":  null,
+        "created_at":  null,
+        "updated_at":  null
+    },
+    {
+        "id":  [
+                   "3",
+                   "lianguoliang",
+                   null,
+                   "连国良",
+                   "gJXhTSQGQgZYoPG638utmw==.6C0RKUIVXTdnEXGmQNLzU/aJc4WA4Ds2//XaQngIfeE=",
+                   "member",
+                   "1",
+                   "2026-06-22 16:53:15.585881+08",
+                   "2026-06-22 16:54:59.837696+08"
+               ],
+        "username":  null,
+        "phone":  null,
+        "display_name":  null,
+        "password_hash":  null,
+        "role":  null,
+        "must_change_password":  null,
+        "created_at":  null,
+        "updated_at":  null
+    },
+    {
+        "id":  [
+                   "4",
+                   "lingyinxi",
+                   null,
+                   "林英喜",
+                   "YW3qgAHOem0AsC78rcx3JA==.yKDWqX3q7Sns1gxQBVKEPx7NmZsoyIf8pfv2Yusqhn8=",
+                   "member",
+                   "1",
+                   "2026-06-22 16:53:40.002071+08",
+                   "2026-06-22 16:53:40.002071+08"
+               ],
+        "username":  null,
+        "phone":  null,
+        "display_name":  null,
+        "password_hash":  null,
+        "role":  null,
+        "must_change_password":  null,
+        "created_at":  null,
+        "updated_at":  null
+    },
+    {
+        "id":  [
+                   "6",
+                   "haodaiwei",
+                   null,
+                   "郝戴纬",
+                   "rcScVKlCr1R9nmghLm52gw==.heA6Ks6gjLRZArStizRwFKjazr2wyrz0HAD55phLRto=",
+                   "member",
+                   "1",
+                   "2026-06-22 17:32:22.580969+08",
+                   "2026-06-22 17:33:45.489535+08"
+               ],
+        "username":  null,
+        "phone":  null,
+        "display_name":  null,
+        "password_hash":  null,
+        "role":  null,
+        "must_change_password":  null,
+        "created_at":  null,
+        "updated_at":  null
+    },
+    {
+        "id":  [
+                   "7",
+                   "ouyajun",
+                   null,
+                   "欧雅君",
+                   "Tbq/SbGy4Nh6ciz01m5kdg==.ZwBN+uguNDFp3/b7GcjI0/U28ADVUb7JKZKD7CUvII0=",
+                   "member",
+                   "1",
+                   "2026-07-20 17:13:38.096129+08",
+                   "2026-07-20 17:13:38.096129+08"
+               ],
+        "username":  null,
+        "phone":  null,
+        "display_name":  null,
+        "password_hash":  null,
+        "role":  null,
+        "must_change_password":  null,
+        "created_at":  null,
+        "updated_at":  null
+    },
+    {
+        "id":  [
+                   "8",
+                   "meishengtao",
+                   null,
+                   "梅胜涛",
+                   "dd8kmYHWs35MEecGSINw8g==.MQE5wj/nCc+rZH4aEsEiEnwPfpy5k5aEdy6uqUqsGhU=",
+                   "member",
+                   "1",
+                   "2026-07-22 18:23:09.05954+08",
+                   "2026-07-22 18:23:09.05954+08"
+               ],
+        "username":  null,
+        "phone":  null,
+        "display_name":  null,
+        "password_hash":  null,
+        "role":  null,
+        "must_change_password":  null,
+        "created_at":  null,
+        "updated_at":  null
+    }
+]
