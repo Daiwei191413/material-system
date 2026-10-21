@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const http = require('http');
 
 const PORT = Number(process.env.PORT || 9000);
-const VERSION = 'V1.0.17';
+const VERSION = 'V1.0.18';
 const JLC_BASE = 'https://open-api.jlc.com';
 const JLC_QUERY_PATH = '/smtOpenApi/smtComponent/selectComponentInfoByCodes';
 const JLC_SEARCH_PATH = '/smtOpenApi/order/selectComponentInfo';
@@ -112,10 +112,17 @@ function paramText(paramTextAll) {
     .join(', ');
 }
 
+function toleranceFromText(value) {
+  const match = String(value || '').match(/±\s*\d+(?:\.\d+)?\s*(?:%|[pnuμµ]F)(?=$|[\s,，;；/|])/i);
+  return match ? match[0].replace(/\s+/g, '') : '';
+}
+
 function toCompatData(query, item) {
   if (!item) return { query, hit: false, error: '立创未找到该编号' };
   const params = paramMap(item.paramTextAll);
   const extract = (keys) => keys.find((key) => params[key]) ? params[keys.find((key) => params[key])] : '';
+  const tolerance = extract(['精度', '容差', '误差', 'Tolerance', '容许差'])
+    || toleranceFromText(item.componentName);
   return {
     query,
     hit: true,
@@ -133,7 +140,7 @@ function toCompatData(query, item) {
     _extracted: {
       capacitance: extract(['容值', '电容量', 'Capacitance']),
       resistance: extract(['阻值', '电阻值', 'Resistance']),
-      tolerance: extract(['精度', '容差', '误差', 'Tolerance', '容许差']),
+      tolerance,
       voltage: extract(['额定电压', '耐压', 'Voltage', '工作电压']),
       dielectric: extract(['介质材料', '材质', '温度系数', 'Dielectric']),
       current: extract(['额定电流', '电流', 'Current']),

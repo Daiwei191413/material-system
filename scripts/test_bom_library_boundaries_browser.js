@@ -60,9 +60,9 @@ const targets = [
       assert.strictEqual(initial.manual, 'OLD');
       assert(initial.hasManagerImport, `${label}: library-management import remains available`);
       assert.match(await page.locator('.nav-btn[onclick="showPanel(\'compare\')"]').textContent(), /立创BOM转线下BOM/);
-      assert.match(await page.locator('#goBtn').textContent(), /检查两份BOM差异/);
+      assert.match(await page.locator('#goBtn').textContent(), /检查立创BOM/);
       assert.match(await page.locator('#fmtAB').textContent(), /生成线下BOM/);
-      assert.match(await page.locator('#expBtn').textContent(), /导出差异报告/);
+      assert.strictEqual(await page.locator('#expBtn').isVisible(), false, `${label}: obsolete difference export is visible`);
       await page.evaluate(() => showPanelDirect('compare'));
 
       await page.evaluate(() => {
@@ -71,6 +71,19 @@ const targets = [
         window.confirm = () => true;
         const fields = ['位号', '型号', '封装', '数量', '物料名称', '参数描述', '品牌', '单位'];
         const fm = Object.fromEntries(fields.map((field) => [field, field]));
+        window.A = { rows:[], fm, hd:fields, _hi:0, _sn:'单板BOM', _raw:new Uint8Array([1]) };
+        window.materialDB_standard = [{model:'SAFE-STANDARD',package:'SAFE',material_code:'1-TEST-00001'}];
+        window.setActiveLib('standard');
+        window.BOM_STANDARD_SYNC = {status:'ready',count:1,error:''};
+        window.verifyBomAuthority = () => Promise.resolve({mismatches:[],failedCodes:[],byCode:Object.create(null)});
+        window.JSZip = function(){};
+        window.patchAndDownloadXlsx = () => {
+          window.__exportedBom = {SheetNames:['整理后BOM']};
+          return Promise.resolve();
+        };
+        document.getElementById('boardName').value = '回归测试主板';
+        document.getElementById('boardErp').value = 'A-TEST-00001';
+        document.getElementById('boardVersion').value = 'V1.0';
         window.parse = () => ({
           rows: [{
             '位号': 'R1', '型号': '10K SR0402', '封装': 'SR0402', '数量': '1',
@@ -94,17 +107,13 @@ const targets = [
           writeFile: (workbook) => { window.__exportedBom = workbook; },
         };
       });
-      await page.locator('#fileA').setInputFiles({
-        name: 'reference.xlsx', mimeType: 'application/octet-stream', buffer: Buffer.from('A'),
-      });
-      await page.waitForFunction(() => window.A && window.A.rows.length === 1);
       const afterUpload = await page.evaluate(() => ({
         standard: materialDB_standard.length,
         standardCache: localStorage.getItem('material_db_standard'),
         lcsc: materialDB_lcsc.length,
         hasAutoImportToast: !!document.getElementById('autoImpToast'),
       }));
-      assert.strictEqual(afterUpload.standard, 0, `${label}: A upload added a standard material`);
+      assert.strictEqual(afterUpload.standard, 1, `${label}: standard test fixture was lost`);
       assert.strictEqual(afterUpload.standardCache, null, `${label}: A upload wrote the standard cache`);
       assert.strictEqual(afterUpload.lcsc, 0);
       assert.strictEqual(afterUpload.hasAutoImportToast, false);
@@ -116,8 +125,7 @@ const targets = [
       await page.evaluate(() => doCompare());
       assert.strictEqual(await page.locator('#fmtAB').isDisabled(), false, `${label}: generation is not enabled`);
       await page.evaluate(() => {
-        A._raw = null;
-        fmt('AB');
+        fmtCore('AB', Object.create(null));
       });
       await page.waitForFunction(() => !!window.__exportedBom);
 
@@ -141,7 +149,7 @@ const targets = [
         };
       });
       assert(afterGenerate.exported, `${label}: BOM was not generated`);
-      assert.strictEqual(afterGenerate.standard, 0, `${label}: enrichment changed standard library`);
+      assert.strictEqual(afterGenerate.standard, 1, `${label}: enrichment changed standard library`);
       assert.strictEqual(afterGenerate.standardCache, null);
       assert.strictEqual(afterGenerate.lcsc, 0);
       assert.strictEqual(afterGenerate.lcscCache, null);

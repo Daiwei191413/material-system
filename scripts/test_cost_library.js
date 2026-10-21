@@ -25,8 +25,8 @@ assert(edgePath, 'Microsoft Edge executable not found; set EDGE_PATH to run this
 
 const repoRoot = path.resolve(__dirname, '..');
 const targets = [
-  ['domestic', 'v3-cloudbase/web/index.html', 'V1.0.26'],
-  ['overseas', 'v3-legacy/index.html', 'V3.0.50'],
+  ['domestic', 'v3-cloudbase/web/index.html', 'V1.0.38'],
+  ['overseas', 'v3-legacy/index.html', 'V3.0.62'],
 ];
 
 (async () => {
@@ -248,7 +248,7 @@ const targets = [
       standard: { lcsc: 1, standard: 0, cost: 1, lcscStored: true, standardStored: false, costStored: true },
       cost: { lcsc: 1, standard: 1, cost: 0, lcscStored: true, standardStored: true, costStored: false },
     }, `${label}: clearing one library changed another library`);
-    assert(result.clearPrompts.length === 3 && result.clearPrompts.every((prompt) => prompt.includes('其他两个库不受影响')), `${label}: clear prompt does not explain three-library isolation`);
+    assert(result.clearPrompts.length === 3 && result.clearPrompts.every((prompt) => prompt.includes('其他库不受影响')), `${label}: clear prompt does not explain library isolation`);
     console.log(`${label}: cost-library matching and price-priority flow passed`);
   }
 

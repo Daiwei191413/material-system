@@ -147,9 +147,11 @@ function makeMaterialSyncKey(lib, item) {
   const brand = cleanText(item.brand || item['品牌']);
   const name = cleanText(item.name || item['物料名称']);
   const spec = cleanText(item.specification || item['参数描述']);
+  const category = cleanText(item.category || item['分类']);
 
   if (lib === 'lcsc') return lcsc ? `lcsc:${lcsc}` : '';
   if (lib === 'cost') return model && pkg ? `cost:${normText(model)}|${normText(pkg)}` : '';
+  if (lib === 'standard' && category === '射频电感指定件' && lcsc) return `rf:${lcsc}`;
   if (materialCode) return `mat:${normText(materialCode)}`;
   if (lcsc) return `lcsc:${lcsc}`;
   if (model || pkg || brand || name || spec) {

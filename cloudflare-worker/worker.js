@@ -24,7 +24,8 @@
  * 作者：开发助理 (hdv_dev_bot) for 戴纬哥 · 技象科技
  */
 
-const VERSION = 'v1.0.10';
+const VERSION = 'v1.0.11';
+const COMPONENT_CACHE_PREFIX = 'jlc:v11:';
 const JLC_BASE = 'https://open-api.jlc.com';
 const JLC_PATH = '/smtOpenApi/smtComponent/selectComponentInfoByCodes';
 const JLC_SEARCH_PATH = '/smtOpenApi/order/selectComponentInfo';
@@ -207,6 +208,11 @@ function jlcParamToMap(paramTextAll) {
   return out;
 }
 
+function toleranceFromText(value) {
+  const match = String(value || '').match(/±\s*\d+(?:\.\d+)?\s*(?:%|[pnuμµ]F)(?=$|[\s,，;；/|])/i);
+  return match ? match[0].replace(/\s+/g, '') : '';
+}
+
 function jlcToCompatData(query, jlcItem) {
   if (!jlcItem) {
     return { query, hit: false, error: '立创未找到该编号' };
@@ -220,6 +226,8 @@ function jlcToCompatData(query, jlcItem) {
     }
     return '';
   };
+  const tolerance = extract(['精度', '容差', '误差', 'Tolerance', '容许差'])
+    || toleranceFromText(jlcItem.componentName);
 
   return {
     query,
@@ -239,7 +247,7 @@ function jlcToCompatData(query, jlcItem) {
     _extracted: {
       capacitance: extract(['容值', '电容量', 'Capacitance']),
       resistance: extract(['阻值', '电阻值', 'Resistance']),
-      tolerance: extract(['精度', '容差', '误差', 'Tolerance', '容许差']),
+      tolerance,
       voltage: extract(['额定电压', '耐压', 'Voltage', '工作电压']),
       dielectric: extract(['介质材料', '材质', '温度系数', 'Dielectric']),
       current: extract(['额定电流', '电流', 'Current']),
@@ -342,7 +350,7 @@ async function handleBatchInternal(queryList, env, ctx) {
   let cacheHits = 0;
   if (env && env.LCSC_CACHE && validCodes.length > 0) {
     const cacheReads = await Promise.all(
-      validCodes.map((c) => env.LCSC_CACHE.get(`jlc:${c}`, { type: 'json' })),
+      validCodes.map((c) => env.LCSC_CACHE.get(`${COMPONENT_CACHE_PREFIX}${c}`, { type: 'json' })),
     );
     for (let i = 0; i < validCodes.length; i++) {
       if (cacheReads[i]) {
@@ -375,10 +383,10 @@ async function handleBatchInternal(queryList, env, ctx) {
         cacheMap[code] = data;
         if (env && env.LCSC_CACHE) {
           if (data.hit) {
-            writes.push(env.LCSC_CACHE.put(`jlc:${code}`, JSON.stringify(data), { expirationTtl: CACHE_TTL }));
+            writes.push(env.LCSC_CACHE.put(`${COMPONENT_CACHE_PREFIX}${code}`, JSON.stringify(data), { expirationTtl: CACHE_TTL }));
           } else {
             // 不存在的 code 缓存 1 天，避免反复打 API
-            writes.push(env.LCSC_CACHE.put(`jlc:${code}`, JSON.stringify(data), { expirationTtl: 86400 }));
+            writes.push(env.LCSC_CACHE.put(`${COMPONENT_CACHE_PREFIX}${code}`, JSON.stringify(data), { expirationTtl: 86400 }));
           }
         }
       }

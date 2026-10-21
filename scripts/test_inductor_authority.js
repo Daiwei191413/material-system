@@ -5,8 +5,8 @@ const vm = require('vm');
 
 const repoRoot = path.resolve(__dirname, '..');
 const targets = [
-  { file: 'v3-cloudbase/web/index.html', version: 'V1.0.26' },
-  { file: 'v3-legacy/index.html', version: 'V3.0.50' },
+  { file: 'v3-cloudbase/web/index.html', version: 'V1.0.38' },
+  { file: 'v3-legacy/index.html', version: 'V3.0.62' },
 ];
 
 function section(html, start, end) {
@@ -23,9 +23,14 @@ function section(html, start, end) {
     assert(html.includes(target.version), `${target.file}: expected version ${target.version} missing`);
     assert(!html.includes('位号反查 A BOM'), `${target.file}: template position override still exists`);
     assert(!html.includes("if (aRow['型号']) clone['_mfgPart']"), `${target.file}: template model still overwrites B`);
-    assert(html.includes('A 模板只提供列顺序、封面和样式'), `${target.file}: format-only boundary missing`);
+    assert(html.includes('模板中的示例物料只用于格式参考，绝不参与数据比对或转换'), `${target.file}: format-only boundary missing`);
 
     const helpers = section(html, 'function parseInductanceNh(raw)', 'var fmtBusy = false;');
+    const inductorNaming = section(
+      html,
+      'function basicInductorDescription(row)',
+      '// ==================== A 标准型号规范化',
+    );
     const specBuilder = section(
       html,
       'function buildSpecFromExtracted(ext, productType, pkg)',
@@ -57,10 +62,13 @@ function section(html, start, end) {
         codes.map((code) => [code, { ok: true, data: official }]),
       ),
     };
-    vm.runInNewContext(`${specBuilder}\n${helpers}`, context, { filename: target.file });
+    vm.runInNewContext(`${inductorNaming}\n${specBuilder}\n${helpers}`, context, { filename: target.file });
 
     assert.strictEqual(context.parseInductanceNh('0.22uH'), 220, `${target.file}: uH conversion failed`);
     assert.strictEqual(context.parseInductanceNh('220nH'), 220, `${target.file}: nH conversion failed`);
+    assert.strictEqual(context.parseInductanceNh('26MHz_TCXO'), null, `${target.file}: MHz was parsed as mH`);
+    assert.strictEqual(context.inductanceValuesConflict(12, 12.1), false, `${target.file}: nominal 12nH/12.1nH alias was rejected`);
+    assert.strictEqual(context.inductanceValuesConflict(22, 220), true, `${target.file}: 22nH/220nH conflict was not detected`);
 
     const fallbackRow = {
       '位号': 'L4',
@@ -96,6 +104,7 @@ function section(html, start, end) {
 
     context.applyOfficialInductorIdentity(row, verified.byCode.C703735);
     assert.strictEqual(row._mfgPart, 'LQW15CAR22J00D', `${target.file}: official MPN not applied`);
+    assert.strictEqual(row['物料名称'], '绕线电感', `${target.file}: LQW was not classified as wire-wound inductor`);
     assert(row['参数描述'].includes('220nH'), `${target.file}: B/official inductance was lost`);
     assert(!/(^|\D)22nH/i.test(row['参数描述']), `${target.file}: template 22nH leaked into output`);
     assert(row['参数描述'].includes('DCR 290mΩ'), `${target.file}: official DCR missing`);
