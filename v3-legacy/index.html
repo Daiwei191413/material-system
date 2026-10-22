@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V3.0.65 团队版</title>
+  <title>技象科技研发BOM 整理神器 V3.0.66 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -273,7 +273,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V3.0.65 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V3.0.66 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -927,7 +927,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 </div>
 <header>
 <div class="release-date"><span>更新日期：<time datetime="2026-10-22">20261022</time></span></div>
-        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.65 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.66 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1240,7 +1240,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.65</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.66</span></h3>
 
     <!-- 库切换 Tab -->
     <div class="lib-tabs" style="margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -1868,7 +1868,9 @@ function fetchLcscDetailsByCodes(codes) {
         var query = normLcsc(result && (result.query || (result.data && result.data.query)));
         var data = result && result.data;
         var code = normLcsc(data && data.productCode) || query;
-        if (code) map[code] = (result && result.ok && data && data.hit) ? {ok:true, data:data} : {ok:false, error:(result && result.error) || (data && data.error) || '立创未找到该编号'};
+        var mapped = (result && result.ok && data && data.hit) ? {ok:true, data:data} : {ok:false, error:(result && result.error) || (data && data.error) || '立创未找到该编号'};
+        if (query) map[query] = mapped;
+        if (code) map[code] = mapped;
       });
     });
     return map;
@@ -6544,17 +6546,25 @@ function setCompareActionsReady(ready){
   });
 }
 
-function doCompare(){
+async function doCompare(){
   if(!A||!B)return;
   RES = null;
   var missingRef = B.rows.filter(function(r){return !r['位号']}).length;
   var missingModel = B.rows.filter(function(r){return !r['型号']}).length;
   var missingPkg = B.rows.filter(function(r){return !r['封装']}).length;
-  document.getElementById('checkSummary').textContent = '已读取立创BOM ' + B.rows.length + ' 条物料。缺位号 ' + missingRef + ' 条，缺型号 ' + missingModel + ' 条，缺封装 ' + missingPkg + ' 条。下方显示标准库匹配情况；生成后可进入线下BOM审查。';
+  var summary = '已读取立创BOM ' + B.rows.length + ' 条物料。缺位号 ' + missingRef + ' 条，缺型号 ' + missingModel + ' 条，缺封装 ' + missingPkg + ' 条。';
+  document.getElementById('checkSummary').textContent = summary + ' 正在核对标准库和立创官网数据...';
   analyzeMaterialMatch();
   document.getElementById('out').classList.add('show');
-  setCompareActionsReady(true);
+  setCompareActionsReady(false);
   document.getElementById('out').scrollIntoView({behavior:'smooth'});
+  var onlineSummary = await batchAutoFetchAll({automatic:true, silent:true});
+  var onlineText = onlineSummary.total
+    ? ' 自动查询 ' + onlineSummary.total + ' 条：已确认 ' + onlineSummary.ok + ' 条，查无此号 ' + onlineSummary.notHit + ' 条，资料冲突 ' + onlineSummary.conflict + ' 条，查询失败 ' + onlineSummary.fail + ' 条。'
+    : ' 无需在线补齐。';
+  document.getElementById('checkSummary').textContent = summary + onlineText + ' 生成后可进入线下BOM审查。';
+  setCompareActionsReady(true);
+  return onlineSummary;
 }
 
 // ==================== 物料编码匹配分析（三级引擎） ====================
@@ -6569,11 +6579,18 @@ function analyzeMaterialMatch() {
   B.rows.forEach(function(r, idx){
     // V2.1.5：体检报告主用标准库（这里是为了「按A整理B」做准备）
     var m = matchForStandard(r);
+    var onlineHit = lcscOnlineHitForRow(r);
+    if (onlineHit) {
+      m = {level:1, hit:onlineHit, warnings:m.warnings || [], online:true};
+    }
     MM_RESULT.push({
       _idx: idx,
       row: r,
       level: m.level,
       hit: m.hit,
+      online: !!m.online,
+      onlineState: r._lcscOnlineState || '',
+      onlineMessage: r._lcscOnlineMessage || '',
       warnings: (m.warnings || []).concat(passiveSpecErrors(r, r['参数描述']), r._specWarnings || []),
       ref: r['位号'] || '',
       model: r['型号'] || '',
@@ -6630,7 +6647,7 @@ function renderMatchDetail(counts){
   if (missList.length > 0) {
     bulkBar.style.display = 'block';
     document.getElementById('mmBulkInfo').innerHTML =
-      '<b style="color:#ff6b35">'+missList.length+'</b> 个器件待补齐或核实参数 · 可按立创编号查询';
+      '<b style="color:#ff6b35">'+missList.length+'</b> 个器件待自动补齐或人工确认 · 有效立创编号会自动查询';
     document.getElementById('mmBulkOpen').onclick = function(){
       if (missList.length > 8 && !confirm('将打开 '+missList.length+' 个标签页，确认继续？')) return;
       var opened = 0, blocked = 0;
@@ -6672,10 +6689,23 @@ function renderMatchDetail(counts){
       });
       enrich = fills.length ? '<span style="color:#34a853;font-size:11px">'+fills.join('/')+'</span>' : '<span style="color:#bbb;font-size:11px">已齐</span>';
     } else {
-      hitTxt = '<span style="color:#ea4335">— 需手工补齐 —</span>';
       // 优先级：立创C编号 > 型号 > 位号
       var lcRaw = String(x.lcsc || '').toUpperCase();
       var lcM = lcRaw.match(/C\d{3,}/);
+      if (x.onlineState === 'pending') {
+        hitTxt = '<span style="color:#1a73e8">⏳ 正在自动查询立创</span>';
+      } else if (x.onlineState === 'not_found') {
+        hitTxt = '<span style="color:#b45309">— 立创未找到该编号 —</span>';
+      } else if (x.onlineState === 'conflict') {
+        hitTxt = '<span style="color:#ea4335">— 立创资料与原BOM冲突 —</span>';
+      } else if (x.onlineState === 'failed') {
+        hitTxt = '<span style="color:#ea4335">— 在线查询失败，可重试 —</span>';
+      } else if (lcM) {
+        hitTxt = '<span style="color:#1a73e8">— 待在线自动补齐 —</span>';
+      } else {
+        hitTxt = '<span style="color:#ea4335">— 缺有效立创编号，需确认 —</span>';
+      }
+      if (x.onlineMessage) hitTxt += '<div style="color:#b45309;font-size:12px;margin-top:4px">'+esc(x.onlineMessage)+'</div>';
       var lcHref = lcM
         ? 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(lcM[0])
         : 'https://so.szlcsc.com/global.html?k=' + encodeURIComponent(x.model || x.ref);
@@ -8237,6 +8267,7 @@ function autoFetchRow(idx){
     return;
   }
   var code = lcM[0];
+  setLcscOnlineState(item.row, code, 'pending', '正在查询立创官网数据');
   // 找到按钮 → 显示 loading
   var btn = document.querySelector('button[data-fetch-idx="'+idx+'"]');
   var originalHtml = btn ? btn.innerHTML : '';
@@ -8246,9 +8277,19 @@ function autoFetchRow(idx){
     .then(function(r){ return r.json(); })
     .then(function(resp){
       if (!resp.ok) throw new Error(resp.error || '代理请求失败');
-      if (!resp.data || !resp.data.hit) throw new Error('立创未找到该编号商品');
+      if (!resp.data || !resp.data.hit) {
+        setLcscOnlineState(item.row, code, 'not_found', '立创未找到该编号商品');
+        analyzeMaterialMatch();
+        throw new Error('立创未找到该编号商品');
+      }
       var ok = applyLcscToRow(item, resp.data);
-      if (!ok) throw new Error((item.row._specWarnings || []).join('；') || '立创数据与原BOM存在冲突，未应用');
+      if (!ok) {
+        var conflict = (item.row._specWarnings || []).join('；') || '立创数据与原BOM存在冲突，未应用';
+        setLcscOnlineState(item.row, code, 'conflict', conflict);
+        analyzeMaterialMatch();
+        throw new Error(conflict);
+      }
+      setLcscOnlineState(item.row, code, 'success', '', resp.data);
       // 重跑匹配刷 UI
       analyzeMaterialMatch();
       // 友好提示
@@ -8262,210 +8303,152 @@ function autoFetchRow(idx){
           + '已填入当前 BOM，不会写入物料库。');
     })
     .catch(function(e){
+      if (item.row._lcscOnlineState !== 'not_found' && item.row._lcscOnlineState !== 'conflict') {
+        setLcscOnlineState(item.row, code, 'failed', e.message || '在线查询失败');
+        analyzeMaterialMatch();
+      }
       alert('❌ 拉取立创参数失败：' + e.message + '\n\n建议改用「📋 贴参数」手动录入。');
       if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
     });
 }
 
-// 批量：一键补齐所有未命中（有 C 编号的）
-function batchAutoFetchAll(){
+// 将立创官网结果保存为当前 BOM 的精确命中；不会写入公司标准库。
+function lcscOnlineHitFromData(data, row){
+  if (!data || !data.hit) return null;
+  var officialSpec = buildSpecFromExtracted(data._extracted, data.productType, data.package) || data.specification || row['参数描述'] || '';
+  return {
+    model: data.productModel || row['型号'] || '',
+    package: data.package || row['封装'] || '',
+    lcsc_code: normLcsc(data.productCode || row['立创编号']),
+    name: data.productType || row['物料名称'] || '',
+    specification: officialSpec,
+    brand: data.brand || row['品牌'] || '',
+    mfg_part: data.productModel || row._mfgPart || ''
+  };
+}
+
+function setLcscOnlineState(row, code, state, message, data){
+  row._lcscOnlineCode = normLcsc(code);
+  row._lcscOnlineState = state || '';
+  row._lcscOnlineMessage = message || '';
+  if (state === 'success' && data && data.hit) row._lcscOnlineHit = lcscOnlineHitFromData(data, row);
+  else delete row._lcscOnlineHit;
+}
+
+function lcscOnlineHitForRow(row){
+  var currentCode = normLcsc(row && (row['立创编号'] || row['物料编码']));
+  if (!row || row._lcscOnlineState !== 'success' || !row._lcscOnlineHit) return null;
+  if (!currentCode || currentCode !== normLcsc(row._lcscOnlineCode)) return null;
+  return row._lcscOnlineHit;
+}
+
+function lcscCodeForItem(item){
+  var m = String((item && item.lcsc) || '').toUpperCase().match(/C\d{3,}/);
+  return m ? normLcsc(m[0]) : '';
+}
+
+function fetchLcscDetailsWithRetry(codes, maxAttempts){
+  var merged = Object.create(null);
+  var attempts = Math.max(1, maxAttempts || 1);
+  function run(pending, attempt){
+    if (!pending.length) return Promise.resolve({map:merged, unresolved:[]});
+    var timeout = new Promise(function(resolve){
+      setTimeout(function(){ resolve(Object.create(null)); }, 12000);
+    });
+    return Promise.race([fetchLcscDetailsByCodes(pending), timeout]).then(function(roundMap){
+      pending.forEach(function(code){
+        if (roundMap && roundMap[code]) merged[code] = roundMap[code];
+      });
+      var unresolved = pending.filter(function(code){ return !merged[code]; });
+      if (!unresolved.length || attempt >= attempts) return {map:merged, unresolved:unresolved};
+      return new Promise(function(resolve){ setTimeout(resolve, 600 * attempt); })
+        .then(function(){ return run(unresolved, attempt + 1); });
+    });
+  }
+  return run(codes, 1);
+}
+
+// 批量核对所有未命中且带有效 C 编号的物料。
+// automatic=true 时由“检查立创BOM”直接调用，不弹确认框。
+function batchAutoFetchAll(options){
+  options = options || {};
+  var automatic = !!options.automatic;
+  var silent = !!options.silent;
+  var force = !!options.force || !automatic;
   var miss = MM_RESULT.filter(function(x){
     if (x.level !== 0 && !passiveNeedsVerification(x.row, x.hit)) return false;
-    var raw = String(x.lcsc || '').toUpperCase();
-    return /C\d{3,}/.test(raw);
+    var code = lcscCodeForItem(x);
+    if (!code) return false;
+    var sameCode = normLcsc(x.row._lcscOnlineCode) === code;
+    var settled = ['success','not_found','conflict'].indexOf(x.row._lcscOnlineState) >= 0;
+    return force || !sameCode || !settled;
   });
-  if (miss.length === 0) {
-    alert('没有可批量补齐的器件\n\n（要求：未命中 + 有立创 C 编号）');
-    return;
+  var emptySummary = {total:0, ok:0, notHit:0, conflict:0, fail:0, failCodes:[]};
+  if (!miss.length) {
+    if (!silent) alert('没有可批量补齐的器件\n\n（要求：未命中或待核实 + 有效立创 C 编号）');
+    return Promise.resolve(emptySummary);
   }
-  if (!confirm('将通过立创代理批量拉取 '+miss.length+' 个器件的参数\n\n预计耗时 '+Math.max(3, Math.ceil(miss.length*0.25))+' 秒（3 路并发），确认继续？')) return;
+  if (!automatic && !confirm('将通过立创代理批量核对 '+miss.length+' 个器件的参数，确认继续？')) {
+    return Promise.resolve(Object.assign({cancelled:true}, emptySummary));
+  }
 
-  // 收集 C 编号 + idx 映射
-  var codes = miss.map(function(x){
-    return String(x.lcsc).toUpperCase().match(/C\d{3,}/)[0];
+  var codes = [];
+  miss.forEach(function(item){
+    var code = lcscCodeForItem(item);
+    if (codes.indexOf(code) < 0) codes.push(code);
+    setLcscOnlineState(item.row, code, 'pending', '正在查询立创官网数据');
   });
-  // 显示进度条
+  analyzeMaterialMatch();
+
   var bar = document.getElementById('mmBulkInfo');
-  var origInfo = bar ? bar.innerHTML : '';
-  if (bar) bar.innerHTML = '⏳ 正在批量拉取 '+miss.length+' 个器件...';
+  if (bar) bar.innerHTML = '⏳ 正在自动查询 '+codes.length+' 个立创编号...';
 
-  // Worker /batch 接口最多 30 个；小分片+有限并发平衡冷启动与吞吐
-  var CHUNK_SIZE = 20;
-  var CONCURRENCY = 3;
-  var TIMEOUT_BATCH = 12000;       // 12s（国际链路真的断开 12s 也连不上，早断早重试）
-  var TIMEOUT_SINGLE = 8000;       // 8s（单颗兜底超时更短）
-  var MAX_BATCH_ATTEMPTS = 3;      // batch 最多 3 次尝试
-  var BATCH_BACKOFF = [0, 2000, 5000];  // 退避：立即/2s/5s
-  var chunks = [];
-  for (var i = 0; i < codes.length; i += CHUNK_SIZE) chunks.push(codes.slice(i, i+CHUNK_SIZE));
-
-  // 进度统计
-  var stats = { batchOK: 0, batchRetry: 0, batchFail: 0, singleOK: 0, singleFail: 0 };
-  function refreshBar(extra){
-    if (!bar) return;
-    var line1 = '⏳ 拉取 '+miss.length+' 个器件 '
-              + '（'+(stats.batchOK+stats.batchFail)+'/'+chunks.length+' 批完成';
-    if (stats.batchRetry) line1 += '，重试 '+stats.batchRetry+' 次';
-    line1 += '）';
-    if (extra) line1 += ' ' + extra;
-    bar.innerHTML = line1;
-  }
-
-  // 单批拉取（带超时+指数退避重试）
-  function fetchChunk(chunk, attempt){
-    var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    var timer = ctl ? setTimeout(function(){ ctl.abort(); }, TIMEOUT_BATCH) : null;
-    return fetch(LCSC_WORKER_URL + '/batch?codes=' + chunk.join(','), {
-      mode: 'cors',
-      signal: ctl ? ctl.signal : undefined
-    }).then(function(r){
-      if (timer) clearTimeout(timer);
-      if (!r.ok) throw new Error('HTTP '+r.status);
-      return r.json();
-    }).catch(function(err){
-      if (timer) clearTimeout(timer);
-      if (attempt < MAX_BATCH_ATTEMPTS) {
-        // 网络/超时类错误重试（TypeError/AbortError 都走这里）
-        stats.batchRetry++;
-        refreshBar('（网络抖动，第 '+(attempt+1)+' 次尝试...）');
-        return new Promise(function(res){ setTimeout(res, BATCH_BACKOFF[attempt]); })
-          .then(function(){ return fetchChunk(chunk, attempt+1); });
-      }
-      return { ok: false, _chunk: chunk, _error: err.message || String(err) };
-    });
-  }
-
-  // 单颗兜底（batch 失败后，单颗用 /?k= 接口再赌一把）
-  function fetchSingle(code){
-    var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    var timer = ctl ? setTimeout(function(){ ctl.abort(); }, TIMEOUT_SINGLE) : null;
-    return fetch(LCSC_WORKER_URL + '/?k=' + encodeURIComponent(code), {
-      mode: 'cors',
-      signal: ctl ? ctl.signal : undefined
-    }).then(function(r){
-      if (timer) clearTimeout(timer);
-      if (!r.ok) throw new Error('HTTP '+r.status);
-      return r.json();
-    }).catch(function(err){
-      if (timer) clearTimeout(timer);
-      return { ok: false, _code: code, _error: err.message || String(err) };
-    });
-  }
-
-  // 有限并发池
-  function runPool(jobs, concurrency){
-    return new Promise(function(resolve){
-      var results = new Array(jobs.length);
-      var nextIdx = 0, finished = 0;
-      function spawn(){
-        if (nextIdx >= jobs.length) return;
-        var myIdx = nextIdx++;
-        jobs[myIdx]().then(function(r){
-          results[myIdx] = r;
-          finished++;
-          if (finished === jobs.length) resolve(results);
-          else spawn();
-        });
-      }
-      for (var k=0; k<Math.min(concurrency, jobs.length); k++) spawn();
-    });
-  }
-
-  // 第一阶段：batch 并发拉取
-  var batchJobs = chunks.map(function(chunk){
-    return function(){
-      return fetchChunk(chunk, 1).then(function(r){
-        if (r.ok && r.results) stats.batchOK++; else stats.batchFail++;
-        refreshBar();
-        return r;
-      });
-    };
-  });
-
-  runPool(batchJobs, CONCURRENCY).then(function(allResps){
-    // 把 batch 结果摊平成 [code → resultObj] 映射（用 r.data.query 作为键）
-    var resultByCode = {};
-    var failedCodes = [];   // 待兜底的编号
-    allResps.forEach(function(batch, bi){
-      var thisChunk = chunks[bi];
-      if (!batch.ok || !batch.results) {
-        // 整批失败：所有 code 都进兜底队列
-        thisChunk.forEach(function(c){ failedCodes.push(c); });
-        return;
-      }
-      // 标记 batch 内已收到响应的 code
-      var seen = {};
-      batch.results.forEach(function(r){
-        if (!r || !r.data || !r.data.query) return;
-        var realCode = r.data.query;
-        seen[realCode] = true;
-        if (r.ok && r.data.hit) {
-          resultByCode[realCode] = r.data;
-        } else if (r.ok && !r.data.hit) {
-          resultByCode[realCode] = { _notHit: true };
-        } else {
-          // r.ok 为 false（查询失败）→ 标记为需兜底
-          resultByCode[realCode] = { _failed: true };
-        }
-      });
-      // 这批里没收到响应 或 查询失败的 code → 进兜底
-      thisChunk.forEach(function(c){
-        if (!seen[c] && !resultByCode[c]) failedCodes.push(c);
-        else if (resultByCode[c] && resultByCode[c]._failed) failedCodes.push(c);
-      });
-    });
-
-    // 第二阶段：单颗兜底（如果有失败）
-    if (failedCodes.length === 0) return Promise.resolve(resultByCode);
-    refreshBar('（剩 '+failedCodes.length+' 颗单独重试中...）');
-    var singleJobs = failedCodes.map(function(code){
-      return function(){
-        return fetchSingle(code).then(function(resp){
-          if (resp && resp.ok && resp.data && resp.data.hit) {
-            resultByCode[code] = resp.data;
-            stats.singleOK++;
-          } else if (resp && resp.ok && resp.data && !resp.data.hit) {
-            resultByCode[code] = { _notHit: true };
-            stats.singleOK++;
-          } else {
-            stats.singleFail++;
-          }
-          refreshBar('（剩 '+(failedCodes.length-stats.singleOK-stats.singleFail)+' 颗单独重试中...）');
-        });
-      };
-    });
-    return runPool(singleJobs, 4).then(function(){ return resultByCode; });
-  }).then(function(resultByCode){
-    // 第三阶段：把结果应用到 miss 列表
-    var ok = 0, notHit = 0, fail = 0, failCodes = [];
+  return fetchLcscDetailsWithRetry(codes, 3).then(function(result){
+    var summary = {total:miss.length, ok:0, notHit:0, conflict:0, fail:0, failCodes:[]};
     miss.forEach(function(item){
-      var code = String(item.lcsc).toUpperCase().match(/C\d{3,}/)[0];
-      var data = resultByCode[code];
-      if (data && data._notHit) {
-        notHit++;
-      } else if (data && data.hit) {
-        if (applyLcscToRow(item, data)) ok++; else { fail++; failCodes.push(code); }
+      var code = lcscCodeForItem(item);
+      var found = result.map[code];
+      if (found && found.ok && found.data && found.data.hit) {
+        if (applyLcscToRow(item, found.data)) {
+          setLcscOnlineState(item.row, code, 'success', '', found.data);
+          summary.ok++;
+        } else {
+          var conflictMessage = (item.row._specWarnings || []).slice(-2).join('；') || '立创资料与原BOM存在冲突，未自动应用';
+          setLcscOnlineState(item.row, code, 'conflict', conflictMessage);
+          summary.conflict++;
+        }
+      } else if (found && !found.ok && /未找到|不存在|无结果|not\s*found/i.test(String(found.error || ''))) {
+        setLcscOnlineState(item.row, code, 'not_found', String(found.error || '立创未找到该编号'));
+        summary.notHit++;
       } else {
-        fail++; failCodes.push(code);
+        setLcscOnlineState(item.row, code, 'failed', (found && found.error) || '在线查询未返回结果，请重试');
+        summary.fail++;
+        summary.failCodes.push(code);
       }
     });
     analyzeMaterialMatch();
-    var msg = '✅ 批量补齐完成\n\n'
-        + '成功：'+ok+'\n'
-        + '立创未找到：'+notHit+'\n'
-        + '失败：'+fail;
-    if (stats.batchRetry || stats.singleOK) {
-      msg += '\n（其中 batch 重试 '+stats.batchRetry+' 次，单颗兜底救回 '+stats.singleOK+' 颗）';
+    if (!silent) {
+      var msg = '✅ 立创批量核对完成\n\n'
+        + '已确认：'+summary.ok+'\n'
+        + '立创未找到：'+summary.notHit+'\n'
+        + '资料冲突：'+summary.conflict+'\n'
+        + '查询失败：'+summary.fail;
+      if (summary.failCodes.length) msg += '\n\n失败编号：'+summary.failCodes.slice(0,8).join(', ')+(summary.failCodes.length>8?' ...':'');
+      msg += '\n\n成功结果只用于当前 BOM，不会写入公司标准库。';
+      alert(msg);
     }
-    if (failCodes.length) msg += '\n\n失败编号：'+failCodes.slice(0,8).join(', ')+(failCodes.length>8?' ...':'');
-    msg += '\n\n所有成功项仅填入当前 BOM，不会写入物料库。';
-    if (bar) bar.innerHTML = origInfo;
-    alert(msg);
-  }).catch(function(e){
-    alert('❌ 批量拉取失败：'+(e && e.message ? e.message : e)+'\n\n建议：1) 检查网络  2) 稍后重试  3) 用「📋 贴参数」手动录入');
-    if (bar) bar.innerHTML = origInfo;
+    return summary;
+  }).catch(function(error){
+    var message = error && error.message ? error.message : String(error);
+    miss.forEach(function(item){
+      setLcscOnlineState(item.row, lcscCodeForItem(item), 'failed', '在线查询失败：' + message);
+    });
+    analyzeMaterialMatch();
+    if (!silent) alert('❌ 批量查询失败：'+message+'\n\n请检查网络后重试。');
+    return {total:miss.length, ok:0, notHit:0, conflict:0, fail:miss.length, failCodes:codes};
   });
 }
+
 
 // 单行自动生成，仅填入当前 B BOM
 function autoFillRow(idx){
@@ -8727,7 +8710,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.65 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.66 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>

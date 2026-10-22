@@ -152,6 +152,7 @@ async function inspectOutput(filename, expectedRows) {
       assert.equal(await page.locator('#goBtn').isDisabled(), false);
       await page.locator('#goBtn').click();
       assert.match(await page.locator('#checkSummary').textContent(), /已读取立创BOM/);
+      await page.waitForFunction(() => !document.getElementById('fmtAB').disabled, null, { timeout:12000 });
       assert.equal(await page.locator('#fmtAB').isDisabled(), false);
       await page.evaluate(realLcsc => {
         window.alert = () => {};
