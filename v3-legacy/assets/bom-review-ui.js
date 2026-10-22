@@ -70,16 +70,17 @@
       el('reviewResults').hidden=false;el('reviewExport').disabled=false;
       var r=state.result;
       el('reviewSummary').innerHTML=[
-        [r.auditCounts.total,'物料行','review-total'],
-        [r.auditCounts.normal,'正常','review-pass'],
-        [r.auditCounts.abnormal,'异常','review-abnormal'],
-        [r.auditCounts.unverified,'无法核对','review-unverified']
-      ].map(function(item){return '<div class="review-metric '+item[2]+'"><strong>'+item[0]+'</strong><span>'+item[1]+'</span></div>';}).join('');
+        [r.auditCounts.total,'物料行','review-total','all'],
+        [r.auditCounts.normal,'正常','review-pass','normal'],
+        [r.auditCounts.abnormal,'异常','review-abnormal','abnormal'],
+        [r.auditCounts.unverified,'无法核对','review-unverified','unverified']
+      ].map(function(item){return '<button type="button" class="review-metric review-metric-button '+item[2]+'" data-review-filter="'+item[3]+'" aria-label="查看'+item[1]+'明细"><strong>'+item[0]+'</strong><span>'+item[1]+'</span></button>';}).join('');
       el('reviewConclusion').className='review-result-note '+(r.coreIssues.length?'review-result-fail':'review-result-pass');
       el('reviewConclusion').innerHTML=r.coreIssues.length
         ? '<strong>发现 '+r.auditCounts.abnormal+' 行或文件范围存在明确异常</strong><br>请按逐行明细修正型号、规格描述、封装、位号或数量后重新审查。'
         : '<strong>未发现明确异常</strong><br>型号、规格描述、封装、位号和数量的当前可核对项一致。'+(r.auditCounts.unverified?' 另有 '+r.auditCounts.unverified+' 行缺少权威依据，已单独列为“无法核对”。':'');
-      el('reviewEvidence').hidden=true;renderResults();message('审查完成。可逐行查看型号、规格描述、封装、位号和数量，或导出本次报告。');
+      el('reviewFilter').value=r.auditCounts.abnormal?'abnormal':(r.auditCounts.unverified?'unverified':'normal');
+      el('reviewEvidence').hidden=true;renderResults();message('审查完成。已自动显示当前最需要处理的明细；也可点击顶部统计卡切换结果。');
     }catch(error){invalidate();message('无法完成审查：'+error.message,'error');}
   }
   var auditLabels={abnormal:'异常',unverified:'无法核对',normal:'正常'};
@@ -87,6 +88,7 @@
     if(!state.result)return;
     var filter=el('reviewFilter').value, term=el('reviewSearch').value.trim().toLowerCase();
     var rows=state.result.auditRows.filter(function(a){return (filter==='all'||a.status===filter)&&(!term||[a.refs,a.row,a.model,a.specification,a.package,a.quantity,a.finding,a.abnormalFields.join(' ')].join(' ').toLowerCase().includes(term));});
+    el('reviewSummary').querySelectorAll('[data-review-filter]').forEach(function(card){card.classList.toggle('is-active',card.dataset.reviewFilter===filter);});
     el('reviewResultCount').textContent='共 '+state.result.document.rows+' 行物料，当前显示 '+rows.length+' 条核对明细';
     el('reviewResultBody').innerHTML=rows.slice(0,500).map(function(a){
       var line=a.checkIds.length?'<button class="review-action-link" data-review-evidence="'+a.checkIds[0]+'">'+(a.scope==='file'?'文件范围':'第'+html(a.row)+'行')+'</button>':(a.scope==='file'?'文件范围':'第'+html(a.row)+'行');
@@ -146,7 +148,11 @@
     el('reviewLastBtn').addEventListener('click',useLast);
     el('reviewFilter').addEventListener('change',renderResults);el('reviewSearch').addEventListener('input',renderResults);
     el('reviewRowSearch').addEventListener('input',preview);el('reviewActuals').addEventListener('input',invalidate);
-    el('reviewPanel').addEventListener('click',function(ev){var target=ev.target.closest('[data-review-evidence]');if(target)evidence(target.dataset.reviewEvidence);});
+    el('reviewPanel').addEventListener('click',function(ev){
+      var filterCard=ev.target.closest('[data-review-filter]');
+      if(filterCard){el('reviewFilter').value=filterCard.dataset.reviewFilter;renderResults();return;}
+      var target=ev.target.closest('[data-review-evidence]');if(target)evidence(target.dataset.reviewEvidence);
+    });
     el('reviewPanel').addEventListener('change',function(ev){
       var t=ev.target;
       try{
