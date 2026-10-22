@@ -52,6 +52,7 @@ const inputs=[process.env.BOM_REVIEW_PRIMARY_FILE||fixture(),process.env.BOM_REV
    const issues=X.utils.sheet_to_json(report.Sheets['问题明细']);assert(issues.some(r=>r['位号']==='C18'&&r['原单元格']==='E15'));
    assert.equal(issues.length,result.coreIssues.length);
    const preserved=await page.evaluate(()=>({lib:window.__beforeLib===JSON.stringify([window.materialDB_standard,window.materialDB_lcsc]),b:window.__beforeB===JSON.stringify(window.B)}));assert(preserved.lib&&preserved.b);
+   await page.locator('#reviewPrimaryConfig details > summary').click();
    await page.locator('[data-review-header="primary"]').fill('9999');await page.locator('[data-review-header="primary"]').dispatchEvent('change');
    await page.evaluate(()=>BOM_REVIEW_UI.run());assert.equal(await page.evaluate(()=>BOM_REVIEW_UI.state.result),null);
    await page.locator('[data-review-header="primary"]').fill('5');await page.locator('[data-review-header="primary"]').dispatchEvent('change');

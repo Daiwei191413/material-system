@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V3.0.63 团队版</title>
+  <title>技象科技研发BOM 整理神器 V3.0.64 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -273,7 +273,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V3.0.63 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V3.0.64 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -927,7 +927,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 </div>
 <header>
 <div class="release-date"><span>更新日期：<time datetime="2026-10-22">20261022</time></span></div>
-        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.63 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.64 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1240,7 +1240,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.63</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.64</span></h3>
 
     <!-- 库切换 Tab -->
     <div class="lib-tabs" style="margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -5964,6 +5964,21 @@ function passiveValue(raw, type) {
   return { number: value * ({R:1,K:1e3,M:1e6}[suffix]), text: String(value) + (suffix === 'R' ? '' : suffix) + 'Ω' };
 }
 
+// 电阻显示统一使用便于工程人员阅读的量级：mΩ / Ω / KΩ / MΩ。
+// 立创商品参数可能把 10KΩ 展开为 10000Ω，或把 75Ω 写成 75000mΩ；
+// 这些数值电气上等价，但在线下 BOM 中需要恢复为常用工程写法。
+function normalizeResistanceDisplay(raw) {
+  var original = String(raw == null ? '' : raw).trim();
+  var parsed = passiveValue(original, 'resistor');
+  if (!parsed || !Number.isFinite(parsed.number) || parsed.number < 0) return original;
+  var ohms = parsed.number;
+  if (ohms === 0) return '0Ω';
+  if (ohms < 1) return trimZero(ohms * 1000) + 'mΩ';
+  if (ohms >= 1000000) return trimZero(ohms / 1000000) + 'MΩ';
+  if (ohms >= 1000) return trimZero(ohms / 1000) + 'KΩ';
+  return trimZero(ohms) + 'Ω';
+}
+
 function passiveIdentity(row) {
   row = row || {};
   var model = String(row['型号'] || '').trim();
@@ -6323,8 +6338,8 @@ function aStyleResistor(fields, row){
     }
   }
   if (!rval) return null;
-  // 单位规范化（kΩ → KΩ，没Ω加Ω）
-  rval = rval.replace(/k(?=Ω|$)/g, 'K').replace(/m(?=Ω|$)/g, 'M');
+  // 单位规范化：10000Ω → 10KΩ，75000mΩ → 75Ω，2K2 → 2.2KΩ。
+  rval = normalizeResistanceDisplay(rval);
   if (!/Ω/.test(rval)) rval += 'Ω';
   // 精度/功率 ── 必须来自数据源，不编造默认
   var tol = fields['精度'] || '';
@@ -6418,6 +6433,15 @@ function normalizeCapacitanceSpec(spec){
     .replace(/((?:^|[,，;；|])\s*(?:容值|电容值|电容量)\s*[:：]\s*)(\d+(?:\.\d+)?\s*(?:[pnuμµ]F))(?=$|[\s,，;；|])/gi, display);
 }
 
+// 规范描述中的主阻值显示；精度、功率及DCR等其它参数保持原文。
+function normalizeResistanceSpec(spec){
+  function display(_, prefix, resistance){ return prefix + normalizeResistanceDisplay(resistance); }
+  var token = '(\\d+(?:\\.\\d+)?\\s*m(?:Ω|OHMS?)|\\d+(?:\\.\\d+)?(?:[RKM]\\d*)?\\s*(?:Ω|OHMS?)?)';
+  return String(spec)
+    .replace(new RegExp('^((?:厚膜电阻|薄膜电阻|贴片电阻|电阻)[\\s,，]*)' + token + '(?=$|[\\s,，;；/|])', 'i'), display)
+    .replace(new RegExp('((?:^|[,，;；|])\\s*(?:阻值|电阻值)\\s*[:：]\\s*)' + token + '(?=$|[\\s,，;；/|])', 'gi'), display);
+}
+
 // 主入口：把任意参数描述转成 A BOM 风格（电容/电阻/电感按紧凑式，其它保留原样）
 function toAStyleSpec(spec, row){
   if (!spec || !row) return spec;
@@ -6431,6 +6455,7 @@ function toAStyleSpec(spec, row){
     return checked['参数描述'];
   }
   spec = normalizeCapacitanceSpec(spec);
+  spec = normalizeResistanceSpec(spec);
   spec = applyCompanySmallCapTolerance(spec, row);
   // 已是完整 A 风格时，统一容量单位后保留其余字段。
   //   电容：以 "MLCC " 开头
@@ -8069,7 +8094,7 @@ function buildSpecFromExtracted(ext, productType, pkg) {
 
   // 电阻
   if (type.indexOf('电阻') >= 0 || ext.resistance) {
-    var res = ext.resistance || '';
+    var res = normalizeResistanceDisplay(ext.resistance || '');
     var tol = ext.tolerance || '';
     var pwr = ext.power || '';
     if (!res) return '';
@@ -8682,7 +8707,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.63 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.64 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>

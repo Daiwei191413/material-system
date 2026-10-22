@@ -5,8 +5,8 @@ const vm = require('vm');
 
 const repoRoot = path.resolve(__dirname, '..');
 const targets = [
-  { file: 'v3-cloudbase/web/index.html', version: 'V1.0.39' },
-  { file: 'v3-legacy/index.html', version: 'V3.0.63' },
+  { file: 'v3-cloudbase/web/index.html', version: 'V1.0.40' },
+  { file: 'v3-legacy/index.html', version: 'V3.0.64' },
 ];
 
 const cases = [
