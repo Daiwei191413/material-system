@@ -6,13 +6,13 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V3.0.62 团队版</title>
+  <title>技象科技研发BOM 整理神器 V3.0.63 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<link rel="stylesheet" href="assets/bom-review.css?v=1.0.0">
-<script defer src="assets/bom-review-engine.js?v=1.0.1"></script>
-<script defer src="assets/bom-review-ui.js?v=1.0.0"></script>
+<link rel="stylesheet" href="assets/bom-review.css?v=1.1.0">
+<script defer src="assets/bom-review-engine.js?v=1.1.0"></script>
+<script defer src="assets/bom-review-ui.js?v=1.1.0"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:#f0f2f5;min-height:100vh;display:flex;flex-direction:column}
@@ -273,7 +273,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V3.0.62 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V3.0.63 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -926,8 +926,8 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<div class="release-date"><span>更新日期：<time datetime="2026-10-21">20261021</time></span></div>
-        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.62 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+<div class="release-date"><span>更新日期：<time datetime="2026-10-22">20261022</time></span></div>
+        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.63 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1050,7 +1050,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="bar">
   <button class="btn btn-blue" id="goBtn" disabled>2. 检查立创BOM</button>
   <button class="btn btn-purple" id="fmtAB" disabled title="请先检查立创BOM">3. 生成线下BOM</button>
-  <button class="btn btn-blue" id="reviewLastBtn" type="button" disabled>审查刚生成的BOM</button>
+  <button class="btn btn-blue" id="reviewLastBtn" type="button" disabled>审查刚生成的线下BOM</button>
   <button class="btn btn-green" id="expBtn" disabled style="display:none">📥 导出差异报告</button>
   <button class="btn btn-orange" id="lcBtn" disabled title="请先检查立创BOM">🛒 立创查询清单</button>
 </div>
@@ -1101,21 +1101,20 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 独立线下BOM审查窗口 -->
 <div id="reviewPanel" style="display:none;">
   <div class="panel">
-    <h3>线下BOM审查 <span style="font-size:13px;color:#64748b;font-weight:normal">本地规则 · 可选原始BOM对照</span></h3>
-    <p class="review-intro">上传已整理的线下BOM，检查参数、封装、位号和数量，定位原始单元格。审查保留原文件及原始数量。实际器件按型号和确认资料判断，位号和SC/SR等焊盘命名不会单独触发类型错误。公司硬性规则：小于10pF的电容必须明确使用±0.1pF精度；10pF及以上不按此规则限制。</p>
+    <h3>线下BOM审查 <span style="font-size:13px;color:#64748b;font-weight:normal">只看影响BOM正确性的项目</span></h3>
+    <p class="review-intro">检查型号与参数描述、封装、位号和数量是否对应。立创BOM转线下BOM后可直接点击“审查刚生成的线下BOM”，系统会自动带入本次文件并只显示需要处理的问题。</p>
     <div class="review-files">
       <section class="review-file"><h4>1. 待审查线下BOM（必选）</h4><input id="reviewFile" type="file" accept=".xlsx,.xls,.csv" aria-label="上传待审查线下BOM"><div id="reviewPrimaryConfig"></div></section>
-      <section class="review-file"><h4>2. 原始立创BOM（可选）</h4><input id="reviewSourceFile" type="file" accept=".xlsx,.xls,.csv" aria-label="上传原始立创BOM"><button id="reviewClearSource" class="lc-btn" type="button">移除源表</button><div id="reviewSourceConfig"></div></section>
+      <section class="review-file"><h4>2. 原始立创BOM（可选，用于核对位号和封装）</h4><input id="reviewSourceFile" type="file" accept=".xlsx,.xls,.csv" aria-label="上传原始立创BOM"><button id="reviewClearSource" class="lc-btn" type="button">移除源表</button><div id="reviewSourceConfig"></div></section>
     </div>
-    <details class="review-details"><summary>行类别与替代料关联（按原始行号设置）</summary><div class="review-config"><label>搜索原行号、位号或型号 <input id="reviewRowSearch" type="search" placeholder="例如 C18 或 15"></label></div><p id="reviewPreviewInfo" class="review-intro"></p><div class="review-table-wrap"><table class="review-table"><thead><tr><th>原行号</th><th>位号</th><th>型号</th><th>原数量</th><th>行类别</th><th>明确关联位号</th></tr></thead><tbody id="reviewRowBody"></tbody></table></div></details>
-    <details class="review-details"><summary>实际装配变更说明（仅适用本次文件）</summary><p class="review-intro">例如原电容焊盘实际调试为同尺寸电阻。按实际器件核对，保留原位号和焊盘名称。说明只解释对应变更，其他字段仍正常审查。</p><label for="reviewActuals">每行：位号 | 实际型号/数值 | 封装 | 确认原因</label><textarea id="reviewActuals" placeholder="C18 | 0R | 0201 | 已确认调试改装同封装电阻"></textarea></details>
+    <details class="review-advanced"><summary>高级设置（一般无需修改）</summary><details class="review-details"><summary>行类别与替代料关联</summary><div class="review-config"><label>搜索原行号、位号或型号 <input id="reviewRowSearch" type="search" placeholder="例如 C18 或 15"></label></div><p id="reviewPreviewInfo" class="review-intro"></p><div class="review-table-wrap"><table class="review-table"><thead><tr><th>原行号</th><th>位号</th><th>型号</th><th>原数量</th><th>行类别</th><th>明确关联位号</th></tr></thead><tbody id="reviewRowBody"></tbody></table></div></details><details class="review-details"><summary>实际装配变更说明</summary><p class="review-intro">例如原电容焊盘实际调试为同尺寸电阻。每行填写：位号 | 实际型号/数值 | 封装 | 确认原因。</p><textarea id="reviewActuals" aria-label="实际装配变更说明" placeholder="C18 | 0R | 0201 | 已确认调试改装同封装电阻"></textarea></details></details>
     <div class="review-toolbar"><button id="reviewRun" class="btn btn-blue" type="button" disabled>开始审查</button><button id="reviewExport" class="btn btn-green" type="button" disabled>导出审查报告</button></div>
     <p id="reviewMessage" class="review-message" role="status" aria-live="polite"></p>
   </div>
   <div id="reviewResults" class="panel" hidden>
     <h3>审查结果</h3><div id="reviewSummary" class="review-summary"></div><div id="reviewConclusion" class="review-result-note"></div>
-    <div class="review-config"><label>结果筛选 <select id="reviewFilter"><option value="all">全部问题</option><option value="error">错误</option><option value="warning">风险</option><option value="pending">待核实</option><option value="matched">已核对检查项</option></select></label><label>搜索 <input id="reviewSearch" type="search" placeholder="位号、原行号或问题"></label><span id="reviewResultCount"></span></div>
-    <div class="review-table-wrap"><table class="review-table"><thead><tr><th>级别</th><th>原位置 / 证据</th><th>位号</th><th>字段</th><th>原值</th><th>对照值</th><th>问题说明</th><th>依据</th></tr></thead><tbody id="reviewResultBody"></tbody></table></div>
+    <div class="review-config"><label>问题类型 <select id="reviewFilter"><option value="all">全部问题</option><option value="model">型号 / 参数</option><option value="package">封装</option><option value="reference">位号</option><option value="quantity">数量</option><option value="file">文件 / 规则</option></select></label><label>搜索 <input id="reviewSearch" type="search" placeholder="位号、行号或问题"></label><span id="reviewResultCount"></span></div>
+    <div class="review-table-wrap"><table class="review-table"><thead><tr><th>行号 / 单元格</th><th>位号</th><th>检查项</th><th>当前内容</th><th>正确内容</th><th>问题与处理建议</th></tr></thead><tbody id="reviewResultBody"></tbody></table></div>
     <div id="reviewEvidence" class="review-evidence" hidden></div>
   </div>
 </div>
@@ -1241,7 +1240,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.62</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.63</span></h3>
 
     <!-- 库切换 Tab -->
     <div class="lib-tabs" style="margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -5030,7 +5029,7 @@ function loadBuiltInTemplate(){
   document.getElementById('boxA').classList.remove('ok');
   document.getElementById('goBtn').disabled = true;
   setCompareActionsReady(false);
-  fetch('assets/offline-bom-format-template.xlsx?v=20261021', {cache:'no-store'})
+  fetch('assets/offline-bom-format-template.xlsx?v=20261022', {cache:'no-store'})
     .then(function(response){ if (!response.ok) throw new Error('HTTP ' + response.status); return response.arrayBuffer(); })
     .then(function(bytes){
       var wb = XLSX.read(bytes, {type:'array'});
@@ -7528,7 +7527,7 @@ async function importRfInductorRows(rows) {
 
 function downloadRfInductorTemplate() {
   var a = document.createElement('a');
-  a.href = 'assets/rf-inductor-library-template.xlsx?v=20261021-rf1';
+  a.href = 'assets/rf-inductor-library-template.xlsx?v=20261022-rf1';
   a.download = '射频电感指定库模板.xlsx';
   document.body.appendChild(a);
   a.click();
@@ -8683,7 +8682,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.62 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.63 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>

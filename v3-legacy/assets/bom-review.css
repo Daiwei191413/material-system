@@ -15,11 +15,11 @@
 .review-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:16px 0}
 .review-message{font-size:13px;line-height:1.7;color:#526273;white-space:pre-wrap}
 .review-message.error{color:#a51f25}.review-message.stale{color:#945300}
-.review-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.review-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:16px 0}
 .review-metric{padding:16px;border-radius:8px;background:#f5f8fb;border:1px solid #dbe4eb}
 .review-metric strong{font-size:25px;display:block;margin-bottom:4px}.review-metric span{font-size:13px}
 .review-error{color:#a51f25}.review-warning{color:#945300}.review-pending{color:#596675}.review-matched{color:#14683d}
-.review-result-note{padding:12px 14px;border-left:3px solid #0078b8;background:#edf7fd;font-size:13px;line-height:1.8}
+.review-pass{color:#14683d;background:#f0fdf4;border-color:#bbf7d0}.review-result-note{padding:14px 16px;border-left:4px solid #0078b8;background:#edf7fd;font-size:14px;line-height:1.8;border-radius:4px}.review-result-pass{border-left-color:#16a34a;background:#f0fdf4;color:#166534}.review-result-fail{border-left-color:#dc2626;background:#fff1f2;color:#991b1b}
 .review-table-wrap{overflow:auto;max-height:650px;border:1px solid #e3e9ed;border-radius:6px}
 .review-table{width:100%;border-collapse:collapse;min-width:850px;font-size:12px}
 .review-table th{position:sticky;top:0;background:#eef5f9;z-index:1;text-align:left;padding:10px}
@@ -29,4 +29,6 @@
 .review-evidence h4{margin-bottom:10px}.review-evidence p{font-size:13px;line-height:1.8;overflow-wrap:anywhere}
 #reviewActuals{display:block;width:100%;min-height:75px;margin-top:8px;padding:10px;border:1px solid #cbd5e1;border-radius:5px;font-size:13px}
 .review-action-link{border:0;background:none;color:#0078b8;text-decoration:underline;cursor:pointer;font-size:12px;padding:0}
+.review-issue-badge{display:inline-block;padding:2px 7px;margin-bottom:4px;border-radius:999px;background:#f1f5f9;font-size:11px;font-weight:700}.review-suggestion{margin-top:5px;color:#526273}.review-empty{text-align:center;color:#14683d;padding:28px!important}.review-advanced{margin-top:14px;border:1px solid #dbe4eb;border-radius:8px;padding:0 14px 14px;background:#f8fafc}.review-advanced>summary{cursor:pointer;color:#526273;padding:12px 0;font-weight:600}
+@media(max-width:900px){.review-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:768px){.review-files{grid-template-columns:1fr}.review-map{grid-template-columns:1fr 1fr}.review-summary{grid-template-columns:1fr 1fr}.review-toolbar .btn{max-width:100%}.review-config select{max-width:100%}}

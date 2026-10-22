@@ -4,7 +4,7 @@ const path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const E=require('../v3-cloudbase/web/assets/bom-review-engine.js');
 const X=require('../v3-cloudbase/web/assets/vendor/xlsx.full.min.js');
-const headers=['物料编码','物料名称','型号','参数描述','封装','位号','数量','单位','备注','DNP','上板'];
+const headers=['物料编码','物料名称','型号','参数描述','封装','位号','数量','单位','备注','立创编号','DNP','上板'];
 function doc(rows,name='sample.xlsx'){
   const wb=X.utils.book_new();X.utils.book_append_sheet(wb,X.utils.aoa_to_sheet([headers,...rows.map(r=>headers.map(h=>r[h]??''))]),'BOM');
   return E.readWorkbook(wb,X,{name});
@@ -13,6 +13,7 @@ function row(ref='C18',model='0R',pkg='SC0201',spec='电阻 0Ω SMD 0201') {retu
 function has(result,rule,status){return result.checks.some(c=>c.rule===rule&&(!status||status===c.status));}
 let r=E.analyze(doc([row()]));
 assert(!has(r,'TYPE_CONFLICT'));assert(!has(r,'PACKAGE_CONFLICT'));assert(has(r,'PARAMETERS_MISSING','pending'));
+assert(Array.isArray(r.coreIssues));assert.equal(typeof r.categoryCounts.model,'number');
 for(const [ref,model,pkg,spec,rule] of [
   ['C18','0R','SC0201','电阻 0Ω SMD 0402','PACKAGE_CONFLICT'],
   ['C23','5.6pF SC0402','SC0402','MLCC 5.6pF SMD 0201','PACKAGE_CONFLICT'],
@@ -45,7 +46,12 @@ const copy=JSON.stringify(before);assert(has(E.analyze(before,source),'SOURCE_VA
 assert(has(E.analyze(before,source,{actuals:[{refs:'C18',model:'0R',package:'0201',reason:'调试改装'}]}),'SOURCE_VALUE','matched'));
 assert.equal(JSON.stringify(before),copy);
 assert(has(E.analyze(doc([row('R1,R2')]),doc([row('R1,R2','100K')]),{actuals:[{refs:'R1',model:'0R',package:'0201',reason:'改装'}]}),'SOURCE_VALUE','warning'),'Partial declaration must not cover full row');
+let icOffline=doc([{'型号':'N32WB031KEQ6-2','封装':'QFN32','参数描述':'蓝牙芯片','位号':'U7','数量':'1'}]);
+let icSource=doc([{'型号':'N32WB031KEQ6','封装':'QFN32','参数描述':'蓝牙芯片','位号':'U7','数量':'1','立创编号':'C2981446'}]);
+let icReview=E.analyze(icOffline,icSource);
+assert(!has(icReview,'SOURCE_MODEL'),'Non-passive source/model naming must not create a text-only false alarm');
+assert(!has(icReview,'SOURCE_CODE_MISSING'),'Offline BOM does not require an LCSC code column');
 const sparse={SheetNames:['BOM'],Sheets:{BOM:{'!ref':'A5:G6',A5:{t:'s',v:'型号'},B5:{t:'s',v:'封装'},C5:{t:'s',v:'位号'},D5:{t:'s',v:'数量'},A6:{t:'s',v:'0R'},B6:{t:'s',v:'SC0201'},C6:{t:'s',v:'C18'},D6:{t:'n',v:1}}}};
 d=E.readWorkbook(sparse,X,{});assert.equal(d.headerRow,5);assert.equal(d.rows[0].row,6);assert.equal(d.rows[0].cells['型号'],'A6');
 for(const name of ['bom-review-engine.js','bom-review-ui.js','bom-review.css'])assert.equal(fs.readFileSync(path.join(root,'v3-cloudbase/web/assets',name),'utf8'),fs.readFileSync(path.join(root,'v3-legacy/assets',name),'utf8'));
-console.log('PASS: review rules, strict small-cap tolerance, original cells/quantities, six fault groups, actual assembly scope, DNP, parity');
+console.log('PASS: simplified review categories, strict small-cap tolerance, original cells/quantities, six fault groups, source naming noise removal, actual assembly scope, DNP, parity');
