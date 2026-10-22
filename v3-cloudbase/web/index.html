@@ -6,13 +6,13 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V1.0.43 团队版</title>
+  <title>技象科技研发BOM 整理神器 V1.0.44 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png?v=3.0.23-cb1">
 <script src="assets/vendor/xlsx.full.min.js?v=0.18.5"></script>
 <script src="assets/vendor/jszip.min.js?v=3.10.1"></script>
-<link rel="stylesheet" href="assets/bom-review.css?v=1.1.0">
-<script defer src="assets/bom-review-engine.js?v=1.1.0"></script>
-<script defer src="assets/bom-review-ui.js?v=1.1.0"></script>
+<link rel="stylesheet" href="assets/bom-review.css?v=1.2.0">
+<script defer src="assets/bom-review-engine.js?v=1.2.0"></script>
+<script defer src="assets/bom-review-ui.js?v=1.2.0"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:#f0f2f5;min-height:100vh;display:flex;flex-direction:column}
@@ -275,7 +275,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V1.0.43 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V1.0.44 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -930,7 +930,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 </div>
 <header>
 <div class="release-date"><span>更新日期：<time datetime="2026-10-22">20261022</time></span></div>
-        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.43 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.44 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1116,8 +1116,8 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   </div>
   <div id="reviewResults" class="panel" hidden>
     <h3>审查结果</h3><div id="reviewSummary" class="review-summary"></div><div id="reviewConclusion" class="review-result-note"></div>
-    <div class="review-config"><label>问题类型 <select id="reviewFilter"><option value="all">全部问题</option><option value="model">型号 / 参数</option><option value="package">封装</option><option value="reference">位号</option><option value="quantity">数量</option><option value="file">文件 / 规则</option></select></label><label>搜索 <input id="reviewSearch" type="search" placeholder="位号、行号或问题"></label><span id="reviewResultCount"></span></div>
-    <div class="review-table-wrap"><table class="review-table"><thead><tr><th>行号 / 单元格</th><th>位号</th><th>检查项</th><th>当前内容</th><th>正确内容</th><th>问题与处理建议</th></tr></thead><tbody id="reviewResultBody"></tbody></table></div>
+    <div class="review-config"><label>核对结果 <select id="reviewFilter"><option value="abnormal">仅看异常</option><option value="unverified">无法核对</option><option value="normal">正常</option><option value="all">全部明细</option></select></label><label>搜索 <input id="reviewSearch" type="search" placeholder="位号、行号、型号或异常原因"></label><span id="reviewResultCount"></span></div>
+    <div class="review-table-wrap"><table class="review-table review-audit-table"><thead><tr><th>行号</th><th>位号</th><th>型号</th><th>规格描述</th><th>封装</th><th>数量</th><th>结果</th><th>异常字段</th><th>原因及正确内容</th></tr></thead><tbody id="reviewResultBody"></tbody></table></div>
     <div id="reviewEvidence" class="review-evidence" hidden></div>
   </div>
 </div>
@@ -1243,7 +1243,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.43</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.44</span></h3>
 
     <!-- 库切换 Tab -->
     <div class="lib-tabs" style="margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -8746,7 +8746,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.43 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.44 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>

@@ -15,15 +15,17 @@
 .review-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:16px 0}
 .review-message{font-size:13px;line-height:1.7;color:#526273;white-space:pre-wrap}
 .review-message.error{color:#a51f25}.review-message.stale{color:#945300}
-.review-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:16px 0}
+.review-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
 .review-metric{padding:16px;border-radius:8px;background:#f5f8fb;border:1px solid #dbe4eb}
 .review-metric strong{font-size:25px;display:block;margin-bottom:4px}.review-metric span{font-size:13px}
 .review-error{color:#a51f25}.review-warning{color:#945300}.review-pending{color:#596675}.review-matched{color:#14683d}
+.review-total{color:#075d89}.review-abnormal{color:#a51f25;background:#fff1f2;border-color:#fecdd3}.review-unverified{color:#945300;background:#fffbeb;border-color:#fde68a}.review-normal{color:#14683d;background:#f0fdf4;border-color:#bbf7d0}
 .review-pass{color:#14683d;background:#f0fdf4;border-color:#bbf7d0}.review-result-note{padding:14px 16px;border-left:4px solid #0078b8;background:#edf7fd;font-size:14px;line-height:1.8;border-radius:4px}.review-result-pass{border-left-color:#16a34a;background:#f0fdf4;color:#166534}.review-result-fail{border-left-color:#dc2626;background:#fff1f2;color:#991b1b}
 .review-table-wrap{overflow:auto;max-height:650px;border:1px solid #e3e9ed;border-radius:6px}
 .review-table{width:100%;border-collapse:collapse;min-width:850px;font-size:12px}
 .review-table th{position:sticky;top:0;background:#eef5f9;z-index:1;text-align:left;padding:10px}
 .review-table td{padding:10px;vertical-align:top;border-bottom:1px solid #e6ecf0;white-space:normal;overflow-wrap:anywhere;max-width:300px}
+.review-audit-table{min-width:1450px}.review-audit-table th:nth-child(4){min-width:320px}.review-audit-table th:nth-child(9){min-width:360px}
 .review-table select,.review-table input{width:120px;max-width:100%;padding:5px;border:1px solid #cbd5e1;border-radius:4px}
 .review-evidence{background:#f8fafc;border:1px solid #dce5ec;border-radius:7px;padding:15px;margin:14px 0}
 .review-evidence h4{margin-bottom:10px}.review-evidence p{font-size:13px;line-height:1.8;overflow-wrap:anywhere}

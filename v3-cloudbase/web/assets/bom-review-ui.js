@@ -69,22 +69,30 @@
       state.result=E.analyze(state.primary.doc,state.source&&state.source.doc,{roles:state.roles,bindings:state.bindings,actuals:actuals()});
       el('reviewResults').hidden=false;el('reviewExport').disabled=false;
       var r=state.result;
-      el('reviewSummary').innerHTML=[['model','型号 / 参数'],['package','封装'],['reference','位号'],['quantity','数量'],['file','文件 / 规则']].map(function(pair){return '<div class="review-metric '+(r.categoryCounts[pair[0]]?'review-error':'review-pass')+'"><strong>'+r.categoryCounts[pair[0]]+'</strong><span>'+pair[1]+'</span></div>';}).join('');
+      el('reviewSummary').innerHTML=[
+        [r.auditCounts.total,'物料行','review-total'],
+        [r.auditCounts.normal,'正常','review-pass'],
+        [r.auditCounts.abnormal,'异常','review-abnormal'],
+        [r.auditCounts.unverified,'无法核对','review-unverified']
+      ].map(function(item){return '<div class="review-metric '+item[2]+'"><strong>'+item[0]+'</strong><span>'+item[1]+'</span></div>';}).join('');
       el('reviewConclusion').className='review-result-note '+(r.coreIssues.length?'review-result-fail':'review-result-pass');
       el('reviewConclusion').innerHTML=r.coreIssues.length
-        ? '<strong>发现 '+r.coreIssues.length+' 处需要处理的问题</strong><br>请按下面明细修正型号参数、封装、位号或数量后重新审查。'
-        : '<strong>审查通过，可以导出</strong><br>型号与参数描述、封装、位号和数量未发现明确错误。';
-      el('reviewEvidence').hidden=true;renderResults();message('审查完成。可查看原始单元格和依据，或导出本次报告。');
+        ? '<strong>发现 '+r.auditCounts.abnormal+' 行或文件范围存在明确异常</strong><br>请按逐行明细修正型号、规格描述、封装、位号或数量后重新审查。'
+        : '<strong>未发现明确异常</strong><br>型号、规格描述、封装、位号和数量的当前可核对项一致。'+(r.auditCounts.unverified?' 另有 '+r.auditCounts.unverified+' 行缺少权威依据，已单独列为“无法核对”。':'');
+      el('reviewEvidence').hidden=true;renderResults();message('审查完成。可逐行查看型号、规格描述、封装、位号和数量，或导出本次报告。');
     }catch(error){invalidate();message('无法完成审查：'+error.message,'error');}
   }
-  var labels={error:'错误',warning:'需确认',pending:'需确认',matched:'已核对'};
-  var categoryLabels={model:'型号 / 参数',package:'封装',reference:'位号',quantity:'数量',file:'文件 / 规则'};
+  var auditLabels={abnormal:'异常',unverified:'无法核对',normal:'正常'};
   function renderResults(){
     if(!state.result)return;
     var filter=el('reviewFilter').value, term=el('reviewSearch').value.trim().toLowerCase();
-    var rows=state.result.coreIssues.filter(function(c){return (filter==='all'||c.category===filter)&&(!term||[c.refs,c.row,c.rule,c.message,c.field,c.observed,c.expected].join(' ').toLowerCase().includes(term));});
-    el('reviewResultCount').textContent='已检查 '+state.result.checks.length+' 项，当前显示 '+rows.length+' 个问题';
-    el('reviewResultBody').innerHTML=rows.slice(0,500).map(function(c){return '<tr><td><button class="review-action-link" data-review-evidence="'+c.id+'">第'+html(c.row)+'行'+(c.cell?' · '+html(c.cell):'')+'</button></td><td>'+html(c.refs||'文件范围')+'</td><td><span class="review-issue-badge review-'+c.status+'">'+labels[c.status]+'</span><br>'+html(categoryLabels[c.category]||c.field)+'</td><td>'+html(c.observed||'缺失')+'</td><td>'+html(c.expected||'按型号、源BOM或公司规则修正')+'</td><td>'+html(c.message)+'<div class="review-suggestion">'+html(c.suggestion)+'</div></td></tr>';}).join('')||'<tr><td colspan="6" class="review-empty">当前没有需要处理的问题。</td></tr>';
+    var rows=state.result.auditRows.filter(function(a){return (filter==='all'||a.status===filter)&&(!term||[a.refs,a.row,a.model,a.specification,a.package,a.quantity,a.finding,a.abnormalFields.join(' ')].join(' ').toLowerCase().includes(term));});
+    el('reviewResultCount').textContent='共 '+state.result.document.rows+' 行物料，当前显示 '+rows.length+' 条核对明细';
+    el('reviewResultBody').innerHTML=rows.slice(0,500).map(function(a){
+      var line=a.checkIds.length?'<button class="review-action-link" data-review-evidence="'+a.checkIds[0]+'">'+(a.scope==='file'?'文件范围':'第'+html(a.row)+'行')+'</button>':(a.scope==='file'?'文件范围':'第'+html(a.row)+'行');
+      var reason=html(a.finding)+(a.expected?'<div class="review-suggestion">正确内容：'+html(a.expected)+'</div>':'');
+      return '<tr><td>'+line+'</td><td>'+html(a.refs||'缺失')+'</td><td>'+html(a.model||'—')+'</td><td>'+html(a.specification||'—')+'</td><td>'+html(a.package||'—')+'</td><td>'+html(a.quantity||'—')+'</td><td><span class="review-issue-badge review-'+a.status+'">'+auditLabels[a.status]+'</span></td><td>'+html(a.abnormalFields.length?a.abnormalFields.join('、'):'—')+'</td><td>'+reason+'</td></tr>';
+    }).join('')||'<tr><td colspan="9" class="review-empty">当前筛选条件下没有核对明细。</td></tr>';
   }
   function evidence(id){
     if(!state.result)return;
@@ -99,10 +107,10 @@
     if(!state.result)return;
     try{
       var r=state.result, wb=XLSX.utils.book_new();
-      var overview=[['项目','内容'],['文件',r.document.name],['物料行数',r.document.rows],['审查结论',r.conclusion],['需处理问题',r.coreIssues.length],['型号/参数',r.categoryCounts.model],['封装',r.categoryCounts.package],['位号',r.categoryCounts.reference],['数量',r.categoryCounts.quantity],['文件/规则',r.categoryCounts.file],['源文件',r.source?r.source.name:'未提供'],['规则版本',r.version]];
-      var header=['原行号','原单元格','位号','检查项','当前内容','正确内容','问题说明','处理建议'];
-      var details=[header].concat(r.coreIssues.map(function(c){return [c.row,c.cell,c.refs,categoryLabels[c.category]||c.field,c.observed,c.expected,c.message,c.suggestion];}));
-      [['审查结论',overview],['问题明细',details]].forEach(function(pair){var sheet=XLSX.utils.aoa_to_sheet(pair[1]);sheet['!cols']=pair[0]==='审查结论'?[{wch:25},{wch:90}]:[{wch:10},{wch:12},{wch:24},{wch:18},{wch:38},{wch:38},{wch:65},{wch:50}];XLSX.utils.book_append_sheet(wb,sheet,pair[0]);});
+      var overview=[['项目','内容'],['文件',r.document.name],['物料行数',r.auditCounts.total],['正常',r.auditCounts.normal],['异常',r.auditCounts.abnormal],['无法核对',r.auditCounts.unverified],['审查结论',r.conclusion],['源文件',r.source?r.source.name:'未提供'],['规则版本',r.version]];
+      var header=['原行号','位号','型号','规格描述','封装','数量','核对结果','异常字段','原因及正确内容'];
+      var details=[header].concat(r.auditRows.map(function(a){return [a.scope==='file'?'文件范围':a.row,a.refs,a.model,a.specification,a.package,a.quantity,auditLabels[a.status],a.abnormalFields.join('、'),a.finding+(a.expected?'；正确内容：'+a.expected:'')];}));
+      [['审查结论',overview],['逐行核对明细',details]].forEach(function(pair){var sheet=XLSX.utils.aoa_to_sheet(pair[1]);sheet['!cols']=pair[0]==='审查结论'?[{wch:25},{wch:90}]:[{wch:10},{wch:24},{wch:28},{wch:48},{wch:16},{wch:10},{wch:14},{wch:18},{wch:80}];XLSX.utils.book_append_sheet(wb,sheet,pair[0]);});
       XLSX.writeFile(wb,'线下BOM审查报告_'+new Date().toISOString().replace(/[:.]/g,'-')+'.xlsx');
     }catch(error){message('报告导出失败：'+error.message,'error');}
   }
