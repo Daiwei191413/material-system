@@ -14,6 +14,14 @@ function has(result,rule,status){return result.checks.some(c=>c.rule===rule&&(!s
 let r=E.analyze(doc([row()]));
 assert(!has(r,'TYPE_CONFLICT'));assert(!has(r,'PACKAGE_CONFLICT'));assert(has(r,'PARAMETERS_MISSING','pending'));
 assert(Array.isArray(r.coreIssues));assert.equal(typeof r.categoryCounts.model,'number');
+assert.equal(r.auditCounts.abnormal,0);assert.equal(r.auditCounts.unverified,1);assert.equal(r.rowAudits[0].status,'unverified');
+const reviewExample=E.analyze(doc([
+  row('C30','1nF SC0201','SC0201','MLCC 1nF ±10% 25V - SMD 0201'),
+  {...row('C37,C70,C74','22uF SC0603','SC0603','MLCC 22uF ±20% 25V SMD 0603'),'数量':'3'}
+]));
+assert.equal(reviewExample.auditCounts.abnormal,0,'missing dielectric must not be counted as an anomaly');
+assert.equal(reviewExample.auditCounts.unverified,2);
+assert(reviewExample.rowAudits.every(item=>item.status==='unverified'));
 for(const [ref,model,pkg,spec,rule] of [
   ['C18','0R','SC0201','电阻 0Ω SMD 0402','PACKAGE_CONFLICT'],
   ['C23','5.6pF SC0402','SC0402','MLCC 5.6pF SMD 0201','PACKAGE_CONFLICT'],
@@ -22,6 +30,8 @@ for(const [ref,model,pkg,spec,rule] of [
   ['R2','22R','SR0201','电阻 22Ω SMD 0402','PACKAGE_CONFLICT'],
   ['R20','1K','SR0201','电阻 1KΩ SMD 0402','PACKAGE_CONFLICT']
 ]) assert(has(E.analyze(doc([row(ref,model,pkg,spec)])),rule,'error'),ref);
+const valueConflict=E.analyze(doc([row('C37,C70,C74','22uF SC0603','SC0603','MLCC 22F ±20% 25V SMD 0603')]));
+assert.equal(valueConflict.auditCounts.abnormal,1);assert.equal(valueConflict.rowAudits[0].status,'abnormal');assert(valueConflict.rowAudits[0].abnormalFields.includes('参数描述'));
 assert(E.equal(E.value('100nF'),E.value('0.1uF')));assert(E.equal(E.value('2K2'),E.value('2.2kΩ')));
 assert.equal(E.value('10mΩ').number,.01);assert.equal(E.value('10MΩ').number,1e7);
 assert(!E.equal(E.value('22F'),E.value('22uF')));
@@ -54,4 +64,4 @@ assert(!has(icReview,'SOURCE_CODE_MISSING'),'Offline BOM does not require an LCS
 const sparse={SheetNames:['BOM'],Sheets:{BOM:{'!ref':'A5:G6',A5:{t:'s',v:'型号'},B5:{t:'s',v:'封装'},C5:{t:'s',v:'位号'},D5:{t:'s',v:'数量'},A6:{t:'s',v:'0R'},B6:{t:'s',v:'SC0201'},C6:{t:'s',v:'C18'},D6:{t:'n',v:1}}}};
 d=E.readWorkbook(sparse,X,{});assert.equal(d.headerRow,5);assert.equal(d.rows[0].row,6);assert.equal(d.rows[0].cells['型号'],'A6');
 for(const name of ['bom-review-engine.js','bom-review-ui.js','bom-review.css'])assert.equal(fs.readFileSync(path.join(root,'v3-cloudbase/web/assets',name),'utf8'),fs.readFileSync(path.join(root,'v3-legacy/assets',name),'utf8'));
-console.log('PASS: simplified review categories, strict small-cap tolerance, original cells/quantities, six fault groups, source naming noise removal, actual assembly scope, DNP, parity');
+console.log('PASS: row audit detail, anomaly/unverified split, strict small-cap tolerance, original cells/quantities, source naming noise removal, actual assembly scope, DNP, parity');

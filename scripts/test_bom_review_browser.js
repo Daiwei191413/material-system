@@ -35,7 +35,9 @@ const inputs=[process.env.BOM_REVIEW_PRIMARY_FILE||fixture(),process.env.BOM_REV
    await page.locator('#reviewRun').click();
    let result=await page.evaluate(()=>BOM_REVIEW_UI.state.result);
    assert.equal(await page.locator('#reviewFilter option[value="matched"]').count(),0);
-   assert.equal(await page.locator('#reviewResultBody').locator('xpath=preceding-sibling::thead/tr/th').count(),6);
+   assert.equal(await page.locator('#reviewFilter option[value="abnormal"]').count(),1);
+   assert.equal(await page.locator('#reviewFilter option[value="unverified"]').count(),1);
+   assert.equal(await page.locator('#reviewResultBody').locator('xpath=preceding-sibling::thead/tr/th').count(),9);
    for(const [ref,cell,rule] of [['C18','E15','PACKAGE_CONFLICT'],['C23','E17','PACKAGE_CONFLICT'],['C37,C70,C74','E25','VALUE_CONFLICT'],['R1,R44,R47,R50','E54','PACKAGE_CONFLICT'],['R2,R3,R4,R5,R6,R19,R42,R48,R49,R51,R52,R53,R54,R55,R56,R57,R58,R59','E55','PACKAGE_CONFLICT'],['R20,R21','E61','PACKAGE_CONFLICT']]){
     assert(result.issues.some(c=>c.refs===ref&&c.cell===cell&&c.rule===rule&&c.status==='error'),ref+' not located');
    }
@@ -45,12 +47,12 @@ const inputs=[process.env.BOM_REVIEW_PRIMARY_FILE||fixture(),process.env.BOM_REV
    assert((await page.locator('#reviewEvidence').textContent()).includes('E15'));
    await page.locator('#reviewSearch').fill('');
    await page.evaluate(()=>window.scrollTo(0,0));
-   await page.screenshot({path:path.join(out,label+'-review-desktop.png')});
+   await page.screenshot({path:path.join(out,label+'-review-desktop.png'),fullPage:true});
    const promise=page.waitForEvent('download');await page.locator('#reviewExport').click();const download=await promise;
    const reportPath=path.join(out,label+'-审查报告.xlsx');await download.saveAs(reportPath);
-   const report=X.read(fs.readFileSync(reportPath),{type:'buffer'});assert.deepEqual(report.SheetNames,['审查结论','问题明细']);
-   const issues=X.utils.sheet_to_json(report.Sheets['问题明细']);assert(issues.some(r=>r['位号']==='C18'&&r['原单元格']==='E15'));
-   assert.equal(issues.length,result.coreIssues.length);
+   const report=X.read(fs.readFileSync(reportPath),{type:'buffer'});assert.deepEqual(report.SheetNames,['审查结论','逐行核对明细']);
+   const issues=X.utils.sheet_to_json(report.Sheets['逐行核对明细']);assert(issues.some(r=>r['位号']==='C18'&&r['核对结果']==='异常'&&r['异常字段']==='参数描述'));
+   assert.equal(issues.length,result.auditRows.length);
    const preserved=await page.evaluate(()=>({lib:window.__beforeLib===JSON.stringify([window.materialDB_standard,window.materialDB_lcsc]),b:window.__beforeB===JSON.stringify(window.B)}));assert(preserved.lib&&preserved.b);
    await page.locator('#reviewPrimaryConfig details > summary').click();
    await page.locator('[data-review-header="primary"]').fill('9999');await page.locator('[data-review-header="primary"]').dispatchEvent('change');
@@ -60,7 +62,7 @@ const inputs=[process.env.BOM_REVIEW_PRIMARY_FILE||fixture(),process.env.BOM_REV
    await page.locator('#reviewClearSource').click();assert(await page.locator('#reviewExport').isDisabled());
    await page.locator('#reviewFile').setInputFiles(process.env.BOM_REVIEW_FIXED_DIR?path.join(process.env.BOM_REVIEW_FIXED_DIR,'修复试转换-'+label+'.xlsx'):fixture(true));
    await page.waitForFunction(()=>BOM_REVIEW_UI.state.primary?.valid);await page.locator('#reviewRun').click();
-   const fixed=await page.evaluate(()=>BOM_REVIEW_UI.state.result);assert(!fixed.issues.some(c=>['VALUE_CONFLICT','PACKAGE_CONFLICT'].includes(c.rule)));
+   const fixed=await page.evaluate(()=>BOM_REVIEW_UI.state.result);assert(!fixed.issues.some(c=>['VALUE_CONFLICT','PACKAGE_CONFLICT'].includes(c.rule)));assert.equal(fixed.auditCounts.abnormal,0);assert(fixed.auditCounts.unverified>0);
    await page.setViewportSize({width:390,height:844});await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:path.join(out,label+'-review-mobile.png')});
    const overflow=await page.locator('#reviewPanel').evaluate(e=>({width:e.getBoundingClientRect().width,scroll:e.scrollWidth}));assert(overflow.scroll<=overflow.width+2,JSON.stringify(overflow));
    await page.evaluate(async()=>{const headers=['型号','封装','位号','数量','参数描述'];BOM_REVIEW_UI.remember(headers,[['0R','SC0201','C18',1,'电阻 0Ω SMD 0201']],{rows:[{'型号':'0R','封装':'SC0201','位号':'C18','数量':1}],_fn:'original.xlsx'},'generated.xlsx');await BOM_REVIEW_UI.useLast();});
