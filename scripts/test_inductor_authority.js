@@ -57,6 +57,10 @@ function section(html, start, end) {
         const match = String(raw || '').toUpperCase().match(/C\d{3,}/);
         return match ? match[0] : '';
       },
+      normModel: (raw) => String(raw || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, ''),
+      normPkg: (raw) => String(raw || '').trim().toUpperCase()
+        .replace(/^(?:SL|SC|SR)/, '')
+        .replace(/[^A-Z0-9]/g, ''),
       cleanSpec: (raw) => String(raw || '').trim(),
       fetchLcscDetailsByCodes: async (codes) => Object.fromEntries(
         codes.map((code) => [code, { ok: true, data: official }]),
@@ -69,6 +73,61 @@ function section(html, start, end) {
     assert.strictEqual(context.parseInductanceNh('26MHz_TCXO'), null, `${target.file}: MHz was parsed as mH`);
     assert.strictEqual(context.inductanceValuesConflict(12, 12.1), false, `${target.file}: nominal 12nH/12.1nH alias was rejected`);
     assert.strictEqual(context.inductanceValuesConflict(22, 220), true, `${target.file}: 22nH/220nH conflict was not detected`);
+    assert.strictEqual(context.officialInductorNh({
+      productName: '15nH ±2%',
+      _extracted: {},
+    }), 15, `${target.file}: official product-name inductance fallback failed`);
+
+    const companyErrors = context.rfInductorOfficialErrors({
+      material_code: '1-IN-09-00036',
+      lcsc_code: 'C9900070550',
+      model: 'SMDS332-12N_RS',
+      package: 'SMDS332-12N',
+      specification: '电感值：12.1nH',
+    }, {
+      hit: true,
+      productCode: 'C9900070550',
+      productModel: 'smd332_12nh',
+      productName: 'smd332_12nh',
+      productType: '未分类',
+      package: 'SMD-2P',
+      _extracted: {},
+    });
+    assert.strictEqual(companyErrors.length, 0, `${target.file}: company material was blocked by official differences`);
+
+    const fallbackErrors = context.rfInductorOfficialErrors({
+      material_code: '',
+      lcsc_code: 'C98055',
+      model: 'LQW15AN15NG00D',
+      package: 'SL0402',
+      specification: '电感值：15nH',
+    }, {
+      hit: true,
+      productCode: 'C98055',
+      productModel: 'LQW15AN15NG00D',
+      productName: '15nH ±2%',
+      productType: '贴片电感',
+      package: '0402',
+      _extracted: {},
+    });
+    assert.strictEqual(fallbackErrors.length, 0, `${target.file}: product-name inductance fallback was rejected`);
+
+    const genuineConflict = context.rfInductorOfficialErrors({
+      material_code: '',
+      lcsc_code: 'C91626',
+      model: 'LQW15AN5N6C10D',
+      package: 'SL0402',
+      specification: '电感值：5.1nH',
+    }, {
+      hit: true,
+      productCode: 'C91626',
+      productModel: 'LQW15AN5N6C10D',
+      productName: '5.6nH',
+      productType: '功率电感',
+      package: '0402',
+      _extracted: { inductance: '5.6nH' },
+    });
+    assert(genuineConflict.includes('官方电感值与指定库不一致'), `${target.file}: genuine inductance conflict was not blocked`);
 
     const fallbackRow = {
       '位号': 'L4',
