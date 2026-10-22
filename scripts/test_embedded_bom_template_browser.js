@@ -126,6 +126,16 @@ async function inspectOutput(filename, expectedRows) {
       });
       await page.goto(`${base}/${relative}`, { waitUntil:'domcontentloaded' });
       await page.waitForFunction(() => /已就绪|加载失败/.test(document.getElementById('msgA')?.textContent || ''), null, { timeout:12000 });
+      const cleanedNames = await page.evaluate(() => [
+        cleanBomFilename('A-01-02-00259-TP1211-MK36_V1.0嘉立创BOM.xlsx'),
+        cleanBomFilename('A-01-02-00259-TP1211-MK36_V1.0嘉立创BOM20261020.xlsx'),
+        cleanBomFilename('A-01-02-00259-TP1211-MK36_V1.0_嘉立创BOM_20261020 (1).xlsx'),
+      ]);
+      assert.deepStrictEqual(cleanedNames, [
+        'A-01-02-00259-TP1211-MK36_V1.0',
+        'A-01-02-00259-TP1211-MK36_V1.0_20261020',
+        'A-01-02-00259-TP1211-MK36_V1.0_20261020',
+      ], `${label}: offline BOM filename cleanup regression`);
       const templateStatus = await page.locator('#msgA').textContent();
       assert(templateStatus.includes('已就绪'), `${label}: ${templateStatus}; page errors: ${pageErrors.join(' | ')}`);
       await page.evaluate(standardRows => {
@@ -162,6 +172,7 @@ async function inspectOutput(filename, expectedRows) {
       const downloadEvent = page.waitForEvent('download', { timeout:30000 });
       await page.locator('#fmtAB').click();
       const download = await downloadEvent;
+      assert.equal(download.suggestedFilename(), 'A-01-02-00259-TP1211-MK36_V1.0.xlsx', `${label}: generated filename still contains LCSC wording`);
       const saved = path.join(output, `${label}${useRealLcsc ? '-real' : ''}-generated.xlsx`);
       await download.saveAs(saved);
       const workbook = await inspectOutput(saved, expectedRows);
