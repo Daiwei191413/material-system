@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V3.0.70 团队版</title>
+  <title>技象科技研发BOM 整理神器 V3.0.71 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -273,7 +273,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V3.0.70 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V3.0.71 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -930,7 +930,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 </div>
 <header>
 <div class="release-date"><span>更新日期：<time datetime="2026-10-24">20261024</time></span></div>
-        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.70 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.71 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1243,7 +1243,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.70</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.71</span></h3>
 
     <!-- 库切换 Tab -->
     <div class="lib-tabs" style="margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -7561,15 +7561,15 @@ function findRfInductorPreference(row) {
     var libNh = parseInductanceNh(rfInductorValueText(item));
     return rfInductorSameValue(nh, libNh);
   });
-  if (!sameValue.length) return {mode:'none'};
+  if (!sameValue.length) return {mode:'none', ordinary:true};
   if (!pkg) return {mode:'conflict', message:'射频电感指定库存在该感值，但源BOM缺少封装，无法按“电感值 + 封装”唯一选型'};
   var exact = sameValue.filter(function(item){ return normPkg(item.package || item['封装']) === pkg; });
   if (exact.length === 1) return {mode:'exact', record:exact[0], valueNh:nh, package:pkg};
   if (exact.length > 1) return {mode:'conflict', message:'射频电感指定库中“电感值 + 封装”存在重复记录，请先整理库'};
   return {
-    mode:'conflict',
-    message:'射频电感指定库已规定该感值，但没有匹配源封装 ' + (row['封装'] || row.package || row.footprint || '-')
-      + '；库内可用封装：' + sameValue.map(function(item){ return item.package || item['封装'] || '-'; }).filter(function(v,i,a){ return a.indexOf(v) === i; }).join('、')
+    mode:'none', ordinary:true,
+    message:'射频电感指定库没有匹配当前“感值 + 封装”组合，按普通电感选择；库内相同感值封装：'
+      + sameValue.map(function(item){ return item.package || item['封装'] || '-'; }).filter(function(v,i,a){ return a.indexOf(v) === i; }).join('、')
   };
 }
 
@@ -8914,7 +8914,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.70 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.71 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>

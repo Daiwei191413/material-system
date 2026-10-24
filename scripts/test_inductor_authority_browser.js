@@ -24,8 +24,8 @@ assert(edgePath, 'Microsoft Edge executable not found; set EDGE_PATH to run this
 
 const repoRoot = path.resolve(__dirname, '..');
 const targets = [
-  ['domestic', 'v3-cloudbase/web/index.html', 'V1.0.46'],
-  ['overseas', 'v3-legacy/index.html', 'V3.0.70'],
+  ['domestic', 'v3-cloudbase/web/index.html', 'V1.0.47'],
+  ['overseas', 'v3-legacy/index.html', 'V3.0.71'],
 ];
 
 let browser;
@@ -218,6 +218,9 @@ let browser;
       const valuePackageChoice = findRfInductorPreference({
         '位号':'L31', '型号':'22nH', '参数描述':'22nH', '封装':'SL0402',
       });
+      const ordinaryDifferentPackageChoice = findRfInductorPreference({
+        '位号':'L32', '型号':'22nH', '参数描述':'22nH', '封装':'SL0603',
+      });
       window.materialDB_rf_inductor = [];
 
       return {
@@ -244,6 +247,7 @@ let browser;
           ordinaryBrands: ordinaryBrandPlan && ordinaryBrandPlan.brands.map(item => item.name),
           exactMode: exactChoice.mode,
           valuePackageMode: valuePackageChoice.mode,
+          ordinaryDifferentPackage: ordinaryDifferentPackageChoice,
         },
       };
     }, version);
@@ -287,6 +291,8 @@ let browser;
     assert.deepStrictEqual(result.rfDecisionChecks.ordinaryBrands, ['村田', '顺络', '风华'], `${label}: ordinary inductor brand priority changed`);
     assert.strictEqual(result.rfDecisionChecks.exactMode, 'exact', `${label}: RF library identity match was not selected`);
     assert.strictEqual(result.rfDecisionChecks.valuePackageMode, 'exact', `${label}: value and package RF library fallback was not selected`);
+    assert.strictEqual(result.rfDecisionChecks.ordinaryDifferentPackage.mode, 'none', `${label}: unmatched value and package was treated as an RF library conflict`);
+    assert.strictEqual(result.rfDecisionChecks.ordinaryDifferentPackage.ordinary, true, `${label}: unmatched value and package did not enter ordinary inductor flow`);
     assert.strictEqual(placeholderByRef.L4['型号'], 'LQW15AN22NG00D', `${label}: L4 placeholder model was not replaced`);
     assert.strictEqual(placeholderByRef.L12['型号'], 'MCL1608S2R2MT', `${label}: L12 placeholder model was not replaced`);
     assert.strictEqual(placeholderByRef.L24['型号'], 'LQW15AN4N7B00D', `${label}: L24 placeholder model was not replaced`);
