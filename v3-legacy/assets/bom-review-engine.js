@@ -4,7 +4,7 @@
   else root.BOMReview = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function(){
   'use strict';
-  var VERSION = '1.2.1';
+  var VERSION = '1.2.2';
   var ALIASES = {
     '物料编码':['物料编码','料号','Part Number'], '物料名称':['物料名称','名称','Description','物料描述'],
     '型号':['型号','Comment','Comment型号','Value','value','规格型号','Part'],
@@ -20,6 +20,7 @@
   function text(v){ return v == null ? '' : String(v).trim(); }
   function column(n){ var s=''; for(n++;n;n=Math.floor((n-1)/26)) s=String.fromCharCode(65+(n-1)%26)+s; return s; }
   function unique(a){ return Array.from(new Set(a)); }
+  function rfLibraryStatus(raw){ var m=text(raw).match(/射频电感状态\s*[=:：]\s*([^；;]+)/); return m?text(m[1]):''; }
   function code(v){ var m=text(v).toUpperCase().match(/^C\d{3,}$/); return m ? m[0] : ''; }
   function mapping(headers){
     var result={}, used={};
@@ -230,7 +231,11 @@
         if(missing.length)emit(row,'PARAMETERS_MISSING','pending','参数描述',missing.join('、')+'待核实；不根据封装或默认值推断');
         if(mv.kind==='capacitor'&&mv.number>0&&mv.number/1e-12<10&&!hasExactSmallCapTolerance(v['参数描述']))emit(row,'SMALL_CAP_TOLERANCE','error','参数描述','公司硬性规则：小于10pF电容必须明确使用±0.1pF精度','±0.1pF');
       }
-      if(/待核实|待确认/.test(text(v['备注'])))emit(row,'PENDING_NOTE','pending','备注','原BOM已有待核实/待确认标记');
+      var rfStatus=rfLibraryStatus(v['备注']);
+      if(rfStatus){
+        if(/待入库/.test(rfStatus))emit(row,'RF_LIBRARY_PENDING','pending','备注','源BOM指定的新关键电感已保留，本次可用；射频电感库尚未收录，需由管理员审核后导入');
+        else emit(row,'RF_LIBRARY_STATUS','matched','备注','射频电感库状态：'+rfStatus);
+      } else if(/待核实|待确认/.test(text(v['备注'])))emit(row,'PENDING_NOTE','pending','备注','原BOM已有待核实/待确认标记');
       var material=text(v['物料编码']);
       if(material&&role!=='alternative'){if(!codes.has(material))codes.set(material,[]);codes.get(material).push(row);}
       if(source&&main&&rr.length){
@@ -279,7 +284,7 @@
       if(['MISSING_QUANTITY','INVALID_QUANTITY','QUANTITY_REF'].indexOf(rule)>=0)return 'quantity';
       return '';
     }
-    var advisoryRules=['PARAMETERS_MISSING','PACKAGE_EVIDENCE','PENDING_NOTE'];
+    var advisoryRules=['PARAMETERS_MISSING','PACKAGE_EVIDENCE','PENDING_NOTE','RF_LIBRARY_PENDING'];
     checks.forEach(function(c){
       c.category=category(c);
       // 资料不完整与明确矛盾分开：缺少介质、耐压、功率等依据时仅提示“无法核对”，不计入异常。
@@ -310,7 +315,7 @@
       return {
         id:'ROW:'+row.key,key:row.key,scope:'row',sheet:row.sheet,row:row.row,
         refs:text(row.values['位号']),model:text(row.values['型号']),specification:text(row.values['参数描述']),
-        package:text(row.values['封装']),quantity:text(row.values['数量']),status:status,
+        package:text(row.values['封装']),quantity:text(row.values['数量']),inductorStatus:rfLibraryStatus(row.values['备注']),status:status,
         abnormalFields:fields,checkIds:(errors.length?errors:unknown).map(function(c){return c.id;}),
         finding:status==='abnormal'?finding(errors,'发现明确异常'):(status==='unverified'?finding(unknown,'缺少权威依据，当前无法核对'):'当前可核对项未发现明确异常'),
         expected:unique(errors.map(function(c){return c.expected;}).filter(Boolean)).join('；')
@@ -318,7 +323,7 @@
     }
     var rowAudits=doc.rows.map(auditRow);
     var fileAudits=coreIssues.filter(function(c){return !c.key;}).map(function(c){
-      return {id:'FILE:'+c.id,key:'',scope:'file',sheet:c.sheet,row:c.row,refs:c.refs||c.expected||'文件范围',model:'',specification:'',package:'',quantity:'',status:'abnormal',abnormalFields:[c.field||c.category||'文件'],checkIds:[c.id],finding:finding([c],'发现文件范围异常'),expected:c.expected||''};
+      return {id:'FILE:'+c.id,key:'',scope:'file',sheet:c.sheet,row:c.row,refs:c.refs||c.expected||'文件范围',model:'',specification:'',package:'',quantity:'',inductorStatus:'',status:'abnormal',abnormalFields:[c.field||c.category||'文件'],checkIds:[c.id],finding:finding([c],'发现文件范围异常'),expected:c.expected||''};
     });
     var auditRows=rowAudits.concat(fileAudits);
     var auditCounts={

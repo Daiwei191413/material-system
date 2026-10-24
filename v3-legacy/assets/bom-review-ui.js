@@ -87,14 +87,14 @@
   function renderResults(){
     if(!state.result)return;
     var filter=el('reviewFilter').value, term=el('reviewSearch').value.trim().toLowerCase();
-    var rows=state.result.auditRows.filter(function(a){return (filter==='all'||a.status===filter)&&(!term||[a.refs,a.row,a.model,a.specification,a.package,a.quantity,a.finding,a.abnormalFields.join(' ')].join(' ').toLowerCase().includes(term));});
+    var rows=state.result.auditRows.filter(function(a){return (filter==='all'||a.status===filter)&&(!term||[a.refs,a.row,a.model,a.specification,a.package,a.quantity,a.inductorStatus,a.finding,a.abnormalFields.join(' ')].join(' ').toLowerCase().includes(term));});
     el('reviewSummary').querySelectorAll('[data-review-filter]').forEach(function(card){card.classList.toggle('is-active',card.dataset.reviewFilter===filter);});
     el('reviewResultCount').textContent='共 '+state.result.document.rows+' 行物料，当前显示 '+rows.length+' 条核对明细';
     el('reviewResultBody').innerHTML=rows.slice(0,500).map(function(a){
       var line=a.checkIds.length?'<button class="review-action-link" data-review-evidence="'+a.checkIds[0]+'">'+(a.scope==='file'?'文件范围':'第'+html(a.row)+'行')+'</button>':(a.scope==='file'?'文件范围':'第'+html(a.row)+'行');
       var reason=html(a.finding)+(a.expected?'<div class="review-suggestion">正确内容：'+html(a.expected)+'</div>':'');
-      return '<tr><td>'+line+'</td><td>'+html(a.refs||'缺失')+'</td><td>'+html(a.model||'—')+'</td><td>'+html(a.specification||'—')+'</td><td>'+html(a.package||'—')+'</td><td>'+html(a.quantity||'—')+'</td><td><span class="review-issue-badge review-'+a.status+'">'+auditLabels[a.status]+'</span></td><td>'+html(a.abnormalFields.length?a.abnormalFields.join('、'):'—')+'</td><td>'+reason+'</td></tr>';
-    }).join('')||'<tr><td colspan="9" class="review-empty">当前筛选条件下没有核对明细。</td></tr>';
+      return '<tr><td>'+line+'</td><td>'+html(a.refs||'缺失')+'</td><td>'+html(a.model||'—')+'</td><td>'+html(a.specification||'—')+'</td><td>'+html(a.package||'—')+'</td><td>'+html(a.quantity||'—')+'</td><td>'+html(a.inductorStatus||'—')+'</td><td><span class="review-issue-badge review-'+a.status+'">'+auditLabels[a.status]+'</span></td><td>'+html(a.abnormalFields.length?a.abnormalFields.join('、'):'—')+'</td><td>'+reason+'</td></tr>';
+    }).join('')||'<tr><td colspan="10" class="review-empty">当前筛选条件下没有核对明细。</td></tr>';
   }
   function evidence(id){
     if(!state.result)return;
@@ -110,9 +110,9 @@
     try{
       var r=state.result, wb=XLSX.utils.book_new();
       var overview=[['项目','内容'],['文件',r.document.name],['物料行数',r.auditCounts.total],['正常',r.auditCounts.normal],['异常',r.auditCounts.abnormal],['无法核对',r.auditCounts.unverified],['审查结论',r.conclusion],['源文件',r.source?r.source.name:'未提供'],['规则版本',r.version]];
-      var header=['原行号','位号','型号','规格描述','封装','数量','核对结果','异常字段','原因及正确内容'];
-      var details=[header].concat(r.auditRows.map(function(a){return [a.scope==='file'?'文件范围':a.row,a.refs,a.model,a.specification,a.package,a.quantity,auditLabels[a.status],a.abnormalFields.join('、'),a.finding+(a.expected?'；正确内容：'+a.expected:'')];}));
-      [['审查结论',overview],['逐行核对明细',details]].forEach(function(pair){var sheet=XLSX.utils.aoa_to_sheet(pair[1]);sheet['!cols']=pair[0]==='审查结论'?[{wch:25},{wch:90}]:[{wch:10},{wch:24},{wch:28},{wch:48},{wch:16},{wch:10},{wch:14},{wch:18},{wch:80}];XLSX.utils.book_append_sheet(wb,sheet,pair[0]);});
+      var header=['原行号','位号','型号','规格描述','封装','数量','电感库状态','核对结果','异常字段','原因及正确内容'];
+      var details=[header].concat(r.auditRows.map(function(a){return [a.scope==='file'?'文件范围':a.row,a.refs,a.model,a.specification,a.package,a.quantity,a.inductorStatus||'',auditLabels[a.status],a.abnormalFields.join('、'),a.finding+(a.expected?'；正确内容：'+a.expected:'')];}));
+      [['审查结论',overview],['逐行核对明细',details]].forEach(function(pair){var sheet=XLSX.utils.aoa_to_sheet(pair[1]);sheet['!cols']=pair[0]==='审查结论'?[{wch:25},{wch:90}]:[{wch:10},{wch:24},{wch:28},{wch:48},{wch:16},{wch:10},{wch:36},{wch:14},{wch:18},{wch:80}];XLSX.utils.book_append_sheet(wb,sheet,pair[0]);});
       XLSX.writeFile(wb,'线下BOM审查报告_'+new Date().toISOString().replace(/[:.]/g,'-')+'.xlsx');
     }catch(error){message('报告导出失败：'+error.message,'error');}
   }
