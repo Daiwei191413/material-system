@@ -197,6 +197,29 @@ let browser;
       }]));
       window.fmtCore('AB', placeholderOfficial);
 
+      const pendingSource = {
+        '位号':'L30', '型号':'NEW-RF-22N', '参数描述':'绕线电感 22nH SMD 0402',
+        '封装':'SL0402', '立创编号':'C12345678', '品牌':'Sample',
+      };
+      const ordinarySource = {
+        designator:'L31', comment:'22nH', footprint:'0402',
+      };
+      window.materialDB_rf_inductor = [];
+      const pendingChoice = findRfInductorPreference(pendingSource);
+      const pendingBrandPlan = getLcscBrandPlan({
+        designator:'L30', comment:'NEW-RF-22N', footprint:'0402', lcsc:'C12345678',
+      });
+      const ordinaryBrandPlan = getLcscBrandPlan(ordinarySource);
+      window.materialDB_rf_inductor = [{
+        lcsc_code:'C12345678', model:'NEW-RF-22N', specification:'电感值：22nH',
+        package:'SL0402', brand:'Sample', name:'绕线电感',
+      }];
+      const exactChoice = findRfInductorPreference(pendingSource);
+      const valuePackageChoice = findRfInductorPreference({
+        '位号':'L31', '型号':'22nH', '参数描述':'22nH', '封装':'SL0402',
+      });
+      window.materialDB_rf_inductor = [];
+
       return {
         versionFound: document.title.includes(expectedVersion),
         official: captures[0],
@@ -214,6 +237,14 @@ let browser;
         crystalType: detectMaterialType(crystalSource),
         crystalInductance: parseInductanceNh(crystalSource['型号']),
         crystalAuthority: isInductorAuthorityRow(crystalSource),
+        rfDecisionChecks: {
+          pendingMode: pendingChoice.mode,
+          pendingIdentityType: pendingChoice.identity && pendingChoice.identity.type,
+          pendingBrandPlan,
+          ordinaryBrands: ordinaryBrandPlan && ordinaryBrandPlan.brands.map(item => item.name),
+          exactMode: exactChoice.mode,
+          valuePackageMode: valuePackageChoice.mode,
+        },
       };
     }, version);
 
@@ -250,6 +281,12 @@ let browser;
     assert.strictEqual(result.placeholderChecks.inductanceWithPackage, true, `${label}: inductance placeholder with package was not detected`);
     assert.strictEqual(result.placeholderChecks.ferrite, true, `${label}: ferrite impedance placeholder was not detected`);
     assert.strictEqual(result.placeholderChecks.formal, false, `${label}: formal company model was treated as a placeholder`);
+    assert.strictEqual(result.rfDecisionChecks.pendingMode, 'source', `${label}: new explicitly identified inductor was not kept as pending`);
+    assert.strictEqual(result.rfDecisionChecks.pendingIdentityType, 'lcsc', `${label}: LCSC identity did not take precedence`);
+    assert.strictEqual(result.rfDecisionChecks.pendingBrandPlan, null, `${label}: explicitly identified inductor entered ordinary brand fallback`);
+    assert.deepStrictEqual(result.rfDecisionChecks.ordinaryBrands, ['村田', '顺络', '风华'], `${label}: ordinary inductor brand priority changed`);
+    assert.strictEqual(result.rfDecisionChecks.exactMode, 'exact', `${label}: RF library identity match was not selected`);
+    assert.strictEqual(result.rfDecisionChecks.valuePackageMode, 'exact', `${label}: value and package RF library fallback was not selected`);
     assert.strictEqual(placeholderByRef.L4['型号'], 'LQW15AN22NG00D', `${label}: L4 placeholder model was not replaced`);
     assert.strictEqual(placeholderByRef.L12['型号'], 'MCL1608S2R2MT', `${label}: L12 placeholder model was not replaced`);
     assert.strictEqual(placeholderByRef.L24['型号'], 'LQW15AN4N7B00D', `${label}: L24 placeholder model was not replaced`);

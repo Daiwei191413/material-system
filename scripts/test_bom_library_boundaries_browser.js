@@ -59,6 +59,42 @@ const targets = [
       assert.strictEqual(initial.legacy, 'OLD-ONLY');
       assert.strictEqual(initial.manual, 'OLD');
       assert(initial.hasManagerImport, `${label}: library-management import remains available`);
+      const libraryPermission = await page.evaluate(async () => {
+        const originalReq = BOM_API.req;
+        let requestCount = 0;
+        BOM_API.req = () => {
+          requestCount += 1;
+          return Promise.resolve({ success: true });
+        };
+        BOM_API.user = { role: 'readonly', username: 'readonly-test' };
+        V3_applyRoleUI();
+        const denied = [];
+        for (const lib of ['standard', 'lcsc', 'cost', 'rf']) {
+          try {
+            await BOM_API.importLib(lib, [{ model: 'DENIED' }]);
+            denied.push(false);
+          } catch (error) {
+            denied.push(/只有管理员/.test(String(error && error.message || error)));
+          }
+        }
+        const rfDenied = await importRfInductorRows([]).then(
+          () => false,
+          (error) => /不是管理员/.test(String(error && error.message || error)),
+        );
+        const readonlyButtonHidden = getComputedStyle(document.getElementById('btnImportMat')).display === 'none';
+        BOM_API.user = { role: 'admin', username: 'admin-test' };
+        V3_applyRoleUI();
+        const adminGuardAllowed = requireMaterialLibraryAdmin('导入库文件');
+        const adminButtonVisible = getComputedStyle(document.getElementById('btnImportMat')).display !== 'none';
+        BOM_API.req = originalReq;
+        return { denied, rfDenied, requestCount, readonlyButtonHidden, adminGuardAllowed, adminButtonVisible };
+      });
+      assert(libraryPermission.denied.every(Boolean), `${label}: a non-admin library import was not rejected`);
+      assert(libraryPermission.rfDenied, `${label}: non-admin RF library import was not rejected`);
+      assert.strictEqual(libraryPermission.requestCount, 0, `${label}: a non-admin import reached the API`);
+      assert(libraryPermission.readonlyButtonHidden, `${label}: library import button is visible to a non-admin`);
+      assert(libraryPermission.adminGuardAllowed, `${label}: admin library import guard rejected an administrator`);
+      assert(libraryPermission.adminButtonVisible, `${label}: library import button is hidden from an administrator`);
       assert.match(await page.locator('.nav-btn[onclick="showPanel(\'compare\')"]').textContent(), /立创BOM转线下BOM/);
       assert.match(await page.locator('#goBtn').textContent(), /检查立创BOM/);
       assert.match(await page.locator('#fmtAB').textContent(), /生成线下BOM/);

@@ -37,7 +37,7 @@ const inputs=[process.env.BOM_REVIEW_PRIMARY_FILE||fixture(),process.env.BOM_REV
    assert.equal(await page.locator('#reviewFilter option[value="matched"]').count(),0);
    assert.equal(await page.locator('#reviewFilter option[value="abnormal"]').count(),1);
    assert.equal(await page.locator('#reviewFilter option[value="unverified"]').count(),1);
-   assert.equal(await page.locator('#reviewResultBody').locator('xpath=preceding-sibling::thead/tr/th').count(),9);
+   assert.equal(await page.locator('#reviewResultBody').locator('xpath=preceding-sibling::thead/tr/th').count(),10);
    for(const [ref,cell,rule] of [['C18','E15','PACKAGE_CONFLICT'],['C23','E17','PACKAGE_CONFLICT'],['C37,C70,C74','E25','VALUE_CONFLICT'],['R1,R44,R47,R50','E54','PACKAGE_CONFLICT'],['R2,R3,R4,R5,R6,R19,R42,R48,R49,R51,R52,R53,R54,R55,R56,R57,R58,R59','E55','PACKAGE_CONFLICT'],['R20,R21','E61','PACKAGE_CONFLICT']]){
     assert(result.issues.some(c=>c.refs===ref&&c.cell===cell&&c.rule===rule&&c.status==='error'),ref+' not located');
    }
