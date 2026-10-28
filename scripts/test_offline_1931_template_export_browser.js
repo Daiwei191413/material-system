@@ -30,9 +30,16 @@ const fixture = [
   {'物料名称':'贴片电阻','型号':'10K SR0201','参数描述':'厚膜电阻 10000Ω ±1% 50mW SMD 0201','位号':'R1,R2','数量':2,'单位':'PCS','封装':'SR0201'},
   {'物料名称':'贴片电感','型号':'LQW15AN22NJ00D','_mfgPart':'LQW15AN22NJ00D','参数描述':'绕线电感, 22nH, 0402, ±5%, 额定电流310mA','位号':'L3','数量':1,'单位':'PCS','封装':'SL0402'},
   {'物料名称':'贴片电感','型号':'LQG15HS10NJ02D','_mfgPart':'LQG15HS10NJ02D','参数描述':'贴片电感, 10nH, 0402, ±5%, 额定电流500mA','位号':'L13','数量':1,'单位':'PCS','封装':'SL0402'},
+  {'物料名称':'贴片电感','型号':'12nH','参数描述':'12nH','位号':'L11','数量':1,'单位':'PCS','封装':'SMDS332-12N','立创编号':'C9900070550'},
   {'物料名称':'晶振','型号':'XL7KI-TFS-32M','参数描述':'32MHz 晶振','位号':'Y2','数量':1,'单位':'PCS','封装':'SMD-3225_4P'},
   {'物料名称':'晶振','型号':'WN4026M00018T5074006','参数描述':'26MHz TCXO','位号':'Y4','数量':1,'单位':'PCS','封装':'SMD-2016_4P'},
 ];
+const rfCompanyRecord = {
+  material_code:'1-IN-09-00036', name:'绕线电感', model:'SMDS332-12N_RS',
+  specification:'电感值：12nH, 精度：±5%, 额定电流：4.4A, 直流电阻(DCR)：7.0mΩ, Q值：130@2MHz',
+  package:'SMDS332-12N', brand:'纳亨电子', lcsc_code:'C9900070550', unit:'PCS',
+  category:'射频电感指定件', remark:'射频电感值=12nH',
+};
 
 (async () => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -53,18 +60,20 @@ const fixture = [
       await page.goto(`${base}/${relative}`, {waitUntil:'domcontentloaded'});
       await page.waitForFunction(() => document.getElementById('msgA')?.textContent.includes('已就绪'), null, {timeout:12000});
       assert.equal(await page.evaluate(() => BUILTIN_TEMPLATE_PREVIEW.rows.length), 43, `${label}: 1931 template preview count changed`);
-      await page.evaluate(rows => {
+      await page.evaluate(payload => {
+        const rows = payload.rows;
         document.body.classList.remove('v3-not-logged');
         document.getElementById('v3LoginMask')?.classList.remove('show');
         B = {rows:rows.map(row => ({...row})), _fn:'A-01-02-00999-TEST-V9.9嘉立创BOM.xlsx'};
         materialDB_standard = [];
+        materialDB_rf_inductor = [{...payload.rfCompanyRecord}];
         setActiveLib('standard');
         document.getElementById('boardName').value = 'TEST主板';
         document.getElementById('boardErp').value = 'A-01-02-00999';
         document.getElementById('boardVersion').value = 'V9.9';
         window.__testAlerts = [];
         window.alert = message => window.__testAlerts.push(String(message));
-      }, fixture);
+      }, {rows:fixture, rfCompanyRecord});
 
       const downloadEvent = page.waitForEvent('download', {timeout:15000}).catch(() => null);
       await page.evaluate(() => fmtCore('AB', Object.create(null)));
@@ -88,6 +97,7 @@ const fixture = [
       assert.deepEqual(byRef['R1,R2'].slice(2,9), ['厚膜电阻','10K','厚膜电阻 10KΩ,精度：±1%,50mW,SMD 0201','R1,R2',2,'PCS','0201']);
       assert.deepEqual(byRef['L3'].slice(2,9), ['绕线电感','LQW15AN22NJ00D','电感值:22nH,精度:±5%,额定电流:310mA,SMD 0402','L3',1,'PCS','0402']);
       assert.deepEqual(byRef['L13'].slice(2,9), ['叠层电感','LQG15HS10NJ02D','电感值:10nH,精度:±5%,额定电流:500mA,SMD 0402','L13',1,'PCS','0402']);
+      assert.deepEqual(byRef['L11'].slice(1,10), ['1-IN-09-00036','绕线电感','SMDS332-12N_RS','电感值：12nH, 精度：±5%, 额定电流：4.4A, 直流电阻(DCR)：7.0mΩ, Q值：130@2MHz','L11',1,'PCS','SMDS332-12N','纳亨电子']);
       assert.deepEqual(byRef['Y2'].slice(2,9), ['晶振','XL7KI-TFS-32M','32MHz 晶振','Y2',1,'PCS','SMD-3225_4P']);
       assert.deepEqual(byRef['Y4'].slice(2,9), ['晶振','WN4026M00018T5074006','26MHz TCXO','Y4',1,'PCS','SMD-2016_4P']);
       assert.equal(pageErrors.length, 0, `${label}: ${pageErrors.join(' | ')}`);
