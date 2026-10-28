@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V3.0.76 团队版</title>
+  <title>技象科技研发BOM 整理神器 V3.0.77 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -273,7 +273,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V3.0.76 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V3.0.77 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -933,8 +933,8 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<div class="release-date"><span>更新日期：<time datetime="2026-10-28">20261028</time></span></div>
-        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.76 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+<div class="release-date"><span>更新日期：<time datetime="2026-10-29">20261029</time></span></div>
+        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.77 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1247,7 +1247,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.76</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.77</span></h3>
 
     <!-- 库切换 Tab -->
     <div class="lib-tabs" style="margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -1279,7 +1279,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
       💡 <b>关键器件成本库</b>：导入“序号 / 物料名称（可空）/ 型号 / 封装 / 立创编号（可空）/ 单价”，兼容不含序号和物料名称的旧表；序号自动生成。成本评估必须先匹配型号；双方都有立创编号时同时校验编号，成本库未填编号时校验封装。
     </div>
     <div class="import-hint" id="libHintRf" style="display:none;background:#f5f3ff;border-left-color:#7c3aed">
-      💡 <b>射频电感指定库</b>：器件身份按“公司物料编码 → 立创编号 → 原厂型号”优先核对；源 BOM 没有明确身份时，才按“电感值 + 封装”使用指定件。未入库的新指定型号保留源 BOM 并在导出前确认；只有感值和封装且库中没有时，按普通电感处理，品牌优先顺序为村田 → 顺络 → 风华。
+      💡 <b>射频电感指定库</b>：器件身份按“公司物料编码 → 立创编号 → 原厂型号”优先核对；公司物料编码必须符合公司现有四段式格式（如“1-IN-09-00036”）且库内唯一。客户专用立创编号允许保留并标注为“客户专用”。源 BOM 没有明确身份时，才按“电感值 + 封装”使用指定件；只有感值和封装且库中没有时，按普通电感处理，品牌优先顺序为村田 → 顺络 → 风华。
     </div>
     <p style="font-size:13px;color:#666;margin-bottom:15px">
       当前库已加载 <span id="matCount" style="color:#0078b8;font-weight:bold">0</span> 条物料
@@ -4748,19 +4748,21 @@ function renderRfInductorLibraryTable(tbody, kw) {
   document.getElementById('matUpdated').textContent = localStorage.getItem('material_db_standard_updated') || '未导入';
   var rfBadge = document.getElementById('rfLibCount');
   if (rfBadge) rfBadge.textContent = materialDB_rf_inductor.length;
-  document.getElementById('matTableHead').innerHTML = '<tr><th>#</th><th>物料编码</th><th>物料名称</th><th>型号</th><th>参数描述</th><th>封装</th><th>品牌</th><th>立创编号</th><th>操作</th></tr>';
+  document.getElementById('matTableHead').innerHTML = '<tr><th>#</th><th>物料编码</th><th>物料名称</th><th>型号</th><th>参数描述</th><th>封装</th><th>品牌</th><th>立创编号</th><th>编号状态</th><th>操作</th></tr>';
   var list = materialDB_rf_inductor;
   if (kw) list = list.filter(function(m){
     return [rfInductorValueText(m),m.package,m.model,m.lcsc_code,m.material_code,m.name,m.specification,m.brand].join(' ').toLowerCase().indexOf(kw) >= 0;
   });
   var h = list.slice(0, 5000).map(function(m, i){
     var realIdx = materialDB_rf_inductor.indexOf(m);
+    var lcscStatus = rfInductorLcscStatus(m);
     return '<tr><td>'+(i+1)+'</td><td style="color:#ff6b35;font-weight:600">'+esc(m.material_code||'')+'</td><td>'+esc(m.name||'')+'</td>'
       + '<td>'+esc(m.model||'')+'</td><td style="color:#666;font-size:11px">'+esc(m.specification||'')+'</td>'
       + '<td>'+esc(m.package||'')+'</td><td>'+esc(m.brand||'')+'</td><td style="color:#0078b8;font-weight:600">'+esc(m.lcsc_code||'')+'</td>'
+      + '<td style="color:'+(lcscStatus === '客户专用' ? '#7c3aed' : '#666')+';font-weight:600">'+esc(lcscStatus)+'</td>'
       + '<td><button onclick="deleteMaterialRow('+realIdx+')" style="background:#e74c3c;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px">删除</button></td></tr>';
   }).join('');
-  tbody.innerHTML = h || '<tr><td colspan="9" style="text-align:center;color:#999;padding:30px">暂无射频电感指定件，请下载专用模板填写后导入</td></tr>';
+  tbody.innerHTML = h || '<tr><td colspan="10" style="text-align:center;color:#999;padding:30px">暂无射频电感指定件，请下载专用模板填写后导入</td></tr>';
   renderLcscQuarantine();
 }
 
@@ -7588,8 +7590,31 @@ function rfInductorSameValue(leftNh, rightNh) {
   return Math.abs(leftNh - rightNh) <= Math.max(Math.abs(leftNh), Math.abs(rightNh), 1) * 1e-9;
 }
 
+function rfInductorCompanyMaterialCode(record) {
+  return String(record && (record.material_code || record['物料编码'] || record['公司物料编码']) || '')
+    .trim().toUpperCase();
+}
+
+function rfInductorCompanyMaterialCodeError(record) {
+  var code = rfInductorCompanyMaterialCode(record);
+  if (!code) return '';
+  if (!/^(?:[A-Z]|\d+)-(?:[A-Z]{2}|\d{2})-\d{2}-\d{5}$/.test(code)) {
+    return '公司物料编码格式错误（应为公司四段式编码，如 1-IN-09-00036，不能使用纯数字或占位值）';
+  }
+  return '';
+}
+
 function rfInductorHasCompanyMaterialCode(record) {
-  return !!String(record && (record.material_code || record['物料编码'] || record['公司物料编码']) || '').trim();
+  return !!rfInductorCompanyMaterialCode(record) && !rfInductorCompanyMaterialCodeError(record);
+}
+
+function rfInductorLcscStatus(record) {
+  var lcsc = normLcsc(record && (record.lcsc_code || record['立创编号']));
+  if (!lcsc) return '-';
+  var remark = String(record && (record.remark || record['备注']) || '');
+  if (/立创编号状态=客户专用/.test(remark)) return '客户专用';
+  if (rfInductorHasCompanyMaterialCode(record)) return '公司指定/采购参考';
+  return '标准立创器件';
 }
 
 function officialInductorNh(data) {
@@ -7761,7 +7786,7 @@ function sanitizeRfInductorItem(row, sourceRow) {
   var model = String(row['型号'] || row['原厂型号'] || '').trim();
   var pkg = String(row['封装'] || '').trim();
   var lcsc = normLcsc(row['立创编号']);
-  var materialCode = String(row['物料编码'] || row['公司物料编码'] || '').trim();
+  var materialCode = String(row['物料编码'] || row['公司物料编码'] || '').trim().toUpperCase();
   var name = String(row['物料名称'] || '').trim();
   var specification = String(row['参数描述'] || row['规格描述'] || '').trim();
   var brand = String(row['品牌'] || '').trim();
@@ -7780,6 +7805,7 @@ async function importRfInductorRows(rows) {
   var items = (rows || []).map(function(row, idx){ return sanitizeRfInductorItem(row, idx + 2); });
   var errors = [];
   var seen = Object.create(null);
+  var seenMaterialCode = Object.create(null);
   items.forEach(function(item){
     var missing = [];
     if (!item.rf_inductance || parseInductanceNh(item.rf_inductance) === null) missing.push('参数描述/型号中未识别到电感值');
@@ -7789,6 +7815,13 @@ async function importRfInductorRows(rows) {
     if (!item.name) missing.push('缺物料名称');
     if (!item.specification) missing.push('缺规格描述');
     if (!item.brand) missing.push('缺品牌');
+    var materialCodeError = rfInductorCompanyMaterialCodeError(item);
+    var materialCode = rfInductorCompanyMaterialCode(item);
+    if (materialCodeError) missing.push(materialCodeError);
+    if (!materialCodeError && materialCode) {
+      if (seenMaterialCode[materialCode]) missing.push('公司物料编码与 Excel 第 ' + seenMaterialCode[materialCode] + ' 行重复');
+      else seenMaterialCode[materialCode] = item._sourceRow;
+    }
     var key = rfInductorKey(parseInductanceNh(item.rf_inductance), item.package);
     if (key && seen[key]) missing.push('与 Excel 第 ' + seen[key] + ' 行的“电感值 + 封装”重复');
     if (key) seen[key] = item._sourceRow;
@@ -7797,11 +7830,18 @@ async function importRfInductorRows(rows) {
   if (errors.length) throw new Error('射频电感指定库未导入：\n' + errors.slice(0, 12).join('\n'));
 
   if (window.BOM_API && typeof window.BOM_API.toast === 'function') window.BOM_API.toast('正在核验射频电感指定型号，请稍等...', 10000);
-  var officialItems = items.filter(function(item){ return !rfInductorHasCompanyMaterialCode(item); });
-  var detailMap = await fetchLcscDetailsByCodes(officialItems.map(function(item){ return item.lcsc_code; }));
+  var detailItems = items.filter(function(item){ return !!item.lcsc_code; });
+  var detailMap = await fetchLcscDetailsByCodes(detailItems.map(function(item){ return item.lcsc_code; }));
+  var customerSpecificCount = 0;
   items.forEach(function(item){
-    if (rfInductorHasCompanyMaterialCode(item)) return;
     var result = detailMap[item.lcsc_code];
+    if (rfInductorHasCompanyMaterialCode(item)) {
+      if (result && result.ok && result.data && costIsUnreliableLcsc(result.data)) {
+        item.remark = [item.remark, '立创编号状态=客户专用'].filter(Boolean).join('；');
+        customerSpecificCount++;
+      }
+      return;
+    }
     var officialErrors = (!result || !result.ok || !result.data)
       ? [((result && result.error) || '立创编号查询失败')]
       : rfInductorOfficialErrors(item, result.data);
@@ -7839,7 +7879,7 @@ async function importRfInductorRows(rows) {
     var cloudResult = await window.BOM_API.uploadLib('standard', items);
     cloudMessage = cloudResult && cloudResult.message ? '\n云端同步：' + cloudResult.message : '';
   }
-  alert('✅ 射频电感指定库导入完成\n\n新增：' + added + ' 条\n更新：' + updated + ' 条\n公司物料：' + companyMaterialCount + ' 条（以公司资料为准）\n当前共：' + materialDB_rf_inductor.length + ' 条' + cloudMessage);
+  alert('✅ 射频电感指定库导入完成\n\n新增：' + added + ' 条\n更新：' + updated + ' 条\n公司物料：' + companyMaterialCount + ' 条（以公司资料为准）\n客户专用立创编号：' + customerSpecificCount + ' 条\n当前共：' + materialDB_rf_inductor.length + ' 条' + cloudMessage);
 }
 
 function downloadRfInductorTemplate() {
@@ -9057,7 +9097,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.76 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.77 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>

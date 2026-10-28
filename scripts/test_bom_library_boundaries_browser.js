@@ -95,6 +95,78 @@ const targets = [
       assert(libraryPermission.readonlyButtonHidden, `${label}: library import button is visible to a non-admin`);
       assert(libraryPermission.adminGuardAllowed, `${label}: admin library import guard rejected an administrator`);
       assert(libraryPermission.adminButtonVisible, `${label}: library import button is hidden from an administrator`);
+      const rfImportValidation = await page.evaluate(async () => {
+        const base = {
+          '物料名称': '绕线电感',
+          '型号': 'LQW15AN4N7B00D',
+          '参数描述': '电感值:4.7nH，精度:±2%，额定电流:750mA，DCR:70mΩ',
+          '封装': 'SL0402',
+          '品牌': 'muRata(村田)',
+          '立创编号': 'C98070',
+        };
+        const invalidCode = await importRfInductorRows([
+          Object.assign({}, base, { '物料编码': '7' }),
+        ]).then(
+          () => '',
+          (error) => String(error && error.message || error),
+        );
+        const duplicateCode = await importRfInductorRows([
+          Object.assign({}, base, { '物料编码': '1-IN-09-00036' }),
+          Object.assign({}, base, {
+            '物料编码': '1-IN-09-00036',
+            '型号': 'LQW15AN22NG00D',
+            '参数描述': '电感值:22nH，精度:±2%，额定电流:310mA，DCR:1.82Ω',
+            '立创编号': 'C86129',
+          }),
+        ]).then(
+          () => '',
+          (error) => String(error && error.message || error),
+        );
+        const originalFetchLcsc = window.fetchLcscDetailsByCodes;
+        const originalUploadLib = BOM_API.uploadLib;
+        const alerts = [];
+        window.fetchLcscDetailsByCodes = async (codes) => Object.fromEntries(codes.map((code) => [code, {
+          ok: true,
+          data: {
+            hit: true,
+            productCode: code,
+            productModel: 'smd332_12nh',
+            productName: 'smd332_12nh',
+            productType: '未分类',
+            brand: '客户邮寄',
+            package: 'SMD-2P',
+          },
+        }]));
+        BOM_API.uploadLib = async () => ({ message: '测试环境未上传' });
+        window.alert = (message) => alerts.push(String(message));
+        window.materialDB_standard = [];
+        window.materialDB_rf_inductor = [];
+        await importRfInductorRows([{
+          '物料编码': '1-IN-09-00036',
+          '物料名称': '绕线电感',
+          '型号': 'SMDS332-12N_RS',
+          '参数描述': '电感值:12.1nH，精度:±5%，额定电流:4.4A，DCR:7.0mΩ',
+          '封装': 'SMDS332',
+          '品牌': '纳亨电子',
+          '立创编号': 'C9900070550',
+        }]);
+        const imported = materialDB_rf_inductor[0];
+        const customerStatus = rfInductorLcscStatus(imported);
+        const customerRemark = imported.remark;
+        const customerAlert = alerts[alerts.length - 1] || '';
+        window.fetchLcscDetailsByCodes = originalFetchLcsc;
+        BOM_API.uploadLib = originalUploadLib;
+        window.materialDB_standard = [];
+        window.materialDB_rf_inductor = [];
+        localStorage.removeItem('material_db_standard');
+        localStorage.removeItem('material_db_standard_updated');
+        return { invalidCode, duplicateCode, customerStatus, customerRemark, customerAlert };
+      });
+      assert.match(rfImportValidation.invalidCode, /公司物料编码格式错误/, `${label}: numeric RF material code was not blocked`);
+      assert.match(rfImportValidation.duplicateCode, /公司物料编码与 Excel 第 2 行重复/, `${label}: duplicate RF material code was not blocked`);
+      assert.strictEqual(rfImportValidation.customerStatus, '客户专用', `${label}: customer-specific LCSC code was not labeled`);
+      assert.match(rfImportValidation.customerRemark, /立创编号状态=客户专用/, `${label}: customer-specific status was not persisted`);
+      assert.match(rfImportValidation.customerAlert, /客户专用立创编号：1 条/, `${label}: customer-specific import count missing`);
       assert.match(await page.locator('.nav-btn[onclick="showPanel(\'compare\')"]').textContent(), /立创BOM转线下BOM/);
       assert.match(await page.locator('#goBtn').textContent(), /检查立创BOM/);
       assert.match(await page.locator('#fmtAB').textContent(), /生成线下BOM/);

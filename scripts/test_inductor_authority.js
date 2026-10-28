@@ -5,8 +5,8 @@ const vm = require('vm');
 
 const repoRoot = path.resolve(__dirname, '..');
 const targets = [
-  { file: 'v3-cloudbase/web/index.html', version: 'V1.0.52' },
-  { file: 'v3-legacy/index.html', version: 'V3.0.76' },
+  { file: 'v3-cloudbase/web/index.html', version: 'V1.0.53' },
+  { file: 'v3-legacy/index.html', version: 'V3.0.77' },
 ];
 
 function section(html, start, end) {
@@ -77,6 +77,28 @@ function section(html, start, end) {
       productName: '15nH ±2%',
       _extracted: {},
     }), 15, `${target.file}: official product-name inductance fallback failed`);
+    assert.strictEqual(context.rfInductorHasCompanyMaterialCode({
+      material_code: '1-IN-09-00036',
+    }), true, `${target.file}: valid company material code was rejected`);
+    assert.strictEqual(context.rfInductorHasCompanyMaterialCode({
+      material_code: 'A-01-02-00239',
+    }), true, `${target.file}: ERP-style company material code was rejected`);
+    assert.strictEqual(context.rfInductorHasCompanyMaterialCode({
+      material_code: '2-02-04-00064',
+    }), true, `${target.file}: numeric-category company material code was rejected`);
+    assert.strictEqual(context.rfInductorHasCompanyMaterialCode({
+      material_code: '7',
+    }), false, `${target.file}: numeric placeholder was accepted as a company material code`);
+    assert.match(
+      context.rfInductorCompanyMaterialCodeError({ material_code: '7' }),
+      /格式错误/,
+      `${target.file}: invalid company material code has no actionable error`,
+    );
+    assert.strictEqual(context.rfInductorLcscStatus({
+      material_code: '1-IN-09-00036',
+      lcsc_code: 'C9900070550',
+      remark: '射频电感值=12.1nH；立创编号状态=客户专用',
+    }), '客户专用', `${target.file}: customer-specific LCSC status was not rendered`);
 
     const companyErrors = context.rfInductorOfficialErrors({
       material_code: '1-IN-09-00036',
