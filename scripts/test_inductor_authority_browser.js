@@ -24,8 +24,8 @@ assert(edgePath, 'Microsoft Edge executable not found; set EDGE_PATH to run this
 
 const repoRoot = path.resolve(__dirname, '..');
 const targets = [
-  ['domestic', 'v3-cloudbase/web/index.html', 'V1.0.50'],
-  ['overseas', 'v3-legacy/index.html', 'V3.0.74'],
+  ['domestic', 'v3-cloudbase/web/index.html', 'V1.0.51'],
+  ['overseas', 'v3-legacy/index.html', 'V3.0.75'],
 ];
 
 let browser;
@@ -46,7 +46,8 @@ let browser;
 
     const result = await page.evaluate((expectedVersion) => {
       const captures = [];
-      window.alert = () => {};
+      const alerts = [];
+      window.alert = message => alerts.push(String(message));
       window.XLSX = {
         utils: {
           book_new: () => ({ SheetNames: [], Sheets: {} }),
@@ -112,7 +113,7 @@ let browser;
         model: '220nH',
         package: 'SL0402',
         name: '绕线电感',
-        specification: '绕线电感 22nH SMD 0402',
+        specification: '电感值：220nH, 精度：±5%, 额定电流：540mA, SMD 0402',
         lcsc_code: 'C703735',
         mfg_part: 'LQW15AN22NJ00D',
       }];
@@ -192,7 +193,7 @@ let browser;
       const placeholderOfficial = Object.fromEntries(placeholderCases.map(item => [item.code, {
         hit:true, productCode:item.code, productModel:item.mpn,
         productType:item.name, package:item.pkg.replace(/^SL/i, ''),
-        _extracted:item.name === '磁珠' ? {} : {inductance:item.value},
+        _extracted:item.name === '磁珠' ? {} : {inductance:item.value,tolerance:'±5%',current:'500mA'},
         specification:item.name + '，' + item.value,
       }]));
       window.fmtCore('AB', placeholderOfficial);
@@ -224,6 +225,8 @@ let browser;
       window.materialDB_rf_inductor = [];
 
       return {
+        alerts,
+        captureCount: captures.length,
         versionFound: document.title.includes(expectedVersion),
         official: captures[0],
         fallback: captures[1],
@@ -253,6 +256,7 @@ let browser;
     }, version);
 
     assert(result.versionFound, `${label}: expected version ${version}`);
+    assert.strictEqual(result.captureCount, 6, `${label}: expected six exports, got ${result.captureCount}; ${result.alerts.join(' | ')}`);
     const header = result.official[0];
     const officialRow = Object.fromEntries(header.map((field, index) => [field, result.official[1][index]]));
     const fallbackRow = Object.fromEntries(header.map((field, index) => [field, result.fallback[1][index]]));
@@ -265,8 +269,8 @@ let browser;
     assert.strictEqual(officialRow['型号'], 'LQW15CAR22J00D', `${label}: official MPN missing`);
     assert.strictEqual(officialRow['物料名称'], '绕线电感', `${label}: official LQW classification incorrect`);
     assert(officialRow['参数描述'].includes('220nH'), `${label}: official inductance missing`);
-    assert(officialRow['参数描述'].includes('DCR 290mΩ'), `${label}: official DCR missing`);
-    assert.strictEqual(fallbackRow['型号'], '220nH', `${label}: fallback copied template/library MPN`);
+    assert.strictEqual(officialRow['参数描述'], '电感值:220nH,精度:±5%,额定电流:540mA,SMD 0402', `${label}: official 1931 inductor format incorrect`);
+    assert.strictEqual(fallbackRow['型号'], 'LQW15AN22NJ00D', `${label}: verified company MPN missing`);
     assert(fallbackRow['参数描述'].includes('220nH'), `${label}: fallback lost B inductance`);
     assert(!/(^|\D)22nH/i.test(fallbackRow['参数描述']), `${label}: fallback copied template/library specification`);
     assert.strictEqual(result.crystalType, 'crystal', `${label}: 26MHz_TCXO was not classified as crystal`);
@@ -277,7 +281,8 @@ let browser;
     assert.strictEqual(crystalRow['型号'], 'WN4026M00018T5074006', `${label}: Y3 standard model missing`);
     assert(!/电感|26mH(?=$|[\s_\-/,，;；()])/i.test(crystalRow['参数描述']), `${label}: Y3 retained an inductor description: ${JSON.stringify(crystalRow)}`);
     assert(String(crystalRow['备注']).includes('关键器件'), `${label}: Y3 was not marked as a key component`);
-    assert.strictEqual(capacitorRow['型号'], '12pF SC0201', `${label}: capacitor display model was overwritten by the manufacturer part number`);
+    assert.strictEqual(capacitorRow['型号'], '12pF', `${label}: capacitor model was not normalized to the 1931 value-only format`);
+    assert.strictEqual(capacitorRow['封装'], '0201', `${label}: capacitor package was not normalized to the 1931 text format`);
     assert.strictEqual(l11Row['物料编码'], '1-IN-09-00036', `${label}: L11 did not match the company standard library`);
     assert.strictEqual(l11Row['型号'], 'SMDS332-12N_RS', `${label}: L11 standard model was overwritten by postal item data`);
     assert(String(l11Row['备注']).includes('关键器件'), `${label}: L11 was not marked as a key component`);

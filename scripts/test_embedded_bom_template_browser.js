@@ -60,7 +60,7 @@ async function inspectOutput(filename, expectedRows) {
   const byRef = Object.fromEntries(inductors.map(row => [String(row[5]), row]));
   assert.equal(byRef['L1,L2'][2], '片式磁珠');
   assert.match(String(byRef['L1,L2'][4]), /240欧@100MHz/);
-  assert.equal(byRef['L3'][2], useRealLcsc ? '贴片绕线电感' : '贴片电感');
+  assert.equal(byRef['L3'][2], '绕线电感');
   assert.match(String(byRef['L3'][4]), /220nH/);
   assert.equal(byRef['L11'][2], '贴片电感');
   assert.match(String(byRef['L11'][4]), /12nH/);
@@ -78,7 +78,8 @@ async function inspectOutput(filename, expectedRows) {
   }
   const c18 = dataRows.find(row => String(row[5] || '').split(/[,，;\s]+/).includes('C18'));
   assert(c18, 'C18 missing');
-  assert.match(String(c18[3]), /^0R\s+SR0201$/i);
+  assert.equal(String(c18[3]), '0R');
+  assert.equal(String(c18[8]), '0201');
   assert.match(String(c18[4]), /0Ω.*0201/i);
   assert.doesNotMatch(String(c18[4]), /0402/i);
   const cap22u = dataRows.find(row => /C37/.test(String(row[5] || '')));
@@ -168,13 +169,18 @@ async function inspectOutput(filename, expectedRows) {
       await page.waitForFunction(() => !document.getElementById('fmtAB').disabled, null, { timeout:12000 });
       assert.equal(await page.locator('#fmtAB').isDisabled(), false);
       await page.evaluate(realLcsc => {
-        window.alert = () => {};
+        window.__testAlerts = [];
+        window.alert = message => window.__testAlerts.push(String(message));
         window.confirm = () => true;
         if (!realLcsc) window.verifyBomAuthority = () => Promise.resolve({ mismatches:[], failedCodes:[], byCode:Object.create(null) });
       }, useRealLcsc);
-      const downloadEvent = page.waitForEvent('download', { timeout:30000 });
+      const downloadEvent = page.waitForEvent('download', { timeout:30000 }).catch(() => null);
       await page.locator('#fmtAB').click();
       const download = await downloadEvent;
+      if (!download) {
+        const alerts = await page.evaluate(() => window.__testAlerts || []);
+        throw new Error(`${label}: no workbook download; alerts: ${alerts.join(' | ')}`);
+      }
       assert.equal(download.suggestedFilename(), expectedFilename, `${label}: generated filename cleanup mismatch`);
       const saved = path.join(output, `${label}${useRealLcsc ? '-real' : ''}-generated.xlsx`);
       await download.saveAs(saved);

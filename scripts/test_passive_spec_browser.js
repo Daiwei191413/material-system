@@ -19,12 +19,12 @@ assert(edge, 'Microsoft Edge is required');
       const result = await page.evaluate(() => {
         function check(value, message) { if (!value) throw new Error(message); }
         const cases = [
-          ['C18','0R','SC0201','C106228','电阻 0Ω SMD 0201'],
-          ['C23','5.6pF','SC0402','C161329','电容 5.6pF ±0.1pF SMD 0402'],
-          ['C37,C70,C74','22uF','SC0603','C29519229','电容 22uF SMD 0603'],
-          ['R1,R44,R47,R50','10K','SR0201','C106225','电阻 10KΩ SMD 0201'],
-          ['R2,R3','22R','SR0201','C155743','电阻 22Ω SMD 0201'],
-          ['R20,R21','1K','SR0201','C131396','电阻 1KΩ SMD 0201'],
+          ['C18','0R','SC0201','C106228','厚膜电阻 0Ω ±1% 50mW SMD 0201','厚膜电阻 0Ω,精度：±1%,50mW,SMD 0201','0R','0201'],
+          ['C23','5.6pF','SC0402','C161329','MLCC 5.6pF ±0.1pF 50V C0G SMD 0402','MLCC 5.6pF ±0.1pF 50V C0G SMD 0402','5.6pF','0402'],
+          ['C37,C70,C74','22uF','SC0603','C29519229','MLCC 22uF ±20% 25V X5R SMD 0603','MLCC 22uF ±20% 25V X5R SMD 0603','22uF','0603'],
+          ['R1,R44,R47,R50','10K','SR0201','C106225','厚膜电阻 10KΩ ±1% 50mW SMD 0201','厚膜电阻 10KΩ,精度：±1%,50mW,SMD 0201','10K','0201'],
+          ['R2,R3','22R','SR0201','C155743','厚膜电阻 22Ω ±1% 50mW SMD 0201','厚膜电阻 22Ω,精度：±1%,50mW,SMD 0201','22','0201'],
+          ['R20,R21','1K','SR0201','C131396','厚膜电阻 1KΩ ±1% 50mW SMD 0201','厚膜电阻 1KΩ,精度：±1%,50mW,SMD 0201','1K','0201'],
         ];
         const dirtyLibrary = [
           {model:'0R',package:'SL0402',lcsc_code:'C17168',specification:'厚膜电阻 0Ω ±1% 1/16W SMD 0402'},
@@ -34,7 +34,7 @@ assert(edge, 'Microsoft Edge is required');
           {model:'22R',package:'SR0402',lcsc_code:'C25092',specification:'厚膜电阻 22Ω ±1% 1/16W SMD 0402'},
           {model:'1K SR0201',package:'SR0201',specification:'厚膜电阻 1KΩ,精度：±1%,SMD 0402'},
         ];
-        const source = cases.map(([ref,model,pkg,code]) => ({'位号':ref,'型号':model,'封装':pkg,'立创编号':code,'数量':'1',_specWarnings:['已有核查记录']}));
+        const source = cases.map(([ref,model,pkg,code,inputSpec]) => ({'位号':ref,'型号':model,'封装':pkg,'立创编号':code,'数量':'1','参数描述':inputSpec,_specWarnings:['已有核查记录']}));
         const fields = ['位号','型号','封装','立创编号','数量','物料名称','参数描述','品牌','备注'];
         window.A = {hd:fields, fm:Object.fromEntries(fields.map(field=>[field,field])),rows:[],_raw:new Uint8Array([1])};
         window.B = {rows:source};
@@ -58,10 +58,10 @@ assert(edge, 'Microsoft Edge is required');
         fmtCore('AB');
         const output = captures[0].Sheets['整理后BOM'].rows;
         const report = captures[0].Sheets['补齐报告'].rows;
-        cases.forEach(([ref,model,pkg,code,expected])=>{
+        cases.forEach(([ref,model,pkg,code,inputSpec,expected,expectedModel,expectedPackage])=>{
           const raw = output.find(row=>row[0]===ref);
           check(raw && raw[6]===expected, ref+': wrong specification '+JSON.stringify(raw));
-          check(raw[2]===pkg && raw[3]===code, ref+': source identity changed');
+          check(raw[1]===expectedModel && raw[2]===expectedPackage && raw[3]===code, ref+': 1931 identity normalization failed');
           check(String(raw[8]).includes('待核实'), ref+': missing review note');
           check(report.some(row=>row[0]===ref && row[4]), ref+': missing review report');
         });

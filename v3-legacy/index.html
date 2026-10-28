@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V3.0.74 团队版</title>
+  <title>技象科技研发BOM 整理神器 V3.0.75 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -273,7 +273,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V3.0.74 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V3.0.75 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -934,7 +934,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 </div>
 <header>
 <div class="release-date"><span>更新日期：<time datetime="2026-10-28">20261028</time></span></div>
-        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.74 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V3.0.75 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1247,7 +1247,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.74</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V3.0.75</span></h3>
 
     <!-- 库切换 Tab -->
     <div class="lib-tabs" style="margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -5109,7 +5109,7 @@ function loadBuiltInTemplate(){
   document.getElementById('boxA').classList.remove('ok');
   document.getElementById('goBtn').disabled = true;
   setCompareActionsReady(false);
-  fetch('assets/offline-bom-format-template.xlsx?v=20261028', {cache:'no-store'})
+  fetch('assets/offline-bom-format-template.xlsx?v=20261028-1931', {cache:'no-store'})
     .then(function(response){ if (!response.ok) throw new Error('HTTP ' + response.status); return response.arrayBuffer(); })
     .then(function(bytes){
       var wb = XLSX.read(bytes, {type:'array'});
@@ -6314,6 +6314,7 @@ function officialInductorMaterialName(data, row){
   var type = String(data.productType || '').trim();
   if (/^(BLM|MMZ|HBL|MPZ|BL|FB)/i.test(model) || /磁珠|ferrite|bead/i.test(type)) return '片式磁珠';
   if (/^LQW/i.test(model)) return '绕线电感';
+  if (/^(LQG|LQP|MCL|MLG|SDCL)/i.test(model)) return '叠层电感';
   if (/共模/i.test(type)) return '共模电感';
   if (/功率电感/i.test(type)) return '功率电感';
   if (/电感|inductor/i.test(type)) return '贴片电感';
@@ -6332,16 +6333,8 @@ function inductorModelIsParameterPlaceholder(value){
 }
 
 // ==================== A 标准型号规范化 ====================
-// 规则（来自 A BOM 实际样本）：
-//   电容：{容值} SC{封装}    例如 1nF SC0402
-//   电阻：{阻值} SR{封装}    例如 10K SR0402、0R SR0402
-//   电感：厂家料号           例如 LQW15AN22NJ00D（仅当 _mfgPart 有值时替换）
-//   磁珠：厂家料号           例如 BLM03PX121SN1D（仅当 _mfgPart 有值时替换）
-// 严格规则：
-//   - 已含 SC/SR 后缀（电容电阻）→ 跳过
-//   - 电感/磁珠：有厂家料号才替换，没有保留原样
-//   - 封装取不到（电容电阻）→ 保留原样（不编造）
-//   - 原型号为空 → 保留空
+// 1931 线下 BOM 模板型号规则：阻容只保留工程值，封装单独写入封装列；
+// 电感/磁珠保留厂家料号。参数描述的完整格式由 normalizeOfflineTemplateRow 最终收口。
 function standardizeModel(row){
   var model = String(row['型号'] || '').trim();
   var type = detectMaterialType(row);
@@ -6352,22 +6345,113 @@ function standardizeModel(row){
     return mfg || model;  // 没厂家料号就保留原型号
   }
 
-  if (!model) return model;
+  var identity = passiveIdentity(row);
+  if (!identity || !identity.value) return model;
+  if (identity.type === 'capacitor') return normalizeValue(identity.value.text, 'SC');
+  var resistance = normalizeResistanceDisplay(identity.value.text);
+  if (identity.value.number === 0) return '0R';
+  return resistance.replace(/Ω$/i, '');
+}
 
-  // 已含 SC/SR 后缀 → 认为已规范，跳过
-  if (/\b(SC|SR)\d{3,4}\b/i.test(model)) return model;
+function offlineCeramicCapacitor(row){
+  var identity = passiveIdentity(row);
+  if (!identity || identity.type !== 'capacitor') return false;
+  var text = [row['物料名称'], row['型号'], row['参数描述']].join(' ');
+  return !/电解|钽|薄膜|安规|超级电容|法拉电容|铝电容|固态电容|排容|电容阵列|electrolytic|tantalum|film capacitor|supercap|aluminum capacitor/i.test(text);
+}
 
-  if (type !== 'capacitor' && type !== 'resistor') return model;
+function offlineThickFilmResistor(row){
+  var identity = passiveIdentity(row);
+  if (!identity || identity.type !== 'resistor') return false;
+  var text = [row['物料名称'], row['型号'], row['参数描述']].join(' ');
+  return !/绕线电阻|薄膜电阻|金属膜|合金电阻|水泥电阻|热敏|压敏|光敏|保险电阻|排阻|电阻网络|电位器|可调电阻|采样电阻|分流器|wirewound|thin film|metal film|alloy|cement|thermistor|varistor|potentiometer|resistor network|resistor array/i.test(text);
+}
 
+function offlineInductorClass(row){
+  if (isFerrite(row)) return '';
+  var model = String(row['_mfgPart'] || row['型号'] || '').trim().toUpperCase();
+  var name = String(row['物料名称'] || '').trim();
+  if (/^LQW/i.test(model) || /绕线电感/.test(name)) return '绕线电感';
+  if (/^(LQG|LQP|MCL|MLG|SDCL)/i.test(model) || /叠层电感/.test(name)) return '叠层电感';
+  return '';
+}
+
+function offlineNormalizeDielectric(value){
+  return String(value || '').toUpperCase().replace(/COG/g, 'C0G').replace(/NPO/g, 'NP0');
+}
+
+function offlineFindToken(text, pattern){
+  var match = String(text || '').match(pattern);
+  return match ? match[1].replace(/\s+/g, '') : '';
+}
+
+function offlineNormalizeInductance(value){
+  var match = String(value || '').replace(/[μµ]/g, 'u').match(/(\d+(?:\.\d+)?)\s*(pH|nH|uH|mH)\b/i);
+  if (!match) return '';
+  var unit = match[2].toLowerCase();
+  return match[1] + (unit === 'ph' ? 'pH' : unit === 'nh' ? 'nH' : unit === 'uh' ? 'uH' : 'mH');
+}
+
+// 所有库匹配和官方参数补齐完成后，按 1931 模板做唯一一次最终归一化。
+// 返回空数组表示无需拦截；返回内容时必须停止导出，避免猜测缺失参数。
+function normalizeOfflineTemplateRow(row){
+  var errors = [];
   var size = extractSize(row);
-  if (!size) return model;  // 缺封装，保留原样
+  var spec = String(row['参数描述'] || '');
+  var fields = parseSpecFields(spec);
+  var identity = passiveIdentity(row);
 
-  // 电阻特殊：纯 "0" → "0R"
-  var cleanModel = model;
-  if (type === 'resistor' && /^0$/.test(cleanModel)) cleanModel = '0R';
-
-  var prefix = (type === 'capacitor') ? 'SC' : 'SR';
-  return cleanModel + ' ' + prefix + size;
+  if (offlineCeramicCapacitor(row)) {
+    var cap = identity && identity.value ? normalizeValue(identity.value.text, 'SC') : '';
+    var tol = companySmallCapPf(row) !== null ? '±0.1pF' : (extractToleranceToken(spec) || fields['精度'] || fields['容差'] || '');
+    var volt = offlineFindToken(spec, /(\d+(?:\.\d+)?\s*(?:mV|V|kV))\b/i) || fields['额定电压'] || fields['电压'] || '';
+    var diel = offlineNormalizeDielectric(offlineFindToken(spec, /\b(X5R|X7R|X8R|Y5V|C0G|COG|NP0|NPO)\b/i) || fields['温度系数'] || fields['介质材料'] || fields['介质'] || '');
+    if (!cap) errors.push('容值');
+    if (!tol) errors.push('精度');
+    if (!volt) errors.push('耐压');
+    if (!diel) errors.push('介质');
+    if (!size) errors.push('封装');
+    if (!errors.length) {
+      row['物料名称'] = '陶瓷电容器';
+      row['型号'] = cap;
+      row['参数描述'] = ['MLCC', cap, tol, String(volt).replace(/\s+/g, ''), diel, 'SMD', size].join(' ');
+      row['封装'] = size;
+    }
+  } else if (offlineThickFilmResistor(row)) {
+    var resistance = identity && identity.value ? normalizeResistanceDisplay(identity.value.text) : '';
+    var resTol = extractToleranceToken(spec) || fields['精度'] || fields['容差'] || '';
+    var power = offlineFindToken(spec, /((?:\d+\s*\/\s*\d+|\d+(?:\.\d+)?)\s*(?:mW|W))\b/i) || fields['额定功率'] || fields['功率'] || '';
+    if (!resistance) errors.push('阻值');
+    if (!resTol) errors.push('精度');
+    if (!power) errors.push('功率');
+    if (!size) errors.push('封装');
+    if (!errors.length) {
+      row['物料名称'] = '厚膜电阻';
+      row['型号'] = identity.value.number === 0 ? '0R' : resistance.replace(/Ω$/i, '');
+      row['参数描述'] = '厚膜电阻 ' + resistance + ',精度：' + String(resTol).replace(/\s+/g, '') + ',' + String(power).replace(/\s+/g, '') + ',SMD ' + size;
+      row['封装'] = size;
+    }
+  } else {
+    var inductorName = offlineInductorClass(row);
+    if (inductorName) {
+      var mfg = String(row['_mfgPart'] || row['型号'] || '').trim();
+      var inductance = offlineNormalizeInductance(fields['电感值'] || fields['感值'] || spec);
+      var indTol = extractToleranceToken(spec) || fields['精度'] || fields['容差'] || '';
+      var current = offlineFindToken(spec, /(?:额定电流|电流)\s*[：:]?\s*(\d+(?:\.\d+)?\s*(?:uA|mA|A))\b/i) || fields['额定电流'] || fields['电流'] || '';
+      if (!mfg || inductorModelIsParameterPlaceholder(mfg)) errors.push('原厂型号');
+      if (!inductance) errors.push('电感值');
+      if (!indTol) errors.push('精度');
+      if (!current) errors.push('额定电流');
+      if (!size) errors.push('封装');
+      if (!errors.length) {
+        row['物料名称'] = inductorName;
+        row['型号'] = mfg;
+        row['参数描述'] = '电感值:' + inductance + ',精度:' + String(indTol).replace(/\s+/g, '') + ',额定电流:' + String(current).replace(/\s+/g, '') + ',SMD ' + size;
+        row['封装'] = size;
+      }
+    }
+  }
+  return errors;
 }
 
 // 转 A 风格 · 电容：MLCC {容值} {精度} {电压} {介质} SMD {封装}
@@ -6609,7 +6693,7 @@ function enrichRow(row, hit){
   // 已有的参数描述也兜底净化一次（消除历史 | 分隔脏数据）
   if (row['参数描述']) row['参数描述'] = cleanSpec(row['参数描述']);
   // 关键：电容/电阻/电感转 A 风格紧凑式
-  if (row['参数描述']) row['参数描述'] = toAStyleSpec(row['参数描述'], row);
+  if (row['参数描述'] && !offlineInductorClass(row)) row['参数描述'] = toAStyleSpec(row['参数描述'], row);
   return row;
 }
 
@@ -8014,6 +8098,7 @@ function fmtCore(dir, lcscIdentityByCode){
   var rows = [];
   var enrichStats = {l1:0, l2:0, l3:0, l0:0, auto:0, filled:0};
   var enrichDetails = [];
+  var offlineFormatErrors = [];
 
   dat.rows.forEach(function(u, idx){
     var clone = {};
@@ -8114,13 +8199,19 @@ function fmtCore(dir, lcscIdentityByCode){
     }
     // 最终兜底：电容/电阻/电感参数描述转 A 风格紧凑式
     // 确保即使未命中库、但已有 spec（来自立创/手填/autoDescribe）也按 A BOM 输出
-    if (clone['参数描述']) clone['参数描述'] = toAStyleSpec(clone['参数描述'], clone);
+    // 1931 模板的绕线/叠层电感由最终归一化器直接读取完整原始参数；
+    // 旧 A 风格转换器无法解析无字段名的逗号式电感描述，会丢失感值/精度/电流。
+    if (clone['参数描述'] && !(dir === 'AB' && offlineInductorClass(clone))) clone['参数描述'] = toAStyleSpec(clone['参数描述'], clone);
 
-    // A 标准型号规范化（电容/电阻加后缀；电感/磁珠用厂家料号）
+    // 1931 模板型号规范化（阻容只保留工程值；电感/磁珠用厂家料号）
     // 放在参数描述之后，避免影响上游对"型号"的解析
     // 注：电感/磁珠的"参数描述"保持 B BOM 原样，不替换
     if (dir === 'AB') {
       clone['型号'] = standardizeModel(clone);
+      var formatErrors = normalizeOfflineTemplateRow(clone);
+      if (formatErrors.length) {
+        offlineFormatErrors.push({row:idx + 1, ref:clone['位号'] || '-', model:clone['型号'] || '-', fields:formatErrors});
+      }
     }
 
     var reviewMessages = passiveReviewMessages(clone).concat(officialReviewMessages).filter(function(message, index, list){
@@ -8141,6 +8232,16 @@ function fmtCore(dir, lcscIdentityByCode){
     rows.push(r);
   });
 
+  if (dir === 'AB' && offlineFormatErrors.length) {
+    alert('⛔ 已停止导出：1931线下BOM模板的必填参数不完整。\n\n'
+      + offlineFormatErrors.slice(0, 12).map(function(item){
+        return '源BOM第' + item.row + '行 / ' + item.ref + ' / ' + item.model + '：缺少' + item.fields.join('、');
+      }).join('\n')
+      + (offlineFormatErrors.length > 12 ? '\n……另有' + (offlineFormatErrors.length - 12) + '行' : '')
+      + '\n\n请先补齐标准库或源BOM参数后重新导出；系统不会猜测技术参数。');
+    return;
+  }
+
   if (dir === 'AB' && window.BOM_REVIEW_UI) window.BOM_REVIEW_UI.remember(hd, rows, B, cleanBomFilename(B._fn || 'BOM') + '.xlsx');
 
   // ========== 方案 A：AB 方向且 A 有原始字节 → JSZip 原地改 xlsx，保留封面 LOGO + 表头 + 样式 ==========
@@ -8158,7 +8259,7 @@ function fmtCore(dir, lcscIdentityByCode){
         {regex:/TP1506-MS22主板PCBA/g, to:xmlText(boardName + 'PCBA')},
         {regex:/TP1506-(?:M22|MS22)主板/g, to:xmlText(boardName)},
         {regex:/A-01-02-00195/g, to:xmlText(boardErp)},
-        {regex:/V1\.1/g, to:xmlText(boardVersion)}
+        {regex:/BOM版本：\s*V\d+(?:\.\d+)?/g, to:'BOM版本： ' + xmlText(boardVersion)}
       ];
       // 生成新文件名：清洗后的 B 原文件名
       var outFilename = cleanBomFilename(B._fn || 'BOM') + '.xlsx';
@@ -8951,7 +9052,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.74 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V3.0.75 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>
