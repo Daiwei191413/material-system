@@ -8378,7 +8378,8 @@ function offlineSupplementSearchAdapter(item) {
   var ref = String(row['位号'] || item.ref || '').trim();
   var code = normLcsc(row['立创编号'] || item.lcsc || '');
   return {
-    comment:model,
+    // 普通电感已有立创编号时，以该编号定位同一商品，避免拿替代料参数补旧编码。
+    comment:isInductorAuthorityRow(row) && code ? code : model,
     model:model,
     footprint:pkg,
     package:pkg,
@@ -8426,6 +8427,10 @@ function offlineCandidateErrors(item, candidate) {
   var adapter = offlineSupplementSearchAdapter(item);
   var errors = validateLcscMapping(adapter, detail);
   var source = offlineSupplementSourceRow(item) || {};
+  var sourceInductorCode = isInductorAuthorityRow(source) ? normLcsc(source['立创编号']) : '';
+  if (sourceInductorCode && normLcsc(detail.productCode) !== sourceInductorCode) {
+    errors.push('普通电感以源BOM立创编号' + sourceInductorCode + '为准；如需换料，请先修改源立创BOM再重新上传');
+  }
   if (isInductorAuthorityRow(source)) {
     var sourceNh = getRowInductanceNh(source);
     var officialNh = officialInductorNh(detail);

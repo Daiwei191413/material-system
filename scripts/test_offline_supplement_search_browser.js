@@ -102,6 +102,7 @@ let browser;
       window._LCSC_SEARCH_IDX = 0;
       window._LCSC_SEARCH_MODE = 'offline';
       pickOfflineSupplementCandidate(changedInductorCandidate);
+      const rejectedDifferentCode = alerts[alerts.length - 1] || '';
       const changedInductor = {
         code:changedInductorRow['立创编号'], model:changedInductorRow['型号'],
         mfgPart:changedInductorRow._mfgPart, originalModel:changedInductorRow['原厂型号'],
@@ -117,6 +118,7 @@ let browser;
       window.B.rows = [inductorRow];
       const inductorError = {row:44,sourceIndex:0,ref:'L23',model:'SDCL0603Q1N6ST02B03',package:'SL0201',lcsc:'C370131',fields:['精度'],reason:'缺失'};
       OFFLINE_SUPPLEMENT_STATE.errors = [inductorError];
+      const inductorSearchCode = offlineSupplementSearchAdapter(inductorError).comment;
       const missingToleranceCandidate = {
         componentCode:'C370131',
         _detail:{hit:true,productCode:'C370131',productModel:'SDCL0603Q1N6ST02B03',package:'0201',brand:'Sunlord',productType:'电感',productName:'1.6nH',specification:'叠层电感 1.6nH 0201 600mA',paramLinkedMap:{'电感值':'1.6nH','额定电流':'600mA'},_extracted:{inductance:'1.6nH',current:'600mA'}}
@@ -143,7 +145,7 @@ let browser;
 
       return {
         modalText, modalVisible, searchTarget, query, pkg, capCandidateErrors, pickedCap, changedInductor,
-        missingToleranceErrors, smallCapErrors, rfLock, rfAlert,
+        missingToleranceErrors, smallCapErrors, rfLock, rfAlert, rejectedDifferentCode, inductorSearchCode,
         standardCount:materialDB_standard.length, rfCount:materialDB_rf_inductor.length,
       };
     });
@@ -170,10 +172,12 @@ let browser;
     assert.equal(result.pickedCap.manual.source, '立创搜索（仅本次BOM）');
     assert.match(result.pickedCap.remark, /本次BOM立创搜索补齐/);
     assert.deepEqual(result.changedInductor, {
-      code:'C26443', model:'SDCL1005C39NJTDF', mfgPart:'SDCL1005C39NJTDF',
-      originalModel:'SDCL1005C39NJTDF', productModel:'SDCL1005C39NJTDF',
-      identityModel:'SDCL1005C39NJTDF', authorityErrors:[]
-    }, `${label}: stale hidden manufacturer model caused a false authority conflict`);
+      code:'C98055', model:'LQW15AN39NJ00D', mfgPart:'LQW15AN39NJ00D',
+      originalModel:'LQW15AN39NJ00D', productModel:'LQW15AN39NJ00D',
+      identityModel:'LQW15AN39NJ00D', authorityErrors:['官方立创编号与源BOM指定编号不一致','官方原厂型号与源BOM指定型号不一致']
+    }, `${label}: different LCSC product changed the original inductor`);
+    assert.match(result.rejectedDifferentCode, /以源BOM立创编号C98055为准/);
+    assert.equal(result.inductorSearchCode, 'C370131');
     assert(result.missingToleranceErrors.some(item => /仍缺少1931必填参数：精度/.test(item)), `${label}: incomplete inductor candidate allowed`);
     assert(result.smallCapErrors.some(item => /小于10pF电容/.test(item)), `${label}: small-cap hard rule bypassed`);
     assert.match(result.rfLock, /射频电感库/);
