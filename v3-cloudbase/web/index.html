@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V1.0.58 团队版</title>
+  <title>技象科技研发BOM 整理神器 V1.0.59 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png?v=3.0.23-cb1">
 <script src="assets/vendor/xlsx.full.min.js?v=0.18.5"></script>
 <script src="assets/vendor/jszip.min.js?v=3.10.1"></script>
@@ -275,7 +275,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V1.0.58 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V1.0.59 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -937,7 +937,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 </div>
 <header>
 <div class="release-date"><span>更新日期：<time datetime="2026-10-29">20261029</time></span></div>
-        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.58 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.59 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1250,7 +1250,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.58</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.59</span></h3>
 
     <!-- 库切换 Tab -->
     <div class="lib-tabs" style="margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -1411,6 +1411,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
               <th>Designator</th>
               <th>Footprint</th>
               <th>嘉立创元件编号</th>
+              <th title="仅供工程师核对，不写入嘉立创BOM">立创参数（仅展示）</th>
               <th title="按立创阶梯价中采购数量 1000 所在档位计算单颗价格">1000PCS单价</th>
               <th>状态</th>
             </tr>
@@ -2610,6 +2611,7 @@ function validateLcscMapping(row, data) {
 function applyOfficialVerification(row, result) {
   var activeCode = normLcsc(row.lcsc || row.rejectedLcsc || '');
   if (!result || !result.ok || !result.data) {
+    row.officialDisplayParams = null;
     row.lcscUnitPrice1000 = null;
     row.rejectedLcsc = activeCode;
     row.lcsc = '';
@@ -2619,6 +2621,7 @@ function applyOfficialVerification(row, result) {
     return;
   }
   var data = result.data;
+  row.officialDisplayParams = data;
   row.officialCode = normLcsc(data.productCode) || activeCode;
   row.officialModel = data.productModel || '';
   row.officialPackage = data.package || '';
@@ -2728,6 +2731,7 @@ function renderConvTable() {
       + '<td style="font-size:12px;">'+esc(o.designator)+' <span style="color:#999;">('+o.refs.length+')</span></td>'
       + '<td>'+esc(o.footprint)+'<br><span style="color:#7b8794;font-size:11px;">'+(o.officialPackage ? '官方：'+esc(o.officialPackage) : '')+'</span></td>'
       + '<td style="color:#0078b8;font-weight:600;">'+esc(o.lcsc || o.rejectedLcsc || '-')+'<br><span style="color:#7b8794;font-size:11px;font-weight:400;">'+esc([o.officialModel || '', o.officialBrand || ''].filter(Boolean).join(' / '))+'</span></td>'
+      + '<td style="font-size:12px;min-width:160px;">'+renderLcscParamSummary(o.officialDisplayParams, o)+'</td>'
       + '<td style="white-space:nowrap;color:#b45309;font-weight:600;">'+esc(lcscStoredUnitPrice1000Text(o.lcscUnitPrice1000))+'</td>'
       + '<td>'+statusBadge+actionBtn+'</td>';
     tbody.appendChild(tr);
@@ -3509,7 +3513,7 @@ function renderLcscBrandResults(groups, planLabel, pkgFilter) {
         + '<td style="padding:6px 8px;color:#0078b8;font-weight:600;">' + esc(it.componentCode) + '</td>'
         + '<td style="padding:6px 8px;">' + esc(it.componentModel || '-') + '</td>'
         + '<td style="padding:6px 8px;color:#666;">' + esc(detail.package || it.componentSpecification || '-') + '</td>'
-        + '<td id="lcscParam_' + i + '" style="padding:6px 8px;color:#999;font-size:12px;">' + renderLcscParamSummary(detail.paramLinkedMap || {}) + '</td>'
+        + '<td id="lcscParam_' + i + '" style="padding:6px 8px;color:#999;font-size:12px;">' + renderLcscParamSummary(detail, currentLcscSearchRow()) + '</td>'
         + '<td id="lcscStock_' + i + '" style="padding:6px 8px;color:#999;font-size:12px;text-align:right;">' + stockHtml + '</td>'
         + '<td id="lcscPrice1000_' + i + '" style="padding:6px 8px;color:#b45309;font-size:12px;font-weight:600;text-align:right;white-space:nowrap;">' + esc(lcscUnitPrice1000Text(detail)) + '</td>'
         + '<td id="lcscBrand_' + i + '" style="padding:6px 8px;color:#666;">' + esc(detail.brand || it.componentBrand || '-') + '</td>'
@@ -3655,7 +3659,7 @@ function enrichLcscCandidates(items) {
           brandCell.textContent = detail.brand;
           it.componentBrand = detail.brand;
         }
-        if (paramCell) paramCell.innerHTML = renderLcscParamSummary(detail.paramLinkedMap || {});
+        if (paramCell) paramCell.innerHTML = renderLcscParamSummary(detail, currentLcscSearchRow());
         if (priceCell) priceCell.textContent = lcscUnitPrice1000Text(detail);
         // 库存
         var stock = (typeof detail.stockNum === 'number') ? detail.stockNum : 0;
@@ -3737,29 +3741,43 @@ function sortLcscRowsByStock() {
   }
 }
 
-// 从 paramLinkedMap 抽出关键字段，按"精度 · 容值 · 耐压 · 温度系数"顺序展示
-function renderLcscParamSummary(pm) {
-  if (!pm) return '<span style="color:#bbb;">-</span>';
-  var parts = [];
-  // 1. 精度（电容/电阻/电感都叫这个，最关键）
-  if (pm['精度']) {
-    parts.push('<b style="color:#E74C3C;">' + esc(pm['精度']) + '</b>');
-  } else if (pm['公差']) {
-    parts.push('<b style="color:#E74C3C;">' + esc(pm['公差']) + '</b>');
+// 仅展示已取得的官方商品参数；缺失字段明确留空，不从其它器件推断。
+function renderLcscParamSummary(data, sourceRow) {
+  if (!data) return '<span style="color:#bbb;">-</span>';
+  var pm = data.paramLinkedMap || {};
+  var ext = data._extracted || {};
+  var type = String(data.productType || '');
+  var ref = String(((sourceRow || {}).refs || [])[0] || (sourceRow || {}).designator || '').toUpperCase();
+  var kind = /电感|INDUCTOR/i.test(type) ? 'ind'
+    : /电阻|RESISTOR/i.test(type) ? 'res'
+    : /电容|CAPACITOR|MLCC/i.test(type) ? 'cap'
+    : /^L\d/.test(ref) ? 'ind'
+    : /^R\d/.test(ref) ? 'res'
+    : /^C\d/.test(ref) ? 'cap' : '';
+  function value() {
+    for (var i = 0; i < arguments.length; i++) {
+      var token = String(arguments[i] == null ? '' : arguments[i]).trim();
+      if (token && token !== '-' && token !== '--') return token;
+    }
+    return '';
   }
-  // 2. 主参数（容值/阻值/电感值，搜索关键字一般已带，但放上更直观）
-  var mainVal = pm['容值'] || pm['阻值'] || pm['电感值'] || '';
-  if (mainVal) parts.push(esc(mainVal));
-  // 3. 耐压（电容关键）
-  if (pm['额定电压']) parts.push(esc(pm['额定电压']));
-  // 4. 温度系数（电容 X7R/X5R/C0G 关键）
-  if (pm['温度系数']) parts.push(esc(pm['温度系数']));
-  // 5. 功率（电阻关键）
-  if (pm['功率']) parts.push(esc(pm['功率']));
-  // 6. 额定电流（电感关键）
-  if (pm['额定电流']) parts.push(esc(pm['额定电流']));
-
-  if (parts.length === 0) return '<span style="color:#bbb;">-</span>';
+  function field(label, token) {
+    return esc(label) + '：' + (token ? '<b style="color:#34495e;">' + esc(token) + '</b>' : '<span style="color:#a0a8b0;">未提供</span>');
+  }
+  var tolerance = value(ext.tolerance, pm['精度'], pm['公差'], pm['容差']);
+  var parts = [];
+  if (kind === 'res') {
+    parts = [field('精度', tolerance), field('功率', value(ext.power, pm['功率'], pm['额定功率']))];
+  } else if (kind === 'cap') {
+    parts = [field('精度', tolerance), field('耐压', value(ext.voltage, pm['额定电压'], pm['耐压'], pm['电压'])),
+      field('材质', value(ext.dielectric, pm['温度系数'], pm['介质'], pm['介质材料']))];
+  } else if (kind === 'ind') {
+    parts = [field('精度', tolerance), field('额定电流', value(ext.current, pm['额定电流'], pm['电流'])),
+      field('DCR', value(ext.dcr, ext.dcResistance, pm['直流电阻(DCR)'], pm['直流电阻'], pm['DCR'], pm['RDC'],
+        extractInductorDcr(data.specification)))];
+  } else {
+    return '<span style="color:#999;">—</span>';
+  }
   return parts.join(' · ');
 }
 
@@ -9599,7 +9617,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.58 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.59 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>

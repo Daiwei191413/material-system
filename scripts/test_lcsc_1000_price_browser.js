@@ -24,8 +24,8 @@ assert(edgePath, 'Microsoft Edge executable not found; set EDGE_PATH to run this
 
 const repoRoot = path.resolve(__dirname, '..');
 const targets = [
-  ['domestic', 'v3-cloudbase/web/index.html', 'V1.0.58'],
-  ['overseas', 'v3-legacy/index.html', 'V3.0.82'],
+  ['domestic', 'v3-cloudbase/web/index.html', 'V1.0.59'],
+  ['overseas', 'v3-legacy/index.html', 'V3.0.83'],
 ];
 
 function detail(code, withPrice) {
@@ -37,8 +37,8 @@ function detail(code, withPrice) {
     package: '0402',
     brand: 'muRata(村田)',
     stockNum: 12345,
-    paramLinkedMap: { 容值: '4.7uF', 精度: '±10%' },
-    _extracted: { capacitance: '4.7uF', tolerance: '±10%' },
+    paramLinkedMap: { 容值: '4.7uF', 精度: '±10%', 额定电压: '10V', 温度系数: 'X5R' },
+    _extracted: { capacitance: '4.7uF', tolerance: '±10%', voltage: '10V', dielectric: 'X5R' },
     priceLadder: withPrice ? [
       { startNumber: 1, endNumber: 499, productPrice: 0.0932 },
       { startNumber: 500, endNumber: 1499, productPrice: 0.0714 },
@@ -79,7 +79,7 @@ function detail(code, withPrice) {
         const pricedDetail = {
           productCode: 'C1000', productModel: 'GRM-4U7', productType: '贴片电容',
           productName: 'MLCC 4.7uF 10V X5R 0402', package: '0402', brand: 'muRata(村田)',
-          stockNum: 12345, _extracted: { capacitance: '4.7uF', tolerance: '±10%' },
+          stockNum: 12345, _extracted: { capacitance: '4.7uF', tolerance: '±10%', voltage: '10V', dielectric: 'X5R' },
           priceLadder: [
             { startNumber: 1, endNumber: 499, productPrice: 0.0932 },
             { startNumber: 500, endNumber: 1499, productPrice: 0.0714 },
@@ -109,8 +109,17 @@ function detail(code, withPrice) {
             productName: '客户邮寄专用器件',
           })),
           header: Array.from(document.querySelectorAll('#convTable thead th')).map((el) => el.textContent.trim()),
-          firstPrice: renderedRows[0].children[5].textContent.trim(),
-          secondPrice: renderedRows[1].children[5].textContent.trim(),
+          firstParams: renderedRows[0].children[5].textContent.trim(),
+          firstPrice: renderedRows[0].children[6].textContent.trim(),
+          secondPrice: renderedRows[1].children[6].textContent.trim(),
+          resistorParams: window.renderLcscParamSummary({
+            productType:'贴片电阻', _extracted:{tolerance:'±1%',power:'1/16W'}
+          }, {designator:'R1'}),
+          inductorParams: window.renderLcscParamSummary({
+            productType:'贴片电感', _extracted:{tolerance:'±5%',current:'600mA'},
+            paramLinkedMap:{'直流电阻(DCR)':'130mΩ'}
+          }, {designator:'L1'}),
+          missingParams: window.renderLcscParamSummary({productType:'贴片电感',_extracted:{current:'600mA'}},{designator:'L2'}),
         };
       }, { expectedVersion });
 
@@ -121,8 +130,37 @@ function detail(code, withPrice) {
       assert.strictEqual(main.gapPriceText, '', `${label}: ladder without a 1000 quantity tier must stay blank`);
       assert.strictEqual(main.postalPriceText, '', `${label}: customer-posted item price must stay blank`);
       assert(main.header.includes('1000PCS单价'), `${label}: main table price header missing`);
+      assert(main.header.includes('立创参数（仅展示）'), `${label}: main table parameter header missing`);
+      assert.match(main.firstParams, /精度：±10% · 耐压：10V · 材质：X5R/);
+      assert.match(main.resistorParams, /精度：<b[^>]*>±1%<\/b> · 功率：<b[^>]*>1\/16W<\/b>/);
+      assert.match(main.inductorParams, /精度：.*±5%.*额定电流：.*600mA.*DCR：.*130mΩ/);
+      assert.match(main.missingParams, /精度：.*未提供.*DCR：.*未提供/);
       assert.strictEqual(main.firstPrice, '¥0.0714/PCS', `${label}: main table price is wrong`);
       assert.strictEqual(main.secondPrice, '', `${label}: main table missing price must stay blank`);
+      const exportColumns = await page.evaluate(() => {
+        let captured;
+        const previousXlsx = window.XLSX;
+        const previousRows = window.CONV_OUT;
+        window.CONV_OUT = [{
+          comment:'4.7uF',designator:'C1',footprint:'SC0402',lcsc:'C1000',
+          status:'matched',verification:'verified'
+        }];
+        window.XLSX = {
+          utils: {
+            aoa_to_sheet: (rows) => { captured = rows[0]; return {}; },
+            book_new: () => ({}),
+            book_append_sheet: () => {},
+          },
+          writeFile: () => {},
+        };
+        try { window.exportJlcBom(); } finally {
+          window.XLSX = previousXlsx;
+          window.CONV_OUT = previousRows;
+        }
+        return captured;
+      });
+      assert.deepStrictEqual(exportColumns, ['Comment', 'Designator', 'Footprint', '嘉立创元件编号'],
+        `${label}: display-only parameters changed the four-column BOM export`);
 
       await page.evaluate(() => {
         window.openLcscSearch(0);
@@ -139,10 +177,12 @@ function detail(code, withPrice) {
       const search = await page.evaluate(() => ({
         headers: Array.from(document.querySelectorAll('#lcscSearchBody thead th')).map((el) => el.textContent.trim()),
         firstPrice: document.getElementById('lcscPrice1000_0').textContent.trim(),
+        firstParams: document.getElementById('lcscParam_0').textContent.trim(),
         secondPrice: document.getElementById('lcscPrice1000_1').textContent.trim(),
       }));
       assert(search.headers.includes('1000PCS单价'), `${label}: search table price header missing`);
       assert.strictEqual(search.firstPrice, '¥0.0714/PCS', `${label}: search table price is wrong`);
+      assert.match(search.firstParams, /精度：±10% · 耐压：10V · 材质：X5R/);
       assert.strictEqual(search.secondPrice, '', `${label}: search table missing price must stay blank`);
 
       await context.close();
