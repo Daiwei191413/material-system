@@ -83,6 +83,33 @@ let browser;
         remark:capRow['备注'], manual:capRow._offlineManualPick
       };
 
+      const changedInductorRow = {
+        '物料名称':'叠层电感', '型号':'LQW15AN39NJ00D', '_mfgPart':'LQW15AN39NJ00D',
+        '原厂型号':'LQW15AN39NJ00D', productModel:'LQW15AN39NJ00D',
+        '参数描述':'叠层电感，39nH，±5%，额定电流200mA，0402',
+        '封装':'SL0402', '位号':'L7,L9', '立创编号':'C98055', '备注':''
+      };
+      const changedInductorError = {
+        row:35, sourceIndex:0, ref:'L7,L9', model:'LQW15AN39NJ00D', package:'SL0402',
+        lcsc:'C98055', fields:['额定电流'], reason:'缺失'
+      };
+      const changedInductorCandidate = {
+        componentCode:'C26443', componentModel:'SDCL1005C39NJTDF',
+        _detail:{hit:true,productCode:'C26443',productModel:'SDCL1005C39NJTDF',package:'0402',brand:'Sunlord(顺络)',productType:'贴片电感',productName:'39nH ±5%',specification:'电感值：39nH, 精度：±5%, 额定电流：200mA, 直流电阻(DCR)：1Ω',paramLinkedMap:{'电感值':'39nH','精度':'±5%','额定电流':'200mA','直流电阻(DCR)':'1Ω'},_extracted:{inductance:'39nH',tolerance:'±5%',current:'200mA'}}
+      };
+      window.B.rows = [changedInductorRow];
+      OFFLINE_SUPPLEMENT_STATE.errors = [changedInductorError];
+      window._LCSC_SEARCH_IDX = 0;
+      window._LCSC_SEARCH_MODE = 'offline';
+      pickOfflineSupplementCandidate(changedInductorCandidate);
+      const changedInductor = {
+        code:changedInductorRow['立创编号'], model:changedInductorRow['型号'],
+        mfgPart:changedInductorRow._mfgPart, originalModel:changedInductorRow['原厂型号'],
+        productModel:changedInductorRow.productModel,
+        identityModel:rfInductorSourceIdentity(changedInductorRow).model,
+        authorityErrors:rfInductorSourceOfficialErrors(changedInductorRow, changedInductorCandidate._detail)
+      };
+
       const inductorRow = {
         '物料名称':'叠层电感', '型号':'SDCL0603Q1N6ST02B03', '参数描述':'叠层电感，1.6nH，0201，600mA',
         '封装':'SL0201', '位号':'L23', '立创编号':'C370131', '备注':''
@@ -115,7 +142,7 @@ let browser;
       const rfAlert = alerts[alerts.length - 1] || '';
 
       return {
-        modalText, modalVisible, searchTarget, query, pkg, capCandidateErrors, pickedCap,
+        modalText, modalVisible, searchTarget, query, pkg, capCandidateErrors, pickedCap, changedInductor,
         missingToleranceErrors, smallCapErrors, rfLock, rfAlert,
         standardCount:materialDB_standard.length, rfCount:materialDB_rf_inductor.length,
       };
@@ -142,6 +169,11 @@ let browser;
     assert.equal(result.pickedCap.model, '22uF', `${label}: passive engineering value was overwritten`);
     assert.equal(result.pickedCap.manual.source, '立创搜索（仅本次BOM）');
     assert.match(result.pickedCap.remark, /本次BOM立创搜索补齐/);
+    assert.deepEqual(result.changedInductor, {
+      code:'C26443', model:'SDCL1005C39NJTDF', mfgPart:'SDCL1005C39NJTDF',
+      originalModel:'SDCL1005C39NJTDF', productModel:'SDCL1005C39NJTDF',
+      identityModel:'SDCL1005C39NJTDF', authorityErrors:[]
+    }, `${label}: stale hidden manufacturer model caused a false authority conflict`);
     assert(result.missingToleranceErrors.some(item => /仍缺少1931必填参数：精度/.test(item)), `${label}: incomplete inductor candidate allowed`);
     assert(result.smallCapErrors.some(item => /小于10pF电容/.test(item)), `${label}: small-cap hard rule bypassed`);
     assert.match(result.rfLock, /射频电感库/);

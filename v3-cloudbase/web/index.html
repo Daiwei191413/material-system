@@ -8473,7 +8473,15 @@ function pickOfflineSupplementCandidate(candidate) {
   var newCode = normLcsc(detail.productCode || candidate.componentCode);
   source['立创编号'] = newCode;
   if (detail.brand) source['品牌'] = detail.brand;
-  if (isInductorAuthorityRow(source) && detail.productModel) source['型号'] = detail.productModel;
+  if (isInductorAuthorityRow(source) && detail.productModel) {
+    var selectedModel = String(detail.productModel).trim();
+    source['型号'] = selectedModel;
+    // 射频电感权威核验优先读取 _mfgPart；更换立创候选时必须与可见型号同步，
+    // 否则重新导出会拿旧隐藏型号与新立创型号比较并产生假冲突。
+    source['_mfgPart'] = selectedModel;
+    if (Object.prototype.hasOwnProperty.call(source, '原厂型号')) source['原厂型号'] = selectedModel;
+    if (Object.prototype.hasOwnProperty.call(source, 'productModel')) source.productModel = selectedModel;
+  }
   source._offlineManualPick = {
     fromCode:oldCode,
     toCode:newCode,
