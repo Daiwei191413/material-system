@@ -6701,7 +6701,14 @@ function toAStyleSpec(spec, row){
   return aStyle || cleanSpec(spec);
 }
 
-// 补齐：把 hit 的字段回填到 row（不覆盖已有非空字段）
+function isCatalogPlaceholderValue(value){
+  var text = String(value == null ? '' : value).trim();
+  if (!text) return false;
+  return /^(?:未分类|其它|其他|unknown|-+|嘉立创SMT|客户邮寄|邮寄专用|【?邮寄专用】?)$/i.test(text);
+}
+
+// 补齐：把 hit 的字段回填到 row。
+// 带公司物料编码的非阻容记录是公司定型关键器件，名称/参数/品牌必须覆盖立创占位资料。
 function enrichRow(row, hit){
   var passive = passiveIdentity(row);
   if (passive) {
@@ -6721,6 +6728,7 @@ function enrichRow(row, hit){
       return repairPassiveDescription(row);
     }
   }
+  var standardKeyAuthority = !passive && !!String(hit.material_code || hit['物料编码'] || '').trim();
   var fields = [
     ['物料编码','material_code'],
     ['品牌','brand'],
@@ -6729,12 +6737,15 @@ function enrichRow(row, hit){
     ['单位','unit']
   ];
   fields.forEach(function(p){
-    if (!row[p[0]] && hit[p[1]]) row[p[0]] = hit[p[1]];
+    var current = String(row[p[0]] || '').trim();
+    var replacePlaceholder = (p[0] === '品牌') && isCatalogPlaceholderValue(current);
+    var companyOverride = standardKeyAuthority && p[0] === '品牌';
+    if ((!current || replacePlaceholder || companyOverride) && hit[p[1]]) row[p[0]] = hit[p[1]];
   });
   // V2.1.7 修复：立创库命中时可能缺少 name/specification，用 autoDescribe 兜底生成
   var isInductive = isFerrite(row) || detectMaterialType(row) === 'inductor';
-  if (hit.name && (isInductive || !row['物料名称'])) row['物料名称'] = hit.name;
-  if (hit.specification && (isInductive || !row['参数描述'])) {
+  if (hit.name && (isInductive || standardKeyAuthority || !row['物料名称'] || isCatalogPlaceholderValue(row['物料名称']))) row['物料名称'] = hit.name;
+  if (hit.specification && (isInductive || standardKeyAuthority || !row['参数描述'])) {
     row['参数描述'] = cleanSpec(hit.specification);
   }
   // 兜底：如果库命中但缺少 name/specification（立创库常见），用 autoDescribe 生成
@@ -7386,7 +7397,7 @@ function appendReportSheet(zip, enrichStats, enrichDetails){
     function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     var reportRows = [['位号','型号','匹配等级','补齐字段','待核实事项']];
     enrichDetails.forEach(function(d){
-      reportRows.push([d.ref, d.model, d.level === 'review' ? '待核实' : (d.level === 'auto' ? '基础描述' : 'L'+d.level), d.filled.join(' / '), (d.warnings || []).join('；')]);
+      reportRows.push([d.ref, d.model, d.level === 'review' ? '待核实' : (d.level === 'auto' ? '基础描述' : (d.level === 'rf' ? '射频库' : 'L'+d.level)), d.filled.join(' / '), (d.warnings || []).join('；')]);
     });
     reportRows.push(['']);
     reportRows.push(['统计','']);
@@ -7752,6 +7763,30 @@ function findRfInductorPreference(row) {
       }
       return {mode:'exact', record:identityRecord, identity:identity, valueNh:nh, package:pkg, matchedByIdentity:true};
     }
+    // 公司物料编码表示已定型器件：必须由管理员先纳入射频电感库，禁止按感值自动换料。
+    if (identity.type === 'material') {
+      return {mode:'conflict', identity:identity, message:'公司物料编码 ' + identity.materialCode + ' 未在射频电感库中找到，请管理员先维护指定库'};
+    }
+    // 源BOM只带立创编号/厂家型号时，若身份未命中，继续按“感值 + 封装”查找公司唯一指定件。
+    // 这是射频库存在的核心：不同产品即使源C编号不同，也统一到库内定型物料。
+    var identityValueMatches = materialDB_rf_inductor.filter(function(item){
+      return rfInductorSameValue(nh, parseInductanceNh(rfInductorValueText(item)));
+    });
+    if (identityValueMatches.length && !pkg) {
+      return {mode:'conflict', identity:identity, message:'射频电感库存在该感值，但源BOM缺少封装，无法按“电感值 + 封装”唯一选型'};
+    }
+    var identityValuePackageMatches = identityValueMatches.filter(function(item){
+      return normPkg(item.package || item['封装']) === pkg;
+    });
+    if (identityValuePackageMatches.length === 1) {
+      return {
+        mode:'exact', record:identityValuePackageMatches[0], identity:identity, sourceIdentity:identity,
+        valueNh:nh, package:pkg, matchedByValuePackage:true
+      };
+    }
+    if (identityValuePackageMatches.length > 1) {
+      return {mode:'conflict', identity:identity, message:'射频电感指定库中“电感值 + 封装”存在重复记录，请先整理库'};
+    }
     return {
       mode:'source', identity:identity, valueNh:nh, package:pkg,
       message:'源BOM已明确指定' + rfInductorIdentityLabel(identity) + '，但尚未纳入射频电感库；本次保留源器件并列入待入库确认'
@@ -7820,6 +7855,11 @@ function applyRfInductorPreferred(row, record) {
   // 不再套用面向常规标准封装电感的 1931 归一化规则。
   row['_rfCompanyMaterialAuthoritative'] = rfInductorHasCompanyMaterialCode(record);
   row['_rfOriginalLcsc'] = normLcsc(row['立创编号']);
+  // 已由射频指定库解析时，取消之前临时立创搜索对当前行的污染。
+  if (row._offlineManualPick) delete row._offlineManualPick;
+  row['备注'] = String(row['备注'] || '').split('；').filter(function(part){
+    return part && !/^本次BOM立创搜索补齐=/.test(part);
+  }).join('；');
   row['物料编码'] = record.material_code || record['物料编码'] || '';
   row['物料名称'] = record.name || record['物料名称'] || '射频电感';
   row['型号'] = record.model || record['型号'] || '';
@@ -8145,7 +8185,7 @@ function applyOfficialSupplement(row, data, hasStandardHit) {
   if (row['_rfPreferred']) return row;
   if (data.productCode && !row['立创编号']) row['立创编号'] = String(data.productCode).trim();
   if (data.package && !row['封装']) row['封装'] = String(data.package).trim();
-  if (data.brand && !row['品牌']) row['品牌'] = String(data.brand).trim();
+  if (data.brand && !isCatalogPlaceholderValue(data.brand) && (!row['品牌'] || isCatalogPlaceholderValue(row['品牌']))) row['品牌'] = String(data.brand).trim();
   if (data.unit && !row['单位']) row['单位'] = String(data.unit).trim();
   // 公司正式型号优先保留；标准库若只是电感值/阻抗占位，则改用相同立创编号的厂家料号。
   if (data.productModel && isInductorAuthorityRow(row)
@@ -8154,9 +8194,9 @@ function applyOfficialSupplement(row, data, hasStandardHit) {
   }
 
   var officialName = isInductorAuthorityRow(row) ? officialInductorMaterialName(data, row) : String(data.productType || '').trim();
-  if (/^(未分类|其它|其他|unknown|-+)$/i.test(officialName)) officialName = '';
+  if (isCatalogPlaceholderValue(officialName)) officialName = '';
   var currentName = String(row['物料名称'] || '').trim();
-  if (officialName && (!currentName || /^(未分类|其它|其他|unknown|-+)$/i.test(currentName) || (isInductorAuthorityRow(row) && !hasStandardHit))) row['物料名称'] = officialName;
+  if (officialName && (!currentName || isCatalogPlaceholderValue(currentName) || (isInductorAuthorityRow(row) && !hasStandardHit))) row['物料名称'] = officialName;
 
   var officialExtracted = isInductorAuthorityRow(row) ? mergedOfficialInductorExtracted(data, row) : (data._extracted || {});
   var officialSpec = buildSpecFromExtracted(officialExtracted, officialName || data.productType, data.package) || data.specification || '';
@@ -8511,23 +8551,34 @@ function fmtCore(dir, lcscIdentityByCode){
     var clone = {};
     for (var k in u) clone[k] = u[k];
     if (clone._specWarnings) clone._specWarnings = clone._specWarnings.slice();
-    if (dir === 'AB' && clone._offlineManualPick) {
-      enrichStats.filled += clone._offlineManualPick.fields.length;
-      enrichDetails.push({
-        ref:clone['位号'] || '', model:clone['型号'] || '', level:'manual',
-        filled:clone._offlineManualPick.fields.slice(),
-        warnings:['本次BOM通过立创搜索临时补齐：' + (clone._offlineManualPick.fromCode || '-') + ' → ' + clone._offlineManualPick.toCode]
-      });
-    }
+    var offlineManualPick = clone._offlineManualPick;
     // 净化原始参数描述（消除历史 | 分隔脏数据）
     if (clone['参数描述']) clone['参数描述'] = cleanSpec(clone['参数描述']);
     // 强制单位为 PCS（按 A BOM 标准）
     clone['单位'] = 'PCS';
     var rfChoice = dir === 'AB' ? findRfInductorPreference(clone) : {mode:'none'};
     var rfSourceIdentity = rfChoice.mode === 'source' ? rfChoice.identity : null;
+    if (dir === 'AB' && offlineManualPick && rfChoice.mode !== 'exact') {
+      enrichStats.filled += offlineManualPick.fields.length;
+      enrichDetails.push({
+        ref:clone['位号'] || '', model:clone['型号'] || '', level:'manual',
+        filled:offlineManualPick.fields.slice(),
+        warnings:['本次BOM通过立创搜索临时补齐：' + (offlineManualPick.fromCode || '-') + ' → ' + offlineManualPick.toCode]
+      });
+    }
     if (rfChoice.mode === 'exact') {
       applyRfInductorPreferred(clone, rfChoice.record);
       clone['备注'] = [clone['备注'], '射频电感状态=已命中指定库'].filter(Boolean).join('；');
+      if (rfChoice.matchedByValuePackage && rfChoice.sourceIdentity) {
+        var rfFrom = rfChoice.sourceIdentity.lcsc || rfChoice.sourceIdentity.model || rfChoice.sourceIdentity.value || '-';
+        var rfTo = normLcsc(rfChoice.record.lcsc_code || rfChoice.record['立创编号']) || rfChoice.record.model || rfChoice.record['型号'] || '-';
+        var rfTrace = '射频库归一：源' + rfFrom + ' → 指定' + rfTo;
+        clone['备注'] = [clone['备注'], rfTrace].filter(Boolean).join('；');
+        enrichDetails.push({
+          ref:clone['位号'] || '', model:clone['型号'] || '', level:'rf',
+          filled:['型号','参数描述','品牌','立创编号'], warnings:[rfTrace]
+        });
+      }
     } else if (rfChoice.mode === 'source') {
       clone['备注'] = [clone['备注'], '射频电感状态=新关键电感待入库（本次按源BOM保留）'].filter(Boolean).join('；');
     } else if (dir === 'AB' && isRfInductorSourceRow(clone) && !rfInductorSourceIdentity(clone).hasIdentity) {
@@ -8816,6 +8867,8 @@ function lcscStrictPackageKind(row){
 }
 
 function rfInductorLibraryCandidateErrors(row, hit) {
+  // 这是射频电感专用校验，不得对功放/射频开关/芯片等普通关键器件生效。
+  if (!isRfInductorSourceRow(row)) return [];
   var identity = rfInductorSourceIdentity(row);
   if (!identity.hasIdentity || !hit) return [];
   var errors = [];
@@ -9012,7 +9065,7 @@ function applyLcscToRow(item, data){
   }
   var replacePassiveSpec = passive && officialSpec && (passiveSpecErrors(row, row['参数描述']).length || passiveSpecIsBasic(row));
   // 仅填空字段，不覆盖用户已填值
-  if (!row['品牌'] && data.brand) row['品牌'] = data.brand;
+  if ((!row['品牌'] || isCatalogPlaceholderValue(row['品牌'])) && data.brand && !isCatalogPlaceholderValue(data.brand)) row['品牌'] = data.brand;
   if (!row['立创编号'] && data.productCode) row['立创编号'] = data.productCode;
   if (!row['封装'] && data.package) row['封装'] = data.package;
   if (!row['单位'] && data.unit) row['单位'] = data.unit;
@@ -9022,8 +9075,10 @@ function applyLcscToRow(item, data){
   // 其他类型：仅填空，保持精度优先
   var isInductive = isFerrite(row) || detectMaterialType(row) === 'inductor';
   var officialInductorName = isInductive ? officialInductorMaterialName(data, row) : '';
-  if ((officialInductorName || data.productType) && (isInductive || !row['物料名称'])) {
-    row['物料名称'] = officialInductorName || data.productType;
+  var officialMaterialName = officialInductorName || data.productType;
+  if (isCatalogPlaceholderValue(officialMaterialName)) officialMaterialName = '';
+  if (officialMaterialName && (isInductive || !row['物料名称'] || isCatalogPlaceholderValue(row['物料名称']))) {
+    row['物料名称'] = officialMaterialName;
   }
 
   if (replacePassiveSpec) {
