@@ -99,11 +99,21 @@ let browser;
       return Promise.resolve();
     };
     window.fmtCore('AB', officialByCode);
-    return {alerts, captures};
+    const supplementErrors = (window.OFFLINE_SUPPLEMENT_STATE && window.OFFLINE_SUPPLEMENT_STATE.errors) || [];
+    return {
+      alerts,
+      captures,
+      supplementErrors,
+      supplementText:document.getElementById('offlineSupplementModal')?.textContent || '',
+      supplementVisible:document.getElementById('offlineSupplementModal')?.style.display === 'block',
+    };
   }, {rows, standardLibrary, rfLibrary, officialByCode, filename:path.basename(bomPath)});
 
-  const gate = result.alerts.find(message => message.includes('1931必填参数无法确定')) || '';
+  const gate = result.supplementErrors.map(item => `${item.ref} / ${item.model}：缺少${item.fields.join('、')}`).join('\n');
   console.log(gate || result.alerts.join(' | '));
+  assert(result.supplementVisible, 'Expected the real BOM to open the supplement modal.');
+  assert.match(result.supplementText, /搜索立创并补齐/);
+  assert.match(result.supplementText, /不会写入任何物料库/);
   assert(gate, `Expected the real BOM to report only unresolved technical fields. Alerts: ${result.alerts.join(' | ')}`);
   assert(!/L3\s*\//.test(gate), `L3 complete official data was still blocked: ${gate}`);
   assert(!/L21\s*\//.test(gate), `L21 official product-name tolerance was still blocked: ${gate}`);

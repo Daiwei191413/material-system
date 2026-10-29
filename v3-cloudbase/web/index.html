@@ -3074,10 +3074,17 @@ function _ts(){
 // ==================== 立创搜索浮层（方案 C） ====================
 // 当前正在搜索的 CONV_OUT 行索引
 var _LCSC_SEARCH_IDX = -1;
+var _LCSC_SEARCH_MODE = 'schematic';
+var _LCSC_SEARCH_ROW_OVERRIDE = null;
+
+function currentLcscSearchRow() {
+  return _LCSC_SEARCH_ROW_OVERRIDE || CONV_OUT[_LCSC_SEARCH_IDX];
+}
 
 // 打开搜索浮层（自动用 comment 当 query，封装当 pkg 过滤）
 function openLcscSearch(idx) {
-  var o = CONV_OUT[idx];
+  if (!_LCSC_SEARCH_ROW_OVERRIDE) _LCSC_SEARCH_MODE = 'schematic';
+  var o = _LCSC_SEARCH_ROW_OVERRIDE || CONV_OUT[idx];
   if (!o) return;
   _LCSC_SEARCH_IDX = idx;
 
@@ -3154,9 +3161,16 @@ function openLcscSearch(idx) {
 }
 
 function closeLcscSearch() {
+  var restoreOffline = _LCSC_SEARCH_MODE === 'offline';
   var m = document.getElementById('lcscSearchModal');
   if (m) m.style.display = 'none';
   _LCSC_SEARCH_IDX = -1;
+  _LCSC_SEARCH_MODE = 'schematic';
+  _LCSC_SEARCH_ROW_OVERRIDE = null;
+  if (restoreOffline) {
+    var supplementModal = document.getElementById('offlineSupplementModal');
+    if (supplementModal) supplementModal.style.display = 'block';
+  }
 }
 
 // 当前页（用于下一页）
@@ -3311,8 +3325,8 @@ function lcscCandidateStock(item) {
 // 按品牌并发搜（自动模式）
 function runLcscSearchByBrand() {
   var idx = _LCSC_SEARCH_IDX;
-  if (idx < 0 || !CONV_OUT[idx]) return;
-  var row = CONV_OUT[idx];
+  var row = currentLcscSearchRow();
+  if (idx < 0 || !row) return;
   var plan = getLcscBrandPlan(row);
 
   var q = document.getElementById('lcscSearchQ').value.trim();
@@ -3896,12 +3910,16 @@ function lcscPageNext() {
 // 选用某条候选，仅回填到 CONV_OUT[_LCSC_SEARCH_IDX]
 function pickLcscCandidate(itemIdx) {
   var idx = _LCSC_SEARCH_IDX;
-  if (idx < 0 || !CONV_OUT[idx]) { closeLcscSearch(); return; }
+  var row = currentLcscSearchRow();
+  if (idx < 0 || !row) { closeLcscSearch(); return; }
   var body = document.getElementById('lcscSearchBody');
   var item = body._items && body._items[itemIdx];
   if (!item) return;
 
-  var row = CONV_OUT[idx];
+  if (_LCSC_SEARCH_MODE === 'offline') {
+    pickOfflineSupplementCandidate(item);
+    return;
+  }
   if (row.rfPreferred || /射频电感指定库/.test(row.verifyError || '')) { alert('该器件受射频电感指定库约束，不能手工换料。请先修改射频电感库。'); return; }
   var candidatePkg = (item._detail && item._detail.package) || item.componentSpecification || '';
   if (item._detail) {
@@ -8286,6 +8304,188 @@ function fmt(dir){
   }).then(finish, finish);
 }
 
+// 线下 BOM 缺参只允许在当前上传会话内补齐；不会写入标准库、立创库或射频电感库。
+var OFFLINE_SUPPLEMENT_STATE = { errors:[], picks:[] };
+
+function offlineSupplementSourceRow(item) {
+  return item && B && B.rows ? B.rows[item.sourceIndex] : null;
+}
+
+function offlineSupplementRfLock(row) {
+  var choice = findRfInductorPreference(row || {});
+  if (choice.mode === 'exact') return '已命中射频电感库，必须由管理员在物料库管理中维护';
+  if (choice.mode === 'conflict') return choice.message || '射频电感库记录冲突，必须由管理员处理';
+  return '';
+}
+
+function offlineSupplementSearchAdapter(item) {
+  var row = offlineSupplementSourceRow(item) || {};
+  var refs = splitRefs(row['位号'] || item.ref || '');
+  var model = String(row['型号'] || item.model || '').trim();
+  var pkg = String(row['封装'] || item.package || '').trim();
+  var ref = String(row['位号'] || item.ref || '').trim();
+  var code = normLcsc(row['立创编号'] || item.lcsc || '');
+  return {
+    comment:model,
+    model:model,
+    footprint:pkg,
+    package:pkg,
+    designator:ref,
+    refs:refs,
+    lcsc:code,
+    '型号':model,
+    '封装':pkg,
+    '位号':ref,
+    '参数描述':row['参数描述'] || '',
+    '立创编号':code,
+    '物料编码':row['物料编码'] || '',
+    '品牌':row['品牌'] || ''
+  };
+}
+
+function offlineCandidateFormatErrors(item, detail) {
+  var source = offlineSupplementSourceRow(item) || {};
+  var clone = {};
+  for (var key in source) clone[key] = source[key];
+  clone['立创编号'] = normLcsc(detail.productCode);
+  if (isInductorAuthorityRow(clone) && detail.productModel) clone['型号'] = detail.productModel;
+  if (detail.brand) clone['品牌'] = detail.brand;
+  repairPassiveDescription(clone);
+  var mr = matchForStandard(clone);
+  mr = preferOfficialStandardMatch(clone, detail, mr);
+  if (mr.hit) enrichRow(clone, mr.hit);
+  applyOfficialSupplement(clone, detail, !!mr.hit);
+  resolveStandardCapDielectric(clone, detail);
+  if (clone['参数描述'] && !offlineInductorClass(clone)) clone['参数描述'] = toAStyleSpec(clone['参数描述'], clone);
+  clone['型号'] = standardizeModel(clone);
+  return normalizeOfflineTemplateRow(clone);
+}
+
+function offlineCandidateErrors(item, candidate) {
+  var detail = candidate && candidate._detail;
+  if (!detail || !detail.hit) return ['候选器件尚未取得立创官方详情，请稍候再选'];
+  var adapter = offlineSupplementSearchAdapter(item);
+  var errors = validateLcscMapping(adapter, detail);
+  var source = offlineSupplementSourceRow(item) || {};
+  if (isInductorAuthorityRow(source)) {
+    var sourceNh = getRowInductanceNh(source);
+    var officialNh = officialInductorNh(detail);
+    if (sourceNh !== null && officialNh === null) errors.push('官方数据缺少可核验的电感值');
+    else if (inductanceValuesConflict(sourceNh, officialNh)) errors.push('电感值与源BOM不一致');
+  }
+  var missing = offlineCandidateFormatErrors(item, detail);
+  if (missing.length) errors.push('该候选仍缺少1931必填参数：' + missing.join('、'));
+  return errors.filter(function(message, index, list){ return message && list.indexOf(message) === index; });
+}
+
+function renderOfflineSupplementModal() {
+  var modal = document.getElementById('offlineSupplementModal');
+  if (!modal) return;
+  var errors = OFFLINE_SUPPLEMENT_STATE.errors || [];
+  var body = document.getElementById('offlineSupplementBody');
+  body.innerHTML = errors.map(function(item, index){
+    var source = offlineSupplementSourceRow(item) || {};
+    var code = normLcsc(source['立创编号'] || item.lcsc || '');
+    var model = source['型号'] || item.model || '-';
+    var pkg = source['封装'] || item.package || '-';
+    var picked = source._offlineManualPick;
+    var lockReason = offlineSupplementRfLock(source);
+    var query = code || model;
+    var action = lockReason
+      ? '<span style="color:#b45309;font-size:12px;">🔒 ' + esc(lockReason) + '</span>'
+      : '<button type="button" onclick="openOfflineSupplementSearch(' + index + ')" style="padding:6px 12px;background:#0078b8;color:#fff;border:0;border-radius:4px;cursor:pointer;">🔍 搜索立创并补齐</button>';
+    var external = query ? '<a target="_blank" rel="noopener" href="https://so.szlcsc.com/global.html?k=' + encodeURIComponent(query) + '" style="margin-left:8px;font-size:12px;">打开立创网页</a>' : '';
+    var pickedText = picked
+      ? '<div style="margin-top:5px;color:#198754;font-size:12px;">✓ 本次BOM已选择 ' + esc(picked.toCode) + (picked.model ? ' / ' + esc(picked.model) : '') + '，等待重新校验</div>'
+      : '';
+    return '<tr style="border-bottom:1px solid #eee;">'
+      + '<td style="padding:9px 8px;white-space:nowrap;">第' + item.row + '行</td>'
+      + '<td style="padding:9px 8px;">' + esc(item.ref) + '</td>'
+      + '<td style="padding:9px 8px;">' + esc(model) + '<div style="color:#888;font-size:11px;">' + esc(code || '无立创编号') + '</div></td>'
+      + '<td style="padding:9px 8px;white-space:nowrap;">' + esc(pkg) + '</td>'
+      + '<td style="padding:9px 8px;color:#c62828;font-weight:600;">' + esc(item.fields.join('、')) + '<div style="color:#777;font-size:11px;font-weight:normal;margin-top:3px;">' + esc(item.reason) + '</div></td>'
+      + '<td style="padding:9px 8px;min-width:230px;">' + action + external + pickedText + '</td>'
+      + '</tr>';
+  }).join('');
+  document.getElementById('offlineSupplementCount').textContent = String(errors.length);
+}
+
+function showOfflineSupplementModal(errors) {
+  OFFLINE_SUPPLEMENT_STATE.errors = errors || [];
+  var modal = document.getElementById('offlineSupplementModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'offlineSupplementModal';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;';
+    modal.innerHTML = ''
+      + '<div style="position:absolute;top:6%;left:50%;transform:translateX(-50%);width:1180px;max-width:96%;max-height:88vh;background:#fff;border-radius:10px;box-shadow:0 10px 36px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;">'
+      + '<div style="padding:16px 20px;border-bottom:1px solid #eee;background:#fff7ed;display:flex;justify-content:space-between;align-items:center;">'
+      + '<div><div style="font-size:17px;font-weight:700;color:#9a3412;">待补参数（<span id="offlineSupplementCount">0</span>项）</div><div style="font-size:12px;color:#7c2d12;margin-top:4px;">系统不会猜测技术参数。搜索和选用只修改当前上传的BOM，不会写入任何物料库。</div></div>'
+      + '<button type="button" onclick="closeOfflineSupplementModal()" style="border:0;background:none;font-size:24px;color:#999;cursor:pointer;">×</button></div>'
+      + '<div style="padding:12px 20px;background:#f8fafc;color:#475569;font-size:13px;">请选择参数完整且容值/感值、封装符合源BOM的立创器件。小于10pF电容仍必须为±0.1pF；射频电感库命中项只能由管理员维护。</div>'
+      + '<div style="overflow:auto;flex:1;padding:0 20px;"><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:#f1f5f9;position:sticky;top:0;"><th style="padding:9px 8px;text-align:left;">原行</th><th style="padding:9px 8px;text-align:left;">位号</th><th style="padding:9px 8px;text-align:left;">型号/立创编号</th><th style="padding:9px 8px;text-align:left;">封装</th><th style="padding:9px 8px;text-align:left;">缺失内容</th><th style="padding:9px 8px;text-align:left;">处理</th></tr></thead><tbody id="offlineSupplementBody"></tbody></table></div>'
+      + '<div style="padding:12px 20px;border-top:1px solid #eee;background:#f8fafc;display:flex;justify-content:flex-end;gap:10px;"><button type="button" onclick="closeOfflineSupplementModal()" style="padding:8px 18px;border:1px solid #bbb;background:#fff;border-radius:5px;cursor:pointer;">稍后处理</button><button type="button" onclick="retryOfflineSupplement()" style="padding:8px 18px;border:0;background:#16a34a;color:#fff;border-radius:5px;cursor:pointer;font-weight:600;">重新校验并生成</button></div>'
+      + '</div>';
+    document.body.appendChild(modal);
+  }
+  renderOfflineSupplementModal();
+  modal.style.display = 'block';
+}
+
+function closeOfflineSupplementModal() {
+  var modal = document.getElementById('offlineSupplementModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function retryOfflineSupplement() {
+  closeOfflineSupplementModal();
+  fmt('AB');
+}
+
+function openOfflineSupplementSearch(errorIndex) {
+  var item = OFFLINE_SUPPLEMENT_STATE.errors[errorIndex];
+  var source = offlineSupplementSourceRow(item);
+  if (!item || !source) return;
+  var lockReason = offlineSupplementRfLock(source);
+  if (lockReason) { alert(lockReason); return; }
+  var modal = document.getElementById('offlineSupplementModal');
+  if (modal) modal.style.display = 'none';
+  _LCSC_SEARCH_MODE = 'offline';
+  _LCSC_SEARCH_ROW_OVERRIDE = offlineSupplementSearchAdapter(item);
+  openLcscSearch(errorIndex);
+  document.getElementById('lcscSearchTarget').innerHTML = '正在为线下BOM <b>' + esc(item.ref) + '</b> / ' + esc(item.model)
+    + ' 补齐 <b style="color:#c62828;">' + esc(item.fields.join('、')) + '</b>；选用结果仅作用于本次BOM。';
+}
+
+function pickOfflineSupplementCandidate(candidate) {
+  var item = OFFLINE_SUPPLEMENT_STATE.errors[_LCSC_SEARCH_IDX];
+  var source = offlineSupplementSourceRow(item);
+  if (!item || !source) { closeLcscSearch(); return; }
+  var lockReason = offlineSupplementRfLock(source);
+  if (lockReason) { alert(lockReason); return; }
+  var errors = offlineCandidateErrors(item, candidate);
+  if (errors.length) {
+    alert('该候选不能用于补齐当前BOM：\n\n' + errors.join('；'));
+    return;
+  }
+  var detail = candidate._detail;
+  var oldCode = normLcsc(source['立创编号']);
+  var newCode = normLcsc(detail.productCode || candidate.componentCode);
+  source['立创编号'] = newCode;
+  if (detail.brand) source['品牌'] = detail.brand;
+  if (isInductorAuthorityRow(source) && detail.productModel) source['型号'] = detail.productModel;
+  source._offlineManualPick = {
+    fromCode:oldCode,
+    toCode:newCode,
+    model:detail.productModel || candidate.componentModel || '',
+    fields:item.fields.slice(),
+    source:'立创搜索（仅本次BOM）'
+  };
+  source['备注'] = [source['备注'], '本次BOM立创搜索补齐=' + (oldCode || '-') + '→' + newCode].filter(Boolean).join('；');
+  closeLcscSearch();
+  renderOfflineSupplementModal();
+}
+
 function fmtCore(dir, lcscIdentityByCode){
   lcscIdentityByCode = lcscIdentityByCode || Object.create(null);
   var tpl = dir==='AB' ? A : B;
@@ -8303,6 +8503,14 @@ function fmtCore(dir, lcscIdentityByCode){
     var clone = {};
     for (var k in u) clone[k] = u[k];
     if (clone._specWarnings) clone._specWarnings = clone._specWarnings.slice();
+    if (dir === 'AB' && clone._offlineManualPick) {
+      enrichStats.filled += clone._offlineManualPick.fields.length;
+      enrichDetails.push({
+        ref:clone['位号'] || '', model:clone['型号'] || '', level:'manual',
+        filled:clone._offlineManualPick.fields.slice(),
+        warnings:['本次BOM通过立创搜索临时补齐：' + (clone._offlineManualPick.fromCode || '-') + ' → ' + clone._offlineManualPick.toCode]
+      });
+    }
     // 净化原始参数描述（消除历史 | 分隔脏数据）
     if (clone['参数描述']) clone['参数描述'] = cleanSpec(clone['参数描述']);
     // 强制单位为 PCS（按 A BOM 标准）
@@ -8425,7 +8633,10 @@ function fmtCore(dir, lcscIdentityByCode){
             : (mr.rfPreferred ? '射频电感库记录仍缺少必填参数'
               : (officialData ? '立创官方数据和公司标准库补齐后仍未提供'
                 : '立创官方核验未完成，现有公司标准库和源BOM仍未提供'));
-          offlineFormatErrors.push({row:idx + 1, ref:clone['位号'] || '-', model:clone['型号'] || '-', fields:formatErrors, reason:formatReason});
+          offlineFormatErrors.push({
+            row:idx + 1, sourceIndex:idx, ref:clone['位号'] || '-', model:clone['型号'] || '-',
+            package:clone['封装'] || '', lcsc:clone['立创编号'] || '', fields:formatErrors, reason:formatReason
+          });
         }
       }
     }
@@ -8449,12 +8660,7 @@ function fmtCore(dir, lcscIdentityByCode){
   });
 
   if (dir === 'AB' && offlineFormatErrors.length) {
-    alert('⛔ 已停止导出：完成射频库、标准库、立创官方数据和源BOM逐层补齐后，仍有1931必填参数无法确定。\n\n'
-      + offlineFormatErrors.slice(0, 12).map(function(item){
-        return '源BOM第' + item.row + '行 / ' + item.ref + ' / ' + item.model + '：缺少' + item.fields.join('、') + '（' + item.reason + '）';
-      }).join('\n')
-      + (offlineFormatErrors.length > 12 ? '\n……另有' + (offlineFormatErrors.length - 12) + '行' : '')
-      + '\n\n请根据括号中的来源状态补齐资料后重新导出；系统不会猜测技术参数。');
+    showOfflineSupplementModal(offlineFormatErrors);
     return;
   }
 
