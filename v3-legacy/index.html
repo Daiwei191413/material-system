@@ -6086,6 +6086,27 @@ function extractToleranceToken(text) {
   return match ? match[0].replace(/\s+/g, '') : '';
 }
 
+function usableTechnicalToken(value) {
+  value = String(value == null ? '' : value).trim();
+  return value && !/^[-—/]+$/.test(value) && !/^(?:N\/?A|NA|NULL|UNDEFINED)$/i.test(value) ? value : '';
+}
+
+function extractInductorToleranceToken(text) {
+  var match = String(text == null ? '' : text).replace(/[μµ]/g, 'u')
+    .match(/±\s*\d+(?:\.\d+)?\s*(?:%|pH|nH|uH|mH)(?=$|[\s,，;；/|])/i);
+  if (!match) return '';
+  return match[0].replace(/\s+/g, '').replace(/UH$/i, 'uH').replace(/NH$/i, 'nH').replace(/PH$/i, 'pH').replace(/MH$/i, 'mH');
+}
+
+function extractInductorCurrentToken(text, allowBareSegment) {
+  text = String(text == null ? '' : text).replace(/[μµ]/g, 'u');
+  var labeled = text.match(/(?:额定电流|电流)\s*[：:]?\s*(\d+(?:\.\d+)?\s*(?:uA|mA|A))\b/i);
+  if (labeled) return labeled[1].replace(/\s+/g, '');
+  if (!allowBareSegment) return '';
+  var bare = text.match(/(?:^|[,，])\s*(\d+(?:\.\d+)?\s*(?:uA|mA|A))\s*(?=$|[,，])/i);
+  return bare ? bare[1].replace(/\s+/g, '') : '';
+}
+
 function capacitorTolerancePf(raw, capacitancePf) {
   var text = String(raw == null ? '' : raw).replace(/μ|µ/g, 'u').trim();
   var absolute = text.match(/±?\s*(\d+(?:\.\d+)?)\s*(pF|nF|uF)\b/i);
@@ -6315,7 +6336,7 @@ function officialInductorMaterialName(data, row){
   var model = String(data.productModel || (row && (row._mfgPart || row['型号'])) || '').trim().toUpperCase();
   var type = String(data.productType || '').trim();
   if (/^(BLM|MMZ|HBL|MPZ|BL|FB)/i.test(model) || /磁珠|ferrite|bead/i.test(type)) return '片式磁珠';
-  if (/^LQW/i.test(model)) return '绕线电感';
+  if (/^(LQW|MWSD|FHW)/i.test(model)) return '绕线电感';
   if (/^(LQG|LQP|MCL|MLG|SDCL)/i.test(model)) return '叠层电感';
   if (/共模/i.test(type)) return '共模电感';
   if (/功率电感/i.test(type)) return '功率电感';
@@ -6373,7 +6394,7 @@ function offlineInductorClass(row){
   if (isFerrite(row)) return '';
   var model = String(row['_mfgPart'] || row['型号'] || '').trim().toUpperCase();
   var name = String(row['物料名称'] || '').trim();
-  if (/^LQW/i.test(model) || /绕线电感/.test(name)) return '绕线电感';
+  if (/^(LQW|MWSD|FHW)/i.test(model) || /绕线电感/.test(name)) return '绕线电感';
   if (/^(LQG|LQP|MCL|MLG|SDCL)/i.test(model) || /叠层电感/.test(name)) return '叠层电感';
   return '';
 }
@@ -6407,7 +6428,7 @@ function normalizeOfflineTemplateRow(row){
     var cap = identity && identity.value ? normalizeValue(identity.value.text, 'SC') : '';
     var tol = companySmallCapPf(row) !== null ? '±0.1pF' : (extractToleranceToken(spec) || fields['精度'] || fields['容差'] || '');
     var volt = offlineFindToken(spec, /(\d+(?:\.\d+)?\s*(?:mV|V|kV))\b/i) || fields['额定电压'] || fields['电压'] || '';
-    var diel = offlineNormalizeDielectric(offlineFindToken(spec, /\b(X5R|X7R|X8R|Y5V|C0G|COG|NP0|NPO)\b/i) || fields['温度系数'] || fields['介质材料'] || fields['介质'] || '');
+    var diel = offlineNormalizeDielectric(offlineFindToken(spec, /\b(X5R|X7R|X8R|Y5V|C0G|COG|NP0|NPO)\b/i) || fields['温度系数'] || fields['介质材料'] || fields['介质'] || row['_standardCapDielectric'] || '');
     if (!cap) errors.push('容值');
     if (!tol) errors.push('精度');
     if (!volt) errors.push('耐压');
@@ -6438,8 +6459,8 @@ function normalizeOfflineTemplateRow(row){
     if (inductorName) {
       var mfg = String(row['_mfgPart'] || row['型号'] || '').trim();
       var inductance = offlineNormalizeInductance(fields['电感值'] || fields['感值'] || spec);
-      var indTol = extractToleranceToken(spec) || fields['精度'] || fields['容差'] || '';
-      var current = offlineFindToken(spec, /(?:额定电流|电流)\s*[：:]?\s*(\d+(?:\.\d+)?\s*(?:uA|mA|A))\b/i) || fields['额定电流'] || fields['电流'] || '';
+      var indTol = extractInductorToleranceToken(spec) || fields['精度'] || fields['容差'] || '';
+      var current = extractInductorCurrentToken(spec, true) || fields['额定电流'] || fields['电流'] || '';
       if (!mfg || inductorModelIsParameterPlaceholder(mfg)) errors.push('原厂型号');
       if (!inductance) errors.push('电感值');
       if (!indTol) errors.push('精度');
@@ -7966,6 +7987,124 @@ function verifyBomAuthority(rows) {
   });
 }
 
+function officialParamMapValue(data, names) {
+  var map = data && data.paramLinkedMap;
+  if (!map) return '';
+  for (var i = 0; i < names.length; i++) {
+    var value = usableTechnicalToken(map[names[i]]);
+    if (value) return value;
+  }
+  return '';
+}
+
+// 立创详情有时把感值、精度放在商品名称，把额定电流放在参数表。
+// 合并时保留源 BOM 已明确的感值，但不从厂家料号编码中猜测技术参数。
+function mergedOfficialInductorExtracted(data, row) {
+  data = data || {};
+  var ext = Object.assign({}, data._extracted || {});
+  var sourceText = [row && row['型号'], row && row['参数描述']].join(' ');
+  var officialText = [data.productName, data.remark, data.specification].join(' ');
+  ext.inductance = usableTechnicalToken(ext.inductance)
+    || officialParamMapValue(data, ['电感值','电感量'])
+    || offlineNormalizeInductance(officialText)
+    || offlineNormalizeInductance(sourceText);
+  ext.tolerance = usableTechnicalToken(ext.tolerance)
+    || officialParamMapValue(data, ['精度','容差','误差'])
+    || extractInductorToleranceToken(officialText)
+    || extractInductorToleranceToken(sourceText);
+  ext.current = usableTechnicalToken(ext.current)
+    || officialParamMapValue(data, ['额定电流','电流'])
+    || extractInductorCurrentToken(officialText, false)
+    || extractInductorCurrentToken(sourceText, true);
+  ext.dcr = usableTechnicalToken(ext.dcr || ext.dcResistance)
+    || officialParamMapValue(data, ['直流电阻(DCR)','直流电阻','DCR','RDC'])
+    || extractInductorDcr(officialText)
+    || extractInductorDcr(sourceText);
+  return ext;
+}
+
+function standardCapacitorFacts(item) {
+  item = item || {};
+  var spec = cleanSpec(item.specification || item['参数描述'] || '');
+  var fields = parseSpecFields(spec);
+  var compact = spec.replace(/^(?:MLCC|陶瓷电容器?|贴片电容(?:\(MLCC\))?|电容器?)[\s,，]*/i, '');
+  var value = passiveValue(fields['容值'] || fields['电容值'] || fields['电容量'] || compact || item.model || item['型号'], 'capacitor');
+  var dielectric = offlineNormalizeDielectric(offlineFindToken(spec, /\b(X5R|X7R|X8R|Y5V|C0G|COG|NP0|NPO)\b/i)
+    || fields['温度系数'] || fields['介质材料'] || fields['介质'] || '');
+  return {
+    record:item,
+    value:value,
+    package:normPkg(item.package || item['封装']),
+    tolerance:extractToleranceToken(spec) || fields['精度'] || fields['容差'] || '',
+    voltage:offlineFindToken(spec, /(\d+(?:\.\d+)?\s*(?:mV|V|kV))\b/i) || fields['额定电压'] || fields['电压'] || '',
+    dielectric:dielectric,
+    lcsc:normLcsc(item.lcsc_code || item['立创编号']),
+    material:String(item.material_code || item['物料编码'] || '').trim().toUpperCase(),
+    model:normModel(item.mfg_part || item['原厂型号'] || item.model || item['型号'])
+  };
+}
+
+function sameTechnicalToken(a, b) {
+  return String(a || '').replace(/\s+/g, '').toUpperCase() === String(b || '').replace(/\s+/g, '').toUpperCase();
+}
+
+// 立创未给出介质时，只允许从公司标准库的唯一、无冲突记录补齐介质。
+// 普通兜底必须同时匹配容值、封装、精度和耐压；不会仅按容值猜测。
+function resolveStandardCapDielectric(row, officialData) {
+  if (!offlineCeramicCapacitor(row)) return {status:'not-applicable'};
+  var currentSpec = String(row['参数描述'] || '');
+  var currentDielectric = offlineNormalizeDielectric(offlineFindToken(currentSpec, /\b(X5R|X7R|X8R|Y5V|C0G|COG|NP0|NPO)\b/i));
+  if (currentDielectric) return {status:'present', dielectric:currentDielectric};
+  var identity = passiveIdentity(row);
+  if (!identity || !identity.value || !identity.package) return {status:'missing'};
+  var ext = (officialData && officialData._extracted) || {};
+  var officialText = [officialData && officialData.productName, officialData && officialData.remark, officialData && officialData.specification].join(' ');
+  var tolerance = usableTechnicalToken(ext.tolerance) || extractToleranceToken(officialText) || extractToleranceToken(currentSpec);
+  var voltage = usableTechnicalToken(ext.voltage)
+    || offlineFindToken(officialText, /(\d+(?:\.\d+)?\s*(?:mV|V|kV))\b/i)
+    || offlineFindToken(currentSpec, /(\d+(?:\.\d+)?\s*(?:mV|V|kV))\b/i);
+  var sourceMaterial = String(row['物料编码'] || '').trim().toUpperCase();
+  var sourceLcsc = normLcsc(row['立创编号'] || (officialData && officialData.productCode));
+  var officialModel = normModel(officialData && officialData.productModel);
+
+  var facts = materialDB_standard.map(standardCapacitorFacts).filter(function(item){
+    if (!item.value || !item.dielectric || !item.package) return false;
+    if (!passiveNumbersEqual(identity.value.number, item.value.number) || identity.package !== item.package) return false;
+    if (tolerance && !sameTechnicalToken(tolerance, item.tolerance)) return false;
+    if (voltage && !sameTechnicalToken(voltage, item.voltage)) return false;
+    return true;
+  });
+  var identityGroups = [
+    sourceMaterial ? facts.filter(function(item){ return item.material === sourceMaterial; }) : [],
+    sourceLcsc ? facts.filter(function(item){ return item.lcsc === sourceLcsc; }) : [],
+    officialModel ? facts.filter(function(item){ return item.model === officialModel; }) : []
+  ];
+  var candidates = [];
+  var matchedBy = '';
+  for (var i = 0; i < identityGroups.length; i++) {
+    if (identityGroups[i].length) {
+      candidates = identityGroups[i];
+      matchedBy = ['公司物料编码','立创编号','原厂型号'][i];
+      break;
+    }
+  }
+  if (!candidates.length && tolerance && voltage) {
+    candidates = facts;
+    matchedBy = '容值+封装+精度+耐压';
+  }
+  if (candidates.length !== 1) {
+    if (candidates.length > 1) {
+      row['_standardCapDielectricConflict'] = matchedBy + '匹配到' + candidates.length + '条标准库记录';
+      return {status:'conflict', message:row['_standardCapDielectricConflict']};
+    }
+    return {status:'missing'};
+  }
+  row['_standardCapDielectric'] = candidates[0].dielectric;
+  row['_standardCapDielectricSource'] = matchedBy;
+  row['备注'] = [row['备注'], '介质来源=公司标准库唯一匹配（' + matchedBy + '）'].filter(Boolean).join('；');
+  return {status:'filled', dielectric:candidates[0].dielectric, source:matchedBy};
+}
+
 // 公司标准库字段优先；官方数据只用于核验、二次匹配和补充仍为空或基础化的字段。
 function applyOfficialSupplement(row, data, hasStandardHit) {
   if (!row || !data || !data.hit) return row;
@@ -7985,15 +8124,16 @@ function applyOfficialSupplement(row, data, hasStandardHit) {
   var currentName = String(row['物料名称'] || '').trim();
   if (officialName && (!currentName || /^(未分类|其它|其他|unknown|-+)$/i.test(currentName) || (isInductorAuthorityRow(row) && !hasStandardHit))) row['物料名称'] = officialName;
 
-  var officialSpec = buildSpecFromExtracted(data._extracted, officialName || data.productType, data.package) || data.specification || '';
+  var officialExtracted = isInductorAuthorityRow(row) ? mergedOfficialInductorExtracted(data, row) : (data._extracted || {});
+  var officialSpec = buildSpecFromExtracted(officialExtracted, officialName || data.productType, data.package) || data.specification || '';
   var shouldFillSpec = !String(row['参数描述'] || '').trim();
   if (passiveIdentity(row)) shouldFillSpec = shouldFillSpec || passiveSpecIsBasic(row) || passiveSpecErrors(row, row['参数描述']).length > 0;
   if (officialSpec && shouldFillSpec) row['参数描述'] = cleanSpec(officialSpec);
   if (isInductorAuthorityRow(row) && String(row['参数描述'] || '').trim()) {
-    var extracted = data._extracted || {};
+    var extracted = officialExtracted;
     var tolerance = String(extracted.tolerance || '').trim();
     var current = String(extracted.current || '').trim();
-    var dcr = (data._extracted && (data._extracted.dcr || data._extracted.dcResistance)) || extractInductorDcr(data.specification);
+    var dcr = extracted.dcr || extracted.dcResistance || extractInductorDcr(data.specification);
     if (tolerance) {
       if (/±\s*\d+(?:\.\d+)?\s*%/i.test(row['参数描述'])) row['参数描述'] = row['参数描述'].replace(/±\s*\d+(?:\.\d+)?\s*%/i, tolerance);
       else row['参数描述'] += '，' + tolerance;
@@ -8008,7 +8148,7 @@ function applyOfficialSupplement(row, data, hasStandardHit) {
       return !/^\s*[-—/]+\s*$/.test(part);
     }).join('，');
   }
-  if (row['参数描述']) row['参数描述'] = toAStyleSpec(row['参数描述'], row);
+  if (row['参数描述']) row['参数描述'] = isInductorAuthorityRow(row) ? cleanSpec(row['参数描述']) : toAStyleSpec(row['参数描述'], row);
   if (passiveIdentity(row) && row['参数描述']
     && passiveSpecErrors(row, row['参数描述']).length === 0
     && passiveMissingParams(row).length === 0) {
@@ -8198,6 +8338,16 @@ function fmtCore(dir, lcscIdentityByCode){
     }
 
     if (officialData) applyOfficialSupplement(clone, officialData, !!mr.hit);
+    var capDielectricResult = dir === 'AB' ? resolveStandardCapDielectric(clone, officialData) : {status:'not-applicable'};
+    if (capDielectricResult.status === 'filled') {
+      enrichStats.filled++;
+      enrichDetails.push({
+        ref:clone['位号'] || '', model:clone['型号'] || '', level:'L2', filled:['介质'],
+        warnings:['介质来源：公司标准库唯一匹配（' + capDielectricResult.source + '）']
+      });
+    } else if (capDielectricResult.status === 'conflict') {
+      addPassiveWarning(clone, capDielectricResult.message);
+    }
     // 待入库新关键电感只补充官方资料，不允许标准库或自动规则改写源BOM明确身份。
     if (rfSourceIdentity) {
       if (rfSourceIdentity.materialCode) clone['物料编码'] = rfSourceIdentity.materialCode;
@@ -8254,7 +8404,12 @@ function fmtCore(dir, lcscIdentityByCode){
         clone['型号'] = standardizeModel(clone);
         var formatErrors = normalizeOfflineTemplateRow(clone);
         if (formatErrors.length) {
-          offlineFormatErrors.push({row:idx + 1, ref:clone['位号'] || '-', model:clone['型号'] || '-', fields:formatErrors});
+          var formatReason = clone['_standardCapDielectricConflict']
+            ? '公司标准库匹配冲突：' + clone['_standardCapDielectricConflict']
+            : (mr.rfPreferred ? '射频电感库记录仍缺少必填参数'
+              : (officialData ? '立创官方数据和公司标准库补齐后仍未提供'
+                : '立创官方核验未完成，现有公司标准库和源BOM仍未提供'));
+          offlineFormatErrors.push({row:idx + 1, ref:clone['位号'] || '-', model:clone['型号'] || '-', fields:formatErrors, reason:formatReason});
         }
       }
     }
@@ -8278,12 +8433,12 @@ function fmtCore(dir, lcscIdentityByCode){
   });
 
   if (dir === 'AB' && offlineFormatErrors.length) {
-    alert('⛔ 已停止导出：1931线下BOM模板的必填参数不完整。\n\n'
+    alert('⛔ 已停止导出：完成射频库、标准库、立创官方数据和源BOM逐层补齐后，仍有1931必填参数无法确定。\n\n'
       + offlineFormatErrors.slice(0, 12).map(function(item){
-        return '源BOM第' + item.row + '行 / ' + item.ref + ' / ' + item.model + '：缺少' + item.fields.join('、');
+        return '源BOM第' + item.row + '行 / ' + item.ref + ' / ' + item.model + '：缺少' + item.fields.join('、') + '（' + item.reason + '）';
       }).join('\n')
       + (offlineFormatErrors.length > 12 ? '\n……另有' + (offlineFormatErrors.length - 12) + '行' : '')
-      + '\n\n请先补齐标准库或源BOM参数后重新导出；系统不会猜测技术参数。');
+      + '\n\n请根据括号中的来源状态补齐资料后重新导出；系统不会猜测技术参数。');
     return;
   }
 
