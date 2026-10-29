@@ -8097,6 +8097,29 @@ function mergedOfficialInductorExtracted(data, row) {
   return ext;
 }
 
+// 同一官方商品的介质可能只出现在参数表或规格文本中。
+function officialCapDielectric(data) {
+  data = data || {};
+  var values = [(data._extracted || {}).dielectric,
+    officialParamMapValue(data, ['温度系数','介质','介质材料']),
+    data.specification, data.productName, data.remark];
+  for (var i = 0; i < values.length; i++) {
+    var token = offlineFindToken(values[i], /\b(X5R|X7R|X8R|Y5V|C0G|COG|NP0|NPO)\b/i);
+    if (token) return offlineNormalizeDielectric(token);
+  }
+  return '';
+}
+
+function selectedOfflineCapSpec(row, data) {
+  if (!offlineCeramicCapacitor(row) || !data || !data.hit) return '';
+  var ext = Object.assign({}, data._extracted || {});
+  ext.capacitance = usableTechnicalToken(ext.capacitance) || officialParamMapValue(data, ['容值','电容值','电容量']);
+  ext.tolerance = usableTechnicalToken(ext.tolerance) || officialParamMapValue(data, ['精度','公差','容差']);
+  ext.voltage = usableTechnicalToken(ext.voltage) || officialParamMapValue(data, ['额定电压','耐压','电压']);
+  ext.dielectric = officialCapDielectric(data);
+  return buildSpecFromExtracted(ext, '电容', data.package) || data.specification || '';
+}
+
 function standardCapacitorFacts(item) {
   item = item || {};
   var spec = cleanSpec(item.specification || item['参数描述'] || '');
@@ -8129,6 +8152,11 @@ function resolveStandardCapDielectric(row, officialData) {
   var currentSpec = String(row['参数描述'] || '');
   var currentDielectric = offlineNormalizeDielectric(offlineFindToken(currentSpec, /\b(X5R|X7R|X8R|Y5V|C0G|COG|NP0|NPO)\b/i));
   if (currentDielectric) return {status:'present', dielectric:currentDielectric};
+  var officialDielectric = officialData && officialData.hit ? officialCapDielectric(officialData) : '';
+  if (officialDielectric) {
+    row['参数描述'] = [currentSpec, officialDielectric].filter(Boolean).join(' ');
+    return {status:'present', dielectric:officialDielectric};
+  }
   var identity = passiveIdentity(row);
   if (!identity || !identity.value || !identity.package) return {status:'missing'};
   var ext = (officialData && officialData._extracted) || {};
@@ -8388,6 +8416,13 @@ function offlineCandidateFormatErrors(item, detail) {
   var clone = {};
   for (var key in source) clone[key] = source[key];
   clone['立创编号'] = normLcsc(detail.productCode);
+  // 用户选用的是新商品：用该商品参数校验，不能沿用旧商品的耐压和介质。
+  if (offlineCeramicCapacitor(clone)) {
+    clone['参数描述'] = selectedOfflineCapSpec(clone, detail);
+    delete clone._standardCapDielectric;
+    delete clone._standardCapDielectricSource;
+    delete clone._standardCapDielectricConflict;
+  }
   if (isInductorAuthorityRow(clone) && detail.productModel) clone['型号'] = detail.productModel;
   if (detail.brand) clone['品牌'] = detail.brand;
   repairPassiveDescription(clone);
@@ -8512,6 +8547,12 @@ function pickOfflineSupplementCandidate(candidate) {
   var oldCode = normLcsc(source['立创编号']);
   var newCode = normLcsc(detail.productCode || candidate.componentCode);
   source['立创编号'] = newCode;
+  if (offlineCeramicCapacitor(source)) {
+    source['参数描述'] = selectedOfflineCapSpec(source, detail);
+    delete source._standardCapDielectric;
+    delete source._standardCapDielectricSource;
+    delete source._standardCapDielectricConflict;
+  }
   if (detail.brand) source['品牌'] = detail.brand;
   if (isInductorAuthorityRow(source) && detail.productModel) {
     var selectedModel = String(detail.productModel).trim();
