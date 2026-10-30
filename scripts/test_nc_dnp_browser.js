@@ -25,8 +25,8 @@ assert(edgePath, 'Microsoft Edge executable not found; set EDGE_PATH to run this
 
 const repoRoot = path.resolve(__dirname, '..');
 const targets = [
-  ['domestic', pathToFileURL(path.join(repoRoot, 'v3-cloudbase/web/index.html')).href, 'V1.0.59'],
-  ['overseas', pathToFileURL(path.join(repoRoot, 'v3-legacy/index.html')).href, 'V3.0.83'],
+  ['domestic', pathToFileURL(path.join(repoRoot, 'v3-cloudbase/web/index.html')).href, 'V1.0.60'],
+  ['overseas', pathToFileURL(path.join(repoRoot, 'v3-legacy/index.html')).href, 'V3.0.84'],
 ];
 
 (async () => {
@@ -45,7 +45,7 @@ const targets = [
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.waitForFunction(() => typeof window.isNcNoFitValue === 'function');
     const result = await page.evaluate((expectedVersion) => {
-      const negativeCases = ['NC7SZ125', 'NCP1117', 'CONNECTOR', '10K/NC1', '10K'];
+      const negativeCases = ['NC7SZ125', 'NCP1117', 'CONNECTOR', '10K/NC1', '10K', '1MNC'];
       const workflowNotes = Array.from(document.querySelectorAll('.workflow-route-note'));
       const positives = [
         { Value: 'NC', Reference: 'R1', 'PCB Footprint': 'R0402' },
@@ -53,6 +53,8 @@ const targets = [
         { Value: '100nF / nc', Reference: 'C1', 'PCB Footprint': 'C0402' },
         { Value: `10uH${String.fromCharCode(92)}NC`, Reference: 'L1', 'PCB Footprint': 'L0603' },
         { Value: '22pF\uFF0FNC', Reference: 'C2', 'PCB Footprint': 'C0402' },
+        { Value: '1M NC', Reference: 'R8', 'PCB Footprint': 'SR1206' },
+        { Value: '10K\u3000NC', Reference: 'R9', 'PCB Footprint': 'SR0402' },
       ];
       window.runConvert(positives);
       return {
@@ -69,10 +71,10 @@ const targets = [
 
     assert(result.versionFound, `${label}: expected version ${version}`);
     assert(result.negativeResults.every(([, matched]) => !matched), `${label}: real model classified as NC`);
-    assert.strictEqual(result.outputCount, 5, `${label}: expected five NC groups`);
+    assert.strictEqual(result.outputCount, 7, `${label}: expected seven NC groups`);
     assert(result.statuses.every((status) => status === 'dnp'), `${label}: NC row was not removed`);
     assert(result.reasons.every((reason) => reason === 'NC \u7a7a\u8d34\uff08BOM\u6807\u8bb0\uff09'), `${label}: audit reason missing`);
-    assert.strictEqual(result.dnpCount, '6', `${label}: expected six removed references`);
+    assert.strictEqual(result.dnpCount, '8', `${label}: expected eight removed references`);
     assert.deepStrictEqual(result.workflowNoteTexts, [
       '\u5907\u6ce8\uff1a\u539f\u7406\u56feBOM\u5bfc\u5165\u524d\uff0c\u8bf7\u5220\u9664\u4e0d\u9700\u8981\u8d34\u7247\u7684\u7269\u6599\u9879\uff0c\u5bfc\u51fa\u4f1a\u66f4\u51c6\u786e\u3002',
       '\u5907\u6ce8\uff1a\u5173\u952e\u5668\u4ef6\u4ef7\u683c\u5e94\u7531\u91c7\u8d2d\u786e\u8ba4\u5e76\u7ef4\u62a4\u5728\u516c\u53f8\u6210\u672c\u5e93\uff1b\u672c\u6b21\u4e34\u65f6\u53d8\u66f4\u53ef\u7528\u624b\u52a8\u5355\u4ef7\u8986\u76d6\u3002',

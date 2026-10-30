@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V1.0.59 团队版</title>
+  <title>技象科技研发BOM 整理神器 V1.0.60 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png?v=3.0.23-cb1">
 <script src="assets/vendor/xlsx.full.min.js?v=0.18.5"></script>
 <script src="assets/vendor/jszip.min.js?v=3.10.1"></script>
@@ -275,7 +275,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V1.0.59 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V1.0.60 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -936,8 +936,8 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<div class="release-date"><span>更新日期：<time datetime="2026-10-29">20261029</time></span></div>
-        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.59 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+<div class="release-date"><span>更新日期：<time datetime="2026-10-30">20261030</time></span></div>
+        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.60 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1250,7 +1250,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.59</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.60</span></h3>
 
     <!-- 库切换 Tab -->
     <div class="lib-tabs" style="margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -1365,7 +1365,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
       ② 同型号同封装合并位号 <br>
       ③ 三级匹配引擎填立创编号 <br>
       ④ <b>小于10pF的电容</b>强制核验立创商品实际精度（必须明确为 <b>±0.1pF</b>）<br>
-      ⑤ 自动剔除 BOM 中的 <b>NC、参数/NC</b> 及物料库 DNP 不上板物料<br>
+      ⑤ 自动剔除 BOM 中的 <b>NC、参数/NC、参数 NC</b> 及物料库 DNP 不上板物料<br>
       <span style="color:#c62828;font-weight:600;">硬性规则：小于10pF的电容未匹配、精度缺失或不是±0.1pF时禁止导出；10pF及以上不受此规则限制。</span><br>
       输出：<b>嘉立创BOM（4列：Comment/Designator/Footprint/嘉立创元件编号）</b> + <b>映射关系附件</b>
     </div>
@@ -1542,12 +1542,12 @@ function parseDnpCell(row) {
   return false;
 }
 
-// 团队原理图 BOM 空贴约定：型号/参数为 NC，或以 /NC 结尾。
+// 团队原理图 BOM 空贴约定：独立 NC，或参数后以分隔符、空格加 NC 结尾。
 // 只匹配完整标记，避免误删 NC7SZ125、NCP1117 等真实器件型号。
 function isNcNoFitValue(rawValue) {
   var s = String(rawValue == null ? '' : rawValue).trim();
   if (!s) return false;
-  return /^NC$/i.test(s) || /[\/\\／]\s*NC\s*$/i.test(s);
+  return /^NC$/i.test(s) || /(?:[\/\\／]|\s)\s*NC\s*$/i.test(s);
 }
 
 // ==================== 容值/电阻 规范化 ====================
@@ -1708,10 +1708,8 @@ function runConvert(rows) {
     }
     // 规范化值（带封装提示）
     var normVal = normalizeValue(c.value, c.fp) || c.value;
-    var fpUpper = (c.fp || '').toString().toUpperCase();
-    var isCap = /^SC\d|^C\d|CAP/.test(fpUpper);
-    // 电容用主值（去耐压）做 key，其他用 normVal 全量
-    var keyVal = isCap ? String(normVal).split('/')[0].trim() : normVal;
+    // 同容值不同耐压必须分行，避免高压电容被低耐压多数行覆盖。
+    var keyVal = normVal;
     var key = keyVal + '||' + normPkg(c.fp || '');
     if (!byKey[key]) {
       byKey[key] = { comment: normVal, footprint: c.fp || '', refs: [], rawValues: [], _commentVotes: {} };
@@ -2540,6 +2538,12 @@ function convPassiveNumber(value, kind) {
   return null;
 }
 
+function convVoltageNumber(value) {
+  var m = String(value || '').trim().match(/^(\d+(?:\.\d+)?)\s*(kV|mV|V)$/i);
+  if (!m) return null;
+  return parseFloat(m[1]) * ({kv:1000,mv:0.001,v:1}[m[2].toLowerCase()]);
+}
+
 // 公司硬性规则：原理图中实际容值小于 10pF 的电容，立创商品精度必须明确为 ±0.1pF。
 // 按可解析的实际参数判断，避免 C18 这类 C 位号但实际为 0R 电阻的特殊器件被误判。
 function convSmallCapPf(row) {
@@ -2579,7 +2583,7 @@ function validateLcscMapping(row, data) {
   var officialPkg = normPkg(data && data.package);
   var kind = convPassiveKind(row);
   var sourceNumber = convPassiveNumber(row.comment || row.model, kind);
-  var sourcePkgIsStandard = /^(0201|0402|0603|0805|1206|1210|2010|2512)$/.test(sourcePkg)
+  var sourcePkgIsStandard = /^(01005|0201|0402|0603|0805|1008|1206|1210|1812|2010|2512)$/.test(sourcePkg)
     || /^(SOT|SOP|QFN|TQFP|BGA|LQFP|DFN|SMA|SMB|SMC|TO)\d*/.test(sourcePkg);
   if (!data || !data.hit) errors.push('立创编号不存在');
   if (sourcePkgIsStandard && !officialPkg) errors.push('官方数据缺少封装');
@@ -2596,6 +2600,16 @@ function validateLcscMapping(row, data) {
     else {
       var scale = Math.max(Math.abs(sourceNumber), Math.abs(officialNumber), 1e-18);
       if (Math.abs(sourceNumber - officialNumber) / scale > 1e-9) errors.push((kind === 'cap' ? '容值' : '阻值') + '不一致：原理图 ' + (row.comment || row.model) + ' / 立创 ' + officialValue);
+    }
+    var sourceVoltageText = String(row.comment || row.model || '').match(/[\/\\／]\s*(\d+(?:\.\d+)?\s*(?:kV|mV|V))\s*$/i);
+    if (kind === 'cap' && sourceVoltageText) {
+      var sourceVoltage = convVoltageNumber(sourceVoltageText[1]);
+      var officialVoltageText = extracted.voltage || officialParamMapValue(data, ['额定电压','耐压','电压']);
+      var officialVoltage = convVoltageNumber(officialVoltageText);
+      if (officialVoltage == null) errors.push('官方数据缺少可核验的耐压（原理图要求' + sourceVoltageText[1] + '）');
+      else if (Math.abs(sourceVoltage - officialVoltage) > Math.max(sourceVoltage, officialVoltage) * 1e-9) {
+        errors.push('耐压不一致：原理图 ' + sourceVoltageText[1] + ' / 立创 ' + officialVoltageText);
+      }
     }
   }
   if (row && row.rfPreferred) {
@@ -3181,6 +3195,18 @@ function closeLcscSearch() {
 var _LCSC_SEARCH_PAGE = 1;
 var _LCSC_SEARCH_HAS_NEXT = false;
 
+// 搜索接口对“容值/耐压”的整串排序不稳定，拆成独立关键词并带上实际封装。
+// 仅转换搜索词，原始 Comment 和导出值保留。
+function lcscSearchQuery(q, pkg) {
+  q = String(q || '').trim();
+  var m = q.match(/^([\d.]+\s*(?:pF|nF|uF|μF|µF))\s*[\/\\／]\s*(\d+(?:\.\d+)?\s*(?:kV|mV|V))(?=$|\s)/i);
+  if (!m) return q;
+  var query = m[1].replace(/[μµ]/g, 'u') + ' ' + m[2].replace(/\s+/g, '').replace(/kv$/i, 'kV') + q.slice(m[0].length);
+  var chip = extractStdPkg(pkg);
+  if (chip && !strictMatchPkg(query, chip)) query += ' ' + chip;
+  return query;
+}
+
 function runLcscSearch(page) {
   page = page || 1;
   _LCSC_SEARCH_PAGE = page;
@@ -3192,7 +3218,7 @@ function runLcscSearch(page) {
   body.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">搜索中...</div>';
   document.getElementById('lcscSearchBtn').disabled = true;
 
-  var url = LCSC_WORKER_URL + '/search?q=' + encodeURIComponent(q) + '&page=' + page;
+  var url = LCSC_WORKER_URL + '/search?q=' + encodeURIComponent(lcscSearchQuery(q, pkg)) + '&page=' + page;
   if (pkg) url += '&pkg=' + encodeURIComponent(pkg);
 
   lcscJson(url, { mode: 'cors' })
@@ -3350,7 +3376,7 @@ function runLcscSearchByBrand() {
 
   var promises = plan.brands.map(function(b){
     var kw = q + ' ' + b.kw;
-    var url = LCSC_WORKER_URL + '/search?q=' + encodeURIComponent(kw) + '&page=1';
+    var url = LCSC_WORKER_URL + '/search?q=' + encodeURIComponent(lcscSearchQuery(kw, pkg)) + '&page=1';
     if (pkg) url += '&pkg=' + encodeURIComponent(pkg);
     return lcscJson(url, { mode: 'cors' })
       .catch(function(){ return { ok: false }; });
@@ -3541,7 +3567,7 @@ function runLcscSearchTopN(q, pkg, n, label) {
   var body = document.getElementById('lcscSearchBody');
   body.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">搜索中...</div>';
   document.getElementById('lcscSearchBtn').disabled = true;
-  var url = LCSC_WORKER_URL + '/search?q=' + encodeURIComponent(q) + '&page=1';
+  var url = LCSC_WORKER_URL + '/search?q=' + encodeURIComponent(lcscSearchQuery(q, pkg)) + '&page=1';
   if (pkg) url += '&pkg=' + encodeURIComponent(pkg);
   lcscJson(url, { mode: 'cors' })
     .then(function(data){
@@ -3555,15 +3581,22 @@ function runLcscSearchTopN(q, pkg, n, label) {
       var strict = pkg ? rawItems.filter(function(it){
         return strictMatchPkg(it.componentSpecification, pkg);
       }) : rawItems;
-      // 浅拷贝 data + 截断到前 N 条
-      var trimmed = { ok: true };
-      for (var k in data) { if (data.hasOwnProperty(k)) trimmed[k] = data[k]; }
-      trimmed.items = strict.slice(0, n);
-      renderLcscSearchResults(trimmed);
-      var labelExtra = pkg ? (label + ' · 封装严格 = ' + pkg) : label;
-      var meta = document.getElementById('lcscSearchMeta');
-      meta.innerHTML = esc(labelExtra) + ' · ' + meta.innerHTML
-        + ' <button type="button" onclick="runLcscSearch(1)" style="margin-left:8px;padding:2px 10px;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:3px;cursor:pointer;">全网搜（不限封装）</button>';
+      var row = currentLcscSearchRow();
+      var kind = row && convPassiveKind(row);
+      var checkPassive = kind && convPassiveNumber(row.comment || row.model, kind) != null;
+      var pool = checkPassive ? fetchDetailsForSearchItems(dedupeLcscItems(strict.slice(0, 20))) : Promise.resolve(strict);
+      return pool.then(function(items){
+        if (checkPassive) items = items.filter(function(it){ return lcscCandidateIsStrictForRow(row, it); });
+        // 先核对容值/耐压/封装，再截断候选，避免低耐压料占掉高压料的显示名额。
+        var trimmed = { ok: true };
+        for (var k in data) { if (data.hasOwnProperty(k)) trimmed[k] = data[k]; }
+        trimmed.items = items.slice(0, n);
+        renderLcscSearchResults(trimmed);
+        var labelExtra = pkg ? (label + ' · 封装严格 = ' + pkg) : label;
+        var meta = document.getElementById('lcscSearchMeta');
+        meta.innerHTML = esc(labelExtra) + ' · ' + meta.innerHTML
+          + ' <button type="button" onclick="runLcscSearch(1)" style="margin-left:8px;padding:2px 10px;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:3px;cursor:pointer;">全网搜（不限封装）</button>';
+      });
     })
     .catch(function(e){
       document.getElementById('lcscSearchBtn').disabled = false;
@@ -3782,7 +3815,7 @@ function renderLcscParamSummary(data, sourceRow) {
 }
 
 function searchLcscOnline(q, pkg) {
-  var url = LCSC_WORKER_URL + '/search?q=' + encodeURIComponent(q) + '&page=1';
+  var url = LCSC_WORKER_URL + '/search?q=' + encodeURIComponent(lcscSearchQuery(q, pkg)) + '&page=1';
   if (pkg) url += '&pkg=' + encodeURIComponent(pkg);
   return lcscJson(url, { mode:'cors' }).then(function(data){
     return (data && data.ok && data.items) ? data.items : [];
@@ -5958,9 +5991,10 @@ function normPkg(v){
   var raw = s.replace(/[\s\-_·/\.\,\(\)]/g,'');
   // 别名直接命中
   if (PKG_ALIASES[raw]) return PKG_ALIASES[raw];
-  // 纯数字贴片
-  var m = s.match(/(0201|0402|0603|0805|1206|1210|2010|2512)/);
-  if (m) return m[1];
+  // SC/SL/SR 是类别前缀；1812 等实际封装统一复用标准封装表。
+  var chip = extractStdPkg(s);
+  if (chip) return chip;
+  var m;
   // SOT/SOP/QFN 系列
   m = s.match(/(SOT-?\d+|SOP-?\d+|QFN-?\d+|TQFP-?\d+|BGA-?\d+|LQFP-?\d+|DFN-?\d+)/);
   if (m) return m[1].replace(/-/g,'');
@@ -9617,7 +9651,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.59 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.60 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>
