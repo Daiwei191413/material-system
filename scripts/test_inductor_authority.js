@@ -5,8 +5,8 @@ const vm = require('vm');
 
 const repoRoot = path.resolve(__dirname, '..');
 const targets = [
-  { file: 'v3-cloudbase/web/index.html', version: 'V1.0.64' },
-  { file: 'v3-legacy/index.html', version: 'V3.0.88' },
+  { file: 'v3-cloudbase/web/index.html', version: 'V1.0.65' },
+  { file: 'v3-legacy/index.html', version: 'V3.0.89' },
 ];
 
 function section(html, start, end) {
