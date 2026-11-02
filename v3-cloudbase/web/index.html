@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V1.0.62 团队版</title>
+  <title>技象科技研发BOM 整理神器 V1.0.63 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png?v=3.0.23-cb1">
 <script src="assets/vendor/xlsx.full.min.js?v=0.18.5"></script>
 <script src="assets/vendor/jszip.min.js?v=3.10.1"></script>
@@ -209,6 +209,22 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 .conv-audit-banner.warn{background:#fff6e8;border-color:#f5c47a;color:#9a5b00}
 .conv-audit-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px;margin-bottom:10px}
 .conv-audit-stat{min-height:66px;padding:8px;border:1px solid #dde3e8;border-radius:6px;background:#fff;text-align:center}
+.conv-audit-stat{font:inherit;cursor:pointer;transition:border-color .15s,background .15s}
+.conv-audit-stat .n,.conv-audit-stat .l{display:block}
+.conv-audit-stat:hover:not(:disabled){border-color:#0078b8;background:#f0f9ff}
+.conv-audit-stat.active{border:2px solid #0078b8;background:#eaf6fc;padding:7px}
+.conv-audit-stat:focus-visible,.conv-audit-actions button:focus-visible{outline:3px solid #60a5fa;outline-offset:2px}
+.conv-audit-stat:disabled{cursor:default;opacity:.55}
+.conv-audit-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.conv-audit-toolbar input{width:280px;max-width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:4px}
+.conv-audit-note{color:#64748b;font-size:11px;font-weight:normal}
+.conv-audit-actions{min-width:180px;max-width:300px}
+.conv-audit .table-wrap{overflow-x:auto}
+#convAuditTable td{vertical-align:top;overflow-wrap:anywhere}
+#convAuditTable .conv-audit-badge{white-space:normal;overflow-wrap:anywhere;max-width:100%;box-sizing:border-box;vertical-align:top}
+.conv-audit-actions button{padding:4px 8px;margin:2px;border:1px solid #0078b8;border-radius:4px;background:#fff;color:#0078b8;cursor:pointer}
+.conv-audit-diff{background:#fff3e6;box-shadow:inset 3px 0 #f59e0b}
+.conv-row-focused{outline:3px solid #0078b8;outline-offset:-3px;background:#eaf6fc!important}
 .conv-audit-stat .n{font-size:20px;font-weight:700;line-height:1.2;color:#334155}
 .conv-audit-stat .l{font-size:11px;color:#64748b;margin-top:4px;white-space:nowrap}
 .conv-audit-stat.ok .n{color:#1f9d55}.conv-audit-stat.attn .n{color:#e67e22}.conv-audit-stat.bad .n{color:#d93025}.conv-audit-stat.info .n{color:#0078b8}
@@ -275,7 +291,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V1.0.62 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V1.0.63 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -937,7 +953,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 </div>
 <header>
 <div class="release-date"><span>更新日期：<time datetime="2026-11-02">20261102</time></span></div>
-        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.62 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.63 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1250,7 +1266,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.62</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.63</span></h3>
 
     <!-- 库切换 Tab -->
     <div class="lib-tabs" style="margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -1431,6 +1447,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
           <button class="btn-secondary" onclick="exportConvAudit()">📥 导出校验报告</button>
         </div>
         <div id="convAuditBanner" class="conv-audit-banner"></div>
+        <p class="conv-audit-note">点击统计卡片查看对应明细。统计单位为去重位号；字段异常可与其他状态重叠，不能直接相加。</p>
         <div id="convAuditStats" class="conv-audit-stats"></div>
         <div class="conv-audit-filters">
           <button class="conv-audit-filter" data-audit-filter="attention" onclick="setConvAuditFilter('attention')">需要确认</button>
@@ -1438,11 +1455,19 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
           <button class="conv-audit-filter" data-audit-filter="unmatched" onclick="setConvAuditFilter('unmatched')">未匹配</button>
           <button class="conv-audit-filter" data-audit-filter="deferred" onclick="setConvAuditFilter('deferred')">导出后补充</button>
           <button class="conv-audit-filter" data-audit-filter="dnp" onclick="setConvAuditFilter('dnp')">DNP</button>
-          <button class="conv-audit-filter" data-audit-filter="normalized" onclick="setConvAuditFilter('normalized')">规范化变化</button>
+          <button class="conv-audit-filter" data-audit-filter="normalized" onclick="setConvAuditFilter('normalized')">规范化/已确认</button>
         </div>
         <div class="table-wrap">
+          <div class="conv-audit-toolbar">
+            <label for="convAuditSearch">在当前类别搜索</label>
+            <input id="convAuditSearch" type="search" placeholder="位号 / 型号 / 立创编号 / 问题" oninput="setConvAuditQuery(this.value)">
+            <button type="button" onclick="clearConvAuditFilters()">清除筛选，返回全部</button>
+            <button type="button" id="convAuditExportFiltered" onclick="exportConvAudit(true)">导出当前筛选明细</button>
+          </div>
+          <p id="convAuditScope" role="status" aria-live="polite"></p>
+          <p id="convAuditActionNote" class="conv-audit-note" role="status" aria-live="polite"></p>
           <table id="convAuditTable">
-            <thead><tr><th>#</th><th>位号</th><th>原理图 Value / Footprint</th><th>嘉立创 Comment / Footprint</th><th>嘉立创编号</th><th>校验结果</th></tr></thead>
+            <thead><tr><th>#</th><th>位号</th><th>原理图 Value / Footprint</th><th>嘉立创 Comment / Footprint</th><th>嘉立创编号</th><th>校验结果</th><th>处理操作</th></tr></thead>
             <tbody id="convAuditBody"></tbody>
           </table>
         </div>
@@ -1643,6 +1668,7 @@ var CONV_SOURCE_FILE = '';
 var CONV_DEFER_SELECTED = [];
 var CONV_AUDIT = null;
 var CONV_AUDIT_FILTER = 'attention';
+var CONV_AUDIT_QUERY = '';
 var CONV_VERIFY_RUN_ID = 0;
 
 // 列名归一：把原理图 BOM 的列名映射到 value/ref/fp
@@ -1689,6 +1715,9 @@ function runConvert(rows) {
   CONV_RAW = [];
   CONV_OUT = [];
   CONV_DEFER_SELECTED = [];
+  CONV_AUDIT_QUERY = '';
+  document.getElementById('convAuditSearch').value = '';
+  document.getElementById('convAuditActionNote').textContent = '';
 
   // 1. 列名归一 + 拆位号
   // 同规范值（含耐压）+ 同封装合并；不同耐压分行保留。
@@ -2924,220 +2953,283 @@ function convAuditAdd(map, ref, row) {
   map[key].push(row);
 }
 
-function buildConvAudit(sourceRows, outputRows) {
-  var srcMap = Object.create(null);
-  var outMap = Object.create(null);
+// 卡片计数、表格筛选与导出统一使用这些条件；字段差异是可重叠维度。
+var CONV_AUDIT_VIEWS = {
+  attention:{label:'需要确认', test:function(item){return item.attention;}},
+  all:{label:'全部位号', test:function(){return true;}},
+  source:{label:'原理图位号', test:function(item){return !!item.source;}},
+  completed:{label:'转换完成', test:function(item){return item.status === 'completed';}},
+  unmatched:{label:'未匹配', test:function(item){return item.status === 'unmatched';}},
+  invalid:{label:'编码异常', test:function(item){return item.status === 'invalid';}},
+  verifying:{label:'待核验', test:function(item){return item.status === 'verifying';}},
+  verifyFailed:{label:'核验失败', test:function(item){return item.status === 'verifyFailed';}},
+  deferred:{label:'已确认后补', test:function(item){return item.status === 'deferred';}},
+  dnp:{label:'DNP剔除', test:function(item){return item.status === 'dnp';}},
+  missing:{label:'输出缺失', test:function(item){return item.status === 'missing';}},
+  duplicate:{label:'位号重复', test:function(item){return item.status === 'duplicate';}},
+  extra:{label:'异常新增', test:function(item){return item.status === 'extra';}},
+  fieldMismatch:{label:'字段异常', test:function(item){return item.mismatches.length > 0;}},
+  normalized:{label:'规范化/已确认', test:function(item){return item.changes.length > 0;}}
+};
 
+function convAuditSummary(items) {
+  var counts = {};
+  Object.keys(CONV_AUDIT_VIEWS).forEach(function(key){
+    counts[key] = items.filter(CONV_AUDIT_VIEWS[key].test).length;
+  });
+  return {items:items, counts:counts, sourceTotal:counts.source,
+    outputTotal:items.filter(function(item){return !!item.output;}).length,
+    attentionCount:counts.attention, pass:counts.attention === 0};
+}
+
+function buildConvAudit(sourceRows, outputRows) {
+  var srcMap = Object.create(null), outMap = Object.create(null);
   (sourceRows || []).forEach(function(row){
     var c = (row && Object.prototype.hasOwnProperty.call(row, 'value')) ? row : pickConvCol(row || {});
-    splitRefs(c.ref).forEach(function(ref){
-      convAuditAdd(srcMap, ref, { value:c.value || '', fp:c.fp || '' });
-    });
+    splitRefs(c.ref).forEach(function(ref){convAuditAdd(srcMap, ref, {value:c.value || '', fp:c.fp || ''});});
   });
-
-  (outputRows || []).forEach(function(row){
+  (outputRows || []).forEach(function(row, rowIndex){
     var comment = row.comment != null ? row.comment : (row.Comment || row['Comment型号'] || '');
     var designator = row.designator != null ? row.designator : (row.Designator || row['Designator位号'] || '');
     var footprint = row.footprint != null ? row.footprint : (row.Footprint || row['Footprint封装'] || '');
     var lcsc = row.lcsc != null ? row.lcsc : (row['嘉立创元件编号'] || row['嘉立创编号'] || '');
     var refs = Array.isArray(row.refs) && row.refs.length ? row.refs : splitRefs(designator);
     var status = row.status || (lcsc ? 'matched' : 'unmatched');
-    refs.forEach(function(ref){
-      convAuditAdd(outMap, ref, {
-        comment:comment || '', footprint:footprint || '', lcsc:lcsc || '', status:status,
-        rejectedLcsc:row.rejectedLcsc || '', officialPackage:row.officialPackage || '', officialModel:row.officialModel || '', officialTolerance:row.officialTolerance || '',
-        verification:row.verification || '', verifyError:row.verifyError || '', deferredConfirmed:isConvDeferred(row)
+    var confirmed = row.verification === 'manual_confirmed' && status === 'matched'
+      && convPackageConfirmationMatches(row, {productCode:lcsc, package:row.officialPackage});
+    var hardErrors = [];
+    if (status === 'matched' && row.officialDisplayParams) {
+      hardErrors = validateLcscMapping(row, row.officialDisplayParams).filter(function(message){
+        return !(confirmed && isConvPackageError(message));
       });
+    }
+    var verified = status === 'matched' && normLcsc(lcsc) && !hardErrors.length
+      && (row.verification === 'verified' || confirmed) && convSmallCapVerified(row);
+    refs.forEach(function(ref){
+      convAuditAdd(outMap, ref, {comment:comment, footprint:footprint, lcsc:lcsc, status:status,
+        rowIndex:rowIndex, rejectedLcsc:row.rejectedLcsc || '', officialPackage:row.officialPackage || '',
+        officialModel:row.officialModel || '', officialTolerance:row.officialTolerance || '',
+        verification:row.verification || '', verifyError:row.verifyError || '',
+        packageConfirmed:!!confirmed, verified:!!verified, hardErrors:hardErrors,
+        deferredConfirmed:isConvDeferred(row)});
     });
   });
-
   var refSet = Object.create(null);
-  Object.keys(srcMap).forEach(function(ref){ refSet[ref] = true; });
-  Object.keys(outMap).forEach(function(ref){ refSet[ref] = true; });
-  var refs = sortRefs(Object.keys(refSet));
-  var counts = { deferred:0, completed:0, unmatched:0, invalid:0, verifying:0, verifyFailed:0, dnp:0, missing:0, duplicate:0, extra:0, fieldMismatch:0, normalized:0 };
-
-  var items = refs.map(function(ref){
-    var srcRows = srcMap[ref] || [];
-    var outRows = outMap[ref] || [];
-    var src = srcRows[0] || null;
-    var out = outRows[0] || null;
+  Object.keys(srcMap).concat(Object.keys(outMap)).forEach(function(ref){refSet[ref] = true;});
+  var items = sortRefs(Object.keys(refSet)).map(function(ref){
+    var sources = srcMap[ref] || [], outputs = outMap[ref] || [];
+    var src = sources[0] || null, out = outputs[0] || null;
+    var changes = [], mismatches = [];
+    var valueDiff = false, packageDiff = false;
+    if (src && out && out.status !== 'dnp') {
+      valueDiff = convAuditClean(normalizeValue(src.value, src.fp) || src.value) !== convAuditClean(normalizeValue(out.comment, out.footprint) || out.comment);
+      if (valueDiff) mismatches.push('参数变化');
+      else if (convAuditClean(src.value) !== convAuditClean(out.comment)) changes.push('值规范化');
+      if (normPkg(src.fp) !== normPkg(out.footprint)) {
+        packageDiff = true; mismatches.push('输出封装变化');
+      } else if (convAuditClean(src.fp) !== convAuditClean(out.footprint)) changes.push('输出封装规范化');
+      if (out.officialPackage && normPkg(out.footprint) !== normPkg(out.officialPackage)) {
+        if (out.packageConfirmed) changes.push('已人工确认封装：' + out.footprint + ' / 官方 ' + out.officialPackage);
+        else {packageDiff = true; mismatches.push('官方封装与原理图不一致');}
+      } else if (out.officialPackage && convAuditClean(src.fp) !== convAuditClean(out.officialPackage)) changes.push('官方封装规范化');
+    }
+    if (out && out.status !== 'dnp') {
+      (out.hardErrors || []).forEach(function(message){if (mismatches.indexOf(message) < 0) mismatches.push(message);});
+      if (out.verifyError && ['invalid','matched'].indexOf(out.status)>=0 && !out.packageConfirmed && mismatches.indexOf(out.verifyError) < 0) mismatches.push(out.verifyError);
+      if (out.verification === 'manual_confirmed' && !out.packageConfirmed) mismatches.push('人工确认已失效，请重新核验或确认封装');
+      if (out.status === 'deferred' && !out.deferredConfirmed) mismatches.push('后补确认已失效，请撤销后重新处理');
+    }
     var status;
-    if (srcRows.length > 1 || outRows.length > 1) status = 'duplicate';
+    if (sources.length > 1 || outputs.length > 1) status = 'duplicate';
     else if (!src && out) status = 'extra';
     else if (src && !out) status = 'missing';
-    else if (out && out.status === 'dnp') status = 'dnp';
-    else if (out && out.status === 'invalid') status = 'invalid';
-    else if (out && (out.status === 'verifying' || out.status === 'searching')) status = 'verifying';
-    else if (out && out.status === 'verify_failed') status = 'verifyFailed';
-    else if (out && out.deferredConfirmed) status = 'deferred';
-    else if (out && !convAuditClean(out.lcsc)) status = 'unmatched';
-    else status = 'completed';
-    counts[status]++;
-
-    var changes = [];
-    var mismatches = [];
-    if (src && out) {
-      var sourceValue = normalizeValue(src.value, src.fp) || src.value || '';
-      var outputValue = normalizeValue(out.comment, out.footprint) || out.comment || '';
-      var rawValueDiff = convAuditClean(src.value) !== convAuditClean(out.comment);
-      var normValueDiff = convAuditClean(sourceValue) !== convAuditClean(outputValue);
-      var checkedPackage = out.officialPackage || out.footprint;
-      var rawPkgDiff = convAuditClean(src.fp) !== convAuditClean(checkedPackage);
-      var normPkgDiff = normPkg(src.fp) !== normPkg(checkedPackage);
-      if (normValueDiff) mismatches.push('参数变化');
-      else if (rawValueDiff) changes.push('值规范化');
-      if (normPkgDiff) mismatches.push('封装变化');
-      else if (rawPkgDiff) changes.push('封装规范化');
-      if (out.verifyError) {
-        if (out.verification === 'manual_confirmed') {
-          if (changes.indexOf(out.verifyError) < 0) changes.push(out.verifyError);
-        } else if (mismatches.indexOf(out.verifyError) < 0) {
-          mismatches.push(out.verifyError);
-        }
-      }
-    }
-    if (mismatches.length) counts.fieldMismatch++;
-    if (changes.length) counts.normalized++;
-    return {
-      ref:ref,
-      status:status,
-      source:src,
-      output:out,
-      sourceCopies:srcRows.length,
-      outputCopies:outRows.length,
-      changes:changes,
-      mismatches:mismatches,
-      attention:status === 'unmatched' || status === 'invalid' || status === 'verifying' || status === 'verifyFailed' || status === 'missing' || status === 'duplicate' || status === 'extra' || mismatches.length > 0
-    };
+    else if (out.status === 'dnp') status = 'dnp';
+    else if (out.status === 'invalid' || (out.verification === 'manual_confirmed' && !out.packageConfirmed) || (out.status === 'deferred' && !out.deferredConfirmed) || out.hardErrors.length) status = 'invalid';
+    else if (out.status === 'verifying' || out.status === 'searching') status = 'verifying';
+    else if (out.status === 'verify_failed') status = 'verifyFailed';
+    else if (out.deferredConfirmed) status = 'deferred';
+    else if (!convAuditClean(out.lcsc)) status = 'unmatched';
+    else if (!out.verified) status = 'verifying';
+    else status = mismatches.length ? 'fieldMismatch' : 'completed';
+    return {ref:ref, status:status, source:src, output:out, sources:sources, outputs:outputs,
+      sourceCopies:sources.length, outputCopies:outputs.length, changes:changes, mismatches:mismatches,
+      valueDiff:valueDiff, packageDiff:packageDiff,
+      attention:['completed','deferred','dnp'].indexOf(status) < 0 || mismatches.length > 0};
   });
-
-  var attentionCount = items.filter(function(item){ return item.attention; }).length;
-  return {
-    items:items,
-    counts:counts,
-    sourceTotal:Object.keys(srcMap).length,
-    outputTotal:Object.keys(outMap).length,
-    attentionCount:attentionCount,
-    pass:attentionCount === 0
-  };
+  return convAuditSummary(items);
 }
 
-function convAuditStat(n, label, cls) {
-  return '<div class="conv-audit-stat ' + (cls || '') + '"><div class="n">' + n + '</div><div class="l">' + label + '</div></div>';
+function convAuditStat(n, label, cls, key) {
+  var active = CONV_AUDIT_FILTER === key;
+  return '<button type="button" class="conv-audit-stat '+(cls || '')+(active?' active':'')+'" data-audit-filter="'+key+'" aria-pressed="'+active+'" aria-label="'+label+'，'+n+'个位号" '+(!n && !active?'disabled title="暂无此类记录" ':'')+'onclick="setConvAuditFilter(\''+key+'\')"><span class="n">'+n+'</span><span class="l">'+label+'</span></button>';
+}
+
+function renderConvAuditStats() {
+  var focused = document.activeElement;
+  var focusKey = focused && focused.parentElement && focused.parentElement.id === 'convAuditStats' ? focused.getAttribute('data-audit-filter') : '';
+  var c = CONV_AUDIT.counts;
+  var keys = ['source','completed','unmatched','invalid','verifying','verifyFailed','deferred','dnp','missing','duplicate','extra','fieldMismatch'];
+  document.getElementById('convAuditStats').innerHTML = keys.map(function(key){
+    var cls = key === 'source' ? 'info' : key === 'completed' ? 'ok' : ['invalid','missing','duplicate','extra','fieldMismatch'].indexOf(key)>=0 ? 'bad' : 'attn';
+    return convAuditStat(c[key], CONV_AUDIT_VIEWS[key].label, cls, key);
+  }).join('');
+  if (focusKey) {
+    var target = document.querySelector('#convAuditStats [data-audit-filter="'+focusKey+'"]');
+    if (target && !target.disabled) target.focus({preventScroll:true});
+  }
+  document.querySelectorAll('.conv-audit-filter[data-audit-filter]').forEach(function(btn){
+    var active = btn.getAttribute('data-audit-filter') === CONV_AUDIT_FILTER;
+    btn.classList.toggle('active',active);btn.setAttribute('aria-pressed',String(active));
+  });
 }
 
 function renderConvAudit() {
   CONV_AUDIT = buildConvAudit(CONV_RAW, CONV_OUT);
-  var box = document.getElementById('convAudit');
-  var banner = document.getElementById('convAuditBanner');
-  var stats = document.getElementById('convAuditStats');
-  if (!box || !banner || !stats) return;
+  var box = document.getElementById('convAudit'), banner = document.getElementById('convAuditBanner');
+  if (!box || !banner) return;
   box.style.display = 'block';
   banner.className = 'conv-audit-banner ' + (CONV_AUDIT.pass && !CONV_AUDIT.counts.deferred ? 'pass' : 'warn');
   banner.textContent = CONV_AUDIT.pass
     ? (CONV_AUDIT.counts.deferred ? '可导出：位号均已覆盖；'+CONV_AUDIT.counts.deferred+' 个位号已确认导出后补充，未完成立创商品核验' : '✓ 转换校验通过：原理图位号均已覆盖，可以导出嘉立创 BOM')
-    : '⚠ 发现 ' + CONV_AUDIT.attentionCount + ' 个位号需要确认，请先处理异常再导出';
-  var c = CONV_AUDIT.counts;
-  stats.innerHTML = convAuditStat(CONV_AUDIT.sourceTotal, '原理图位号', 'info')
-    + convAuditStat(c.completed, '转换完成', 'ok')
-    + convAuditStat(c.unmatched, '未匹配', c.unmatched ? 'attn' : '')
-    + convAuditStat(c.invalid, '编码异常', c.invalid ? 'bad' : '')
-    + convAuditStat(c.verifying, '待核验', c.verifying ? 'attn' : '')
-    + convAuditStat(c.verifyFailed, '核验失败', c.verifyFailed ? 'bad' : '')
-    + convAuditStat(c.dnp, 'DNP剔除', '')
-    + convAuditStat(c.missing, '输出缺失', c.missing ? 'bad' : '')
-    + convAuditStat(c.duplicate, '重复输出', c.duplicate ? 'bad' : '')
-    + convAuditStat(c.extra, '异常新增', c.extra ? 'bad' : '')
-    + convAuditStat(c.fieldMismatch, '字段异常', c.fieldMismatch ? 'bad' : '');
-  setConvAuditFilter(CONV_AUDIT_FILTER);
+    : '⚠ 发现 '+CONV_AUDIT.attentionCount+' 个位号需要确认（已去重），请查看明细处理';
+  renderConvAuditStats();renderConvAuditTable();
 }
 
 function setConvAuditFilter(filter) {
-  CONV_AUDIT_FILTER = filter || 'attention';
-  document.querySelectorAll('[data-audit-filter]').forEach(function(btn){
-    btn.classList.toggle('active', btn.getAttribute('data-audit-filter') === CONV_AUDIT_FILTER);
+  var next = Object.prototype.hasOwnProperty.call(CONV_AUDIT_VIEWS, filter) ? filter : 'attention';
+  if (next !== CONV_AUDIT_FILTER) {
+    CONV_AUDIT_QUERY = '';document.getElementById('convAuditSearch').value = '';
+    document.getElementById('convAuditActionNote').textContent = '';
+  }
+  CONV_AUDIT_FILTER = next;
+  if (!CONV_AUDIT) return;
+  renderConvAuditStats();renderConvAuditTable();
+  document.getElementById('convAuditTable').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function setConvAuditQuery(value) {CONV_AUDIT_QUERY = String(value || '').trim();renderConvAuditTable();}
+function clearConvAuditFilters() {
+  CONV_AUDIT_QUERY = '';document.getElementById('convAuditSearch').value = '';setConvAuditFilter('all');
+}
+
+function getConvAuditRows(audit) {
+  var view = CONV_AUDIT_VIEWS[CONV_AUDIT_FILTER] || CONV_AUDIT_VIEWS.attention;
+  var q = convAuditClean(CONV_AUDIT_QUERY);
+  return audit.items.filter(function(item){
+    if (!view.test(item)) return false;
+    var searchable = [item.ref,item.status,convAuditStatusText(item)].concat(item.mismatches,item.changes);
+    item.sources.forEach(function(src){searchable.push(src.value,src.fp);});
+    item.outputs.forEach(function(out){searchable.push(out.comment,out.footprint,out.lcsc,out.rejectedLcsc,out.officialModel,out.officialPackage);});
+    return !q || convAuditClean(searchable.join(' ')).indexOf(q) >= 0;
   });
-  renderConvAuditTable();
 }
 
-function convAuditBadge(text, cls) {
-  return '<span class="conv-audit-badge ' + cls + '">' + esc(text) + '</span>';
+function convAuditBadge(text, cls) {return '<span class="conv-audit-badge '+cls+'">'+esc(text)+'</span>';}
+function convAuditStatusText(item) {
+  if (item.status === 'completed' && item.output.packageConfirmed) return '人工确认（有效）';
+  var labels = {completed:'转换完成', unmatched:'未匹配编号', invalid:'编码异常', verifying:'待官方核验', verifyFailed:'核验失败', deferred:'已确认导出后补充（未核验商品）', dnp:'DNP剔除', missing:'输出缺失', duplicate:'位号重复', extra:'异常新增', fieldMismatch:'待处理字段差异'};
+  return labels[item.status] || item.status;
 }
-
 function convAuditResultHtml(item) {
-  var labels = {
-    deferred:['已确认导出后补充','warn'], completed:['转换完成','ok'], unmatched:['未匹配编号','warn'], invalid:['编码异常','bad'], verifying:['待官方核验','warn'], verifyFailed:['核验失败','bad'], dnp:['DNP剔除','muted'],
-    missing:['输出缺失','bad'], duplicate:['重复位号','bad'], extra:['异常新增','bad']
-  };
-  var cfg = labels[item.status] || [item.status,'muted'];
-  var html = convAuditBadge(cfg[0], cfg[1]);
-  item.mismatches.forEach(function(x){ html += convAuditBadge(x, 'bad'); });
-  item.changes.forEach(function(x){ html += convAuditBadge(x, 'info'); });
+  var cls = item.attention ? 'bad' : item.status === 'deferred' ? 'warn' : item.status === 'dnp' ? 'muted' : 'ok';
+  var html = convAuditBadge(convAuditStatusText(item),cls);
+  item.mismatches.forEach(function(message){html += convAuditBadge(message,'bad');});
+  item.changes.forEach(function(message){html += convAuditBadge(message,'info');});
+  if (item.status === 'verifyFailed' && item.output.verifyError) html += '<div>'+esc(item.output.verifyError)+'</div>';
+  if (item.status === 'duplicate') html += '<div>源BOM出现 '+item.sourceCopies+' 次；转换输出出现 '+item.outputCopies+' 次</div>';
+  if (item.status === 'missing') html += '<div>请核对源BOM与转换结果，修正后重新转换。</div>';
+  if (item.status === 'extra') html += '<div>源BOM没有该位号，请核对输出来源。</div>';
+  if (item.status === 'dnp') html += '<div>NC/DNP空贴，已从嘉立创BOM中剔除。</div>';
   return html;
+}
+
+function convAuditActionButton(item, out, action, label) {
+  return '<button type="button" data-audit-ref="'+esc(item.ref)+'" data-audit-row="'+out.rowIndex+'" data-audit-action="'+action+'" onclick="runConvAuditAction(this,\''+action+'\')">'+label+'</button>';
+}
+function convAuditActionsHtml(item) {
+  if (!item.outputs.length) return '<span class="conv-audit-note">请在源BOM修正后重新转换</span>';
+  var html = item.outputs.map(function(out){return convAuditActionButton(item,out,'locate',item.outputs.length>1?'定位输出行 '+(out.rowIndex+1):'定位预览');}).join('');
+  if (item.status === 'duplicate' || item.status === 'extra') return html;
+  var out = item.output, row = CONV_OUT[out.rowIndex];
+  if (!row) return html;
+  if (row.status === 'deferred') html += convAuditActionButton(item,out,'undefer','撤销后补');
+  else {
+    if (['unmatched','invalid','matched'].indexOf(row.status)>=0 && !row.rfPreferred && !/射频电感指定库/.test(row.verifyError || '')) html += convAuditActionButton(item,out,'search','立创搜索');
+    if (row.status === 'invalid' && row.packageConfirmRequired) html += convAuditActionButton(item,out,'confirmPackage','确认封装');
+    if (row.status === 'verify_failed' && normLcsc(row.lcsc)) html += convAuditActionButton(item,out,'retry','重试核验');
+    if (row.status === 'unmatched' && !convDeferredEligibilityError(row)) html += convAuditActionButton(item,out,'defer','导出后补充');
+  }
+  if ((row.refs || []).length>1) html += '<div class="conv-audit-note">操作作用于整行 '+row.refs.length+' 个位号：'+esc(row.designator)+'</div>';
+  return html;
+}
+
+function runConvAuditAction(button, action) {
+  var ref = button.getAttribute('data-audit-ref'), idx = Number(button.getAttribute('data-audit-row'));
+  var audit = buildConvAudit(CONV_RAW,CONV_OUT), item = audit.items.filter(function(x){return x.ref === ref;})[0];
+  var row = CONV_OUT[idx], out = item && item.outputs.filter(function(x){return x.rowIndex === idx;})[0];
+  if (!row || !out) {renderConvAudit();alert('转换结果已更新，请重新选择对应明细。');return;}
+  var note = document.getElementById('convAuditActionNote');
+  note.textContent = '当前物料行：'+row.designator+' / '+row.comment+'。操作作用于该合并行的全部 '+(row.refs || []).length+' 个位号。';
+  if (action === 'locate') {
+    renderConvTable();
+    var tr = document.getElementById('convTableBody').children[idx];
+    tr.classList.add('conv-row-focused');tr.setAttribute('tabindex','-1');tr.focus({preventScroll:true});tr.scrollIntoView({behavior:'smooth',block:'center'});return;
+  }
+  if (item.status === 'duplicate' || item.status === 'extra') {alert('请先核对源BOM中的位号结构并重新转换。');return;}
+  if (action === 'search' && ['unmatched','invalid','matched'].indexOf(row.status)>=0 && !row.rfPreferred && !/射频电感指定库/.test(row.verifyError || '')) return openLcscSearch(idx);
+  if (action === 'confirmPackage' && row.status === 'invalid' && row.packageConfirmRequired) return confirmConvPackage(idx);
+  if (action === 'retry' && row.status === 'verify_failed' && normLcsc(row.lcsc)) return verifyConvertedRows([row],CONV_VERIFY_RUN_ID);
+  if (action === 'defer' && row.status === 'unmatched') return setConvDeferredRows([idx],true);
+  if (action === 'undefer' && row.status === 'deferred') return setConvDeferredRows([idx],false);
+  renderConvAudit();alert('该物料状态已变化，请根据最新明细处理。');
 }
 
 function renderConvAuditTable() {
   var tbody = document.getElementById('convAuditBody');
   if (!tbody || !CONV_AUDIT) return;
-  var rows = CONV_AUDIT.items.filter(function(item){
-    if (CONV_AUDIT_FILTER === 'all') return true;
-    if (CONV_AUDIT_FILTER === 'attention') return item.attention;
-    if (CONV_AUDIT_FILTER === 'unmatched') return item.status === 'unmatched';
-    if (CONV_AUDIT_FILTER === 'deferred') return item.status === 'deferred';
-    if (CONV_AUDIT_FILTER === 'dnp') return item.status === 'dnp';
-    if (CONV_AUDIT_FILTER === 'normalized') return item.changes.length > 0;
-    return true;
-  });
+  var rows = getConvAuditRows(CONV_AUDIT), view = CONV_AUDIT_VIEWS[CONV_AUDIT_FILTER];
+  var count = CONV_AUDIT.items.filter(view.test).length;
+  document.getElementById('convAuditScope').textContent = '当前：'+view.label+'，共 '+count+' 个位号；'+(CONV_AUDIT_QUERY?'搜索后':'当前')+'显示 '+rows.length+' 条明细';
+  document.getElementById('convAuditExportFiltered').disabled = !rows.length;
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#7b8794;">' + (CONV_AUDIT_FILTER === 'attention' ? '没有需要确认的异常' : '当前筛选没有记录') + '</td></tr>';
-    return;
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#64748b;">'+(CONV_AUDIT_QUERY?'当前类别内没有匹配的记录，可清除搜索或返回全部。':CONV_AUDIT_FILTER==='attention'?'没有需要确认的异常。':'当前类别暂无记录，或问题已处理完成。')+'</td></tr>';return;
   }
-  tbody.innerHTML = rows.map(function(item, i){
-    var src = item.source || {};
+  tbody.innerHTML = rows.map(function(item,i){
     var out = item.output || {};
-    return '<tr>'
-      + '<td>' + (i + 1) + '</td>'
-      + '<td><b>' + esc(item.ref) + '</b></td>'
-      + '<td><b>' + esc(src.value || '-') + '</b><br><span style="color:#7b8794;font-size:11px;">' + esc(src.fp || '-') + '</span></td>'
-      + '<td><b>' + esc(out.comment || '-') + '</b><br><span style="color:#7b8794;font-size:11px;">源封装：' + esc(out.footprint || '-') + (out.officialPackage ? ' / 官方：' + esc(out.officialPackage) : '') + '</span></td>'
-      + '<td style="color:#0078b8;font-weight:600;">' + esc(out.lcsc || out.rejectedLcsc || '-') + '<br><span style="color:#7b8794;font-size:11px;font-weight:400;">' + esc(out.officialModel || '') + '</span></td>'
-      + '<td>' + convAuditResultHtml(item) + '</td>'
-      + '</tr>';
+    var sourceHtml = item.sources.map(function(src,n){return (item.sources.length>1?'源记录 '+(n+1)+'：':'')+'<b>'+esc(src.value || '-')+'</b><br><span class="conv-audit-note">'+esc(src.fp || '-')+'</span>';}).join('<hr>');
+    var outputHtml = item.outputs.map(function(o,n){return (item.outputs.length>1?'输出行 '+(o.rowIndex+1)+'：':'')+'<b>'+esc(o.comment || '-')+'</b><br><span class="conv-audit-note">输出封装：'+esc(o.footprint || '-')+(o.officialPackage?' / 官方：'+esc(o.officialPackage):'')+'</span>';}).join('<hr>');
+    var codeHtml = item.outputs.map(function(o){return esc(o.lcsc || o.rejectedLcsc || '-')+'<br><span class="conv-audit-note">'+esc(o.officialModel || '')+'</span>';}).join('<hr>');
+    return '<tr data-ref="'+esc(item.ref)+'"><td>'+(i+1)+'</td><td><b>'+esc(item.ref)+'</b></td>'
+      + '<td'+(item.valueDiff || item.packageDiff?' class="conv-audit-diff"':'')+'>'+(sourceHtml || '-')+'</td>'
+      + '<td'+(item.valueDiff || item.packageDiff?' class="conv-audit-diff"':'')+'>'+(outputHtml || '-')+'</td>'
+      + '<td style="color:#0078b8;font-weight:600;">'+(codeHtml || '-')+'</td><td>'+convAuditResultHtml(item)+'</td><td class="conv-audit-actions">'+convAuditActionsHtml(item)+'</td></tr>';
   }).join('');
 }
 
-function convAuditStatusText(item) {
-  if (item && item.output && item.output.verification === 'manual_confirmed') return '人工确认';
-  var labels = { deferred:'已确认导出后补充（未核验商品）', completed:'转换完成', unmatched:'未匹配编号', invalid:'编码异常', verifying:'待官方核验', verifyFailed:'核验失败', dnp:'DNP剔除', missing:'输出缺失', duplicate:'重复位号', extra:'异常新增' };
-  return labels[item.status] || item.status;
-}
-
-function exportConvAudit() {
-  if (!CONV_AUDIT) { alert('还没有可导出的校验结果'); return; }
-  var c = CONV_AUDIT.counts;
-  var summary = [
-    ['校验项目','数量'], ['原理图位号',CONV_AUDIT.sourceTotal], ['嘉立创BOM位号',CONV_AUDIT.outputTotal],
-    ['转换完成',c.completed], ['已确认导出后补充',c.deferred], ['未匹配编号',c.unmatched], ['编码异常',c.invalid], ['待官方核验',c.verifying], ['核验失败',c.verifyFailed], ['DNP剔除',c.dnp], ['输出缺失',c.missing],
-    ['重复位号',c.duplicate], ['异常新增',c.extra], ['字段异常',c.fieldMismatch], ['规范化变化',c.normalized],
-    ['最终结论',CONV_AUDIT.pass ? (c.deferred ? '位号已覆盖，包含未核验的后补物料' : '校验通过') : '存在需要确认的异常']
-  ];
-  var detail = [['#','位号','原理图Value','原理图Footprint','嘉立创Comment','输出Footprint','嘉立创元件编号','官方型号','官方封装','官方精度','公司精度规则','核验状态','变化说明']];
-  CONV_AUDIT.items.forEach(function(item, i){
+function exportConvAudit(filtered) {
+  if (!CONV_OUT.length && !CONV_RAW.length) {alert('还没有可导出的校验结果');return;}
+  renderConvAudit();
+  var items = filtered ? getConvAuditRows(CONV_AUDIT) : CONV_AUDIT.items;
+  if (!items.length) {alert('当前筛选没有可导出的明细');return;}
+  var report = convAuditSummary(items), c = report.counts;
+  var scope = filtered ? CONV_AUDIT_VIEWS[CONV_AUDIT_FILTER].label+(CONV_AUDIT_QUERY?'；搜索：'+CONV_AUDIT_QUERY:'') : '全部';
+  var summary = [['校验项目','数量/说明'],['报告范围',scope],['本报告位号数',items.length],['统计口径','位号去重；字段异常可与其他状态重叠，不可直接相加'],
+    ['原理图位号',report.sourceTotal],['转换预览位号（含DNP）',report.outputTotal],['需要确认（去重）',report.attentionCount],
+    ['转换完成',c.completed],['已确认导出后补充',c.deferred],['未匹配编号',c.unmatched],['编码异常',c.invalid],['待官方核验',c.verifying],['核验失败',c.verifyFailed],['DNP剔除',c.dnp],['输出缺失',c.missing],['位号重复',c.duplicate],['异常新增',c.extra],['字段异常',c.fieldMismatch],['规范化/确认记录',c.normalized],
+    ['最终结论',report.pass?(c.deferred?'本报告位号已覆盖，包含未核验的后补物料':'本报告无待处理异常'):'本报告存在待处理异常']];
+  var detail = [['#','位号','原理图Value','原理图Footprint','嘉立创Comment','输出Footprint','嘉立创元件编号','官方型号','官方封装','官方精度','公司精度规则','核验状态','变化说明','源出现次数','输出出现次数','源记录明细','输出记录明细']];
+  items.forEach(function(item,i){
     var src = item.source || {}, out = item.output || {};
-    var smallCapRule = convSmallCapPf({ refs:[item.ref], comment:out.comment || src.value || '', footprint:out.footprint || src.fp || '' }) === null
-      ? '不适用' : (item.status === 'completed' && !isConvSmallCapRuleError(out.verifyError) ? '合格' : '不合格/待处理');
-    detail.push([i+1,item.ref,src.value||'',src.fp||'',out.comment||'',out.footprint||'',out.lcsc||out.rejectedLcsc||'',out.officialModel||'',out.officialPackage||'',out.officialTolerance||'',smallCapRule,convAuditStatusText(item),item.mismatches.concat(item.changes, out.verification === 'manual_confirmed' ? [out.manualConfirmReason || '人工确认封装'] : []).join('；')]);
+    var small = convSmallCapPf({refs:[item.ref],comment:out.comment || src.value || '',footprint:out.footprint || src.fp || ''}) !== null;
+    detail.push([i+1,item.ref,src.value||'',src.fp||'',out.comment||'',out.footprint||'',out.lcsc||out.rejectedLcsc||'',out.officialModel||'',out.officialPackage||'',out.officialTolerance||'',small?(out.verified?'合格':'不合格/待处理'):'不适用',convAuditStatusText(item),item.mismatches.concat(item.changes).join('；'),item.sourceCopies,item.outputCopies,
+      item.sources.map(function(x){return x.value+' / '+x.fp;}).join('；'),item.outputs.map(function(x){return '行'+(x.rowIndex+1)+'：'+x.comment+' / '+x.footprint+' / '+(x.lcsc||x.rejectedLcsc||'');}).join('；')]);
   });
-  var wb = XLSX.utils.book_new();
-  var ws1 = XLSX.utils.aoa_to_sheet(summary);
-  var ws2 = XLSX.utils.aoa_to_sheet(detail);
-  ws1['!cols'] = [{wch:20},{wch:22}];
-  ws2['!cols'] = [{wch:6},{wch:12},{wch:20},{wch:18},{wch:20},{wch:18},{wch:16},{wch:24},{wch:14},{wch:14},{wch:16},{wch:16},{wch:30}];
-  XLSX.utils.book_append_sheet(wb, ws1, '校验汇总');
-  XLSX.utils.book_append_sheet(wb, ws2, '位号明细');
-  var base = (CONV_SOURCE_FILE || '原理图BOM').replace(/\.[^.\\/]+$/, '').replace(/[\\/:*?"<>|]/g, '_');
-  XLSX.writeFile(wb, base + '_转换校验报告.xlsx');
+  var wb = XLSX.utils.book_new(), ws1 = XLSX.utils.aoa_to_sheet(summary), ws2 = XLSX.utils.aoa_to_sheet(detail);
+  ws1['!cols'] = [{wch:24},{wch:65}];
+  ws2['!cols'] = [6,12,20,22,20,22,18,24,22,14,18,22,60,14,14,45,55].map(function(w){return {wch:w};});
+  XLSX.utils.book_append_sheet(wb,ws1,'校验汇总');XLSX.utils.book_append_sheet(wb,ws2,'位号明细');
+  var base = (CONV_SOURCE_FILE || '原理图BOM').replace(/\.[^.\\/]+$/, '').replace(/[\\/:*?"<>|]/g,'_');
+  XLSX.writeFile(wb,base+(filtered?'_当前筛选校验报告.xlsx':'_转换校验报告.xlsx'));
 }
 
 // 简单 HTML 转义
@@ -9861,7 +9953,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.62 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.63 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>
