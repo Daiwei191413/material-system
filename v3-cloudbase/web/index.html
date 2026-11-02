@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V1.0.63 团队版</title>
+  <title>技象科技研发BOM 整理神器 V1.0.64 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png?v=3.0.23-cb1">
 <script src="assets/vendor/xlsx.full.min.js?v=0.18.5"></script>
 <script src="assets/vendor/jszip.min.js?v=3.10.1"></script>
@@ -218,6 +218,22 @@ td.chg{color:#d93025;font-weight:bold;background:#fce8e6}
 .conv-audit-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
 .conv-audit-toolbar input{width:280px;max-width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:4px}
 .conv-audit-note{color:#64748b;font-size:11px;font-weight:normal}
+.conv-package-batch{position:fixed;inset:0;z-index:10020;background:rgba(0,0,0,.45);align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
+.conv-package-batch-panel{background:white;border-radius:10px;padding:18px;width:1200px;max-width:96vw;max-height:90vh;display:flex;flex-direction:column;box-sizing:border-box;box-shadow:0 12px 40px #0003}
+.conv-package-batch-panel>p{font-size:13px;line-height:1.6;color:#475569}
+.conv-package-batch-head,.conv-package-batch-footer{display:flex;align-items:center;gap:12px;justify-content:space-between;flex-shrink:0}
+.conv-package-batch-head h3{margin:0;font-size:18px}
+.conv-package-batch-footer{justify-content:flex-end;padding-top:14px}
+.conv-package-batch-panel button{padding:7px 12px;border:1px solid #0078b8;border-radius:5px;background:#fff;color:#0078b8;cursor:pointer}
+.conv-package-batch-panel button:disabled{opacity:.5;cursor:default}
+.conv-package-batch-panel button:focus-visible,.conv-package-batch-panel input:focus-visible{outline:3px solid #60a5fa;outline-offset:2px}
+#convPackageBatchConfirm{background:#0078b8;color:white}
+.conv-package-batch-table{overflow:auto;margin-top:12px;border:1px solid #e2e8f0}
+.conv-package-batch-table table{min-width:850px}
+.conv-package-batch-table th{position:sticky;top:0;z-index:1}
+.conv-package-batch-table td{vertical-align:top;overflow-wrap:anywhere}
+.conv-package-batch-table .conv-audit-badge{white-space:normal;max-width:100%}
+.conv-package-batch-warning{background:#fff8e6}
 .conv-audit-actions{min-width:180px;max-width:300px}
 .conv-audit .table-wrap{overflow-x:auto}
 #convAuditTable td{vertical-align:top;overflow-wrap:anywhere}
@@ -291,7 +307,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V1.0.63 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V1.0.64 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -953,7 +969,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 </div>
 <header>
 <div class="release-date"><span>更新日期：<time datetime="2026-11-02">20261102</time></span></div>
-        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.63 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.64 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1266,7 +1282,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.63</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.64</span></h3>
 
     <!-- 库切换 Tab -->
     <div class="lib-tabs" style="margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -1462,6 +1478,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
             <label for="convAuditSearch">在当前类别搜索</label>
             <input id="convAuditSearch" type="search" placeholder="位号 / 型号 / 立创编号 / 问题" oninput="setConvAuditQuery(this.value)">
             <button type="button" onclick="clearConvAuditFilters()">清除筛选，返回全部</button>
+            <button type="button" id="convAuditBatchPackage" onclick="openConvPackageBatch()" disabled>批量确认封装（0行）</button>
             <button type="button" id="convAuditExportFiltered" onclick="exportConvAudit(true)">导出当前筛选明细</button>
           </div>
           <p id="convAuditScope" role="status" aria-live="polite"></p>
@@ -1711,6 +1728,7 @@ function sortRefs(refs) {
 
 // 转换主流程
 function runConvert(rows) {
+  if (CONV_PACKAGE_BATCH) closeConvPackageBatch();
   var verifyRunId = ++CONV_VERIFY_RUN_ID;
   CONV_RAW = [];
   CONV_OUT = [];
@@ -2677,7 +2695,9 @@ function convPackageConfirmationMatches(row, data) {
     && record.footprint === String(row.footprint || '')
     && record.model === String(row.comment || row.model || '')
     && record.designator === String(row.designator || '')
-    && record.officialPackage === normPkg(data && data.package));
+    && record.officialPackage === normPkg(data && data.package)
+    && (!record.refs || record.refs === JSON.stringify(row.refs || []))
+    && (!record.sourceSignature || record.sourceSignature === convPackageBatchSourceSignature(row)));
 }
 
 function requestConvPackageConfirmation(row, code, officialPackage) {
@@ -2688,17 +2708,245 @@ function requestConvPackageConfirmation(row, code, officialPackage) {
         && !confirm('请确认该器件与PCB实际焊盘兼容：\n\n原理图封装名称：' + row.footprint
           + '\n立创官方封装：' + officialPackage + '\n立创编码：' + code
           + '\n\n本次确认仅适用于当前物料行和编码；更换器件后需重新确认。')) return false;
-    row.allowPackageMismatch = true;
-    row.packageConfirmation = {code:normLcsc(code), footprint:String(row.footprint || ''),
-      model:String(row.comment || row.model || ''), designator:String(row.designator || ''),
-      officialPackage:normPkg(officialPackage)};
-    row.manualConfirmReason = '已人工确认封装：原理图 ' + row.footprint + ' / 官方 ' + officialPackage + ' / ' + code;
+    recordConvPackageConfirmation(row,code,officialPackage,'single');
   } else {
     row.allowPackageMismatch = false;
     row.packageConfirmation = null;
     row.manualConfirmReason = '';
   }
   return true;
+}
+
+// 批量确认只记录本次BOM的人工判断，不维护物料库，不跳过器件硬性规则。
+var CONV_PACKAGE_BATCH = null;
+
+function convPackageBatchSourceSignature(row) {
+  var refs = (row.refs || splitRefs(row.designator)).map(function(ref){return convAuditClean(ref);});
+  return JSON.stringify(CONV_RAW.filter(function(src){
+    return splitRefs(src.ref).some(function(ref){return refs.indexOf(convAuditClean(ref)) >= 0;});
+  }).map(function(src){return [src.ref,src.value,src.fp];}));
+}
+
+function recordConvPackageConfirmation(row, code, officialPackage, mode) {
+  row.allowPackageMismatch = true;
+  row.packageConfirmation = {code:normLcsc(code), footprint:String(row.footprint || ''),
+    model:String(row.comment || row.model || ''), designator:String(row.designator || ''),
+    officialPackage:normPkg(officialPackage), refs:JSON.stringify(row.refs || []),
+    mode:mode || 'single', confirmedAt:new Date().toISOString()};
+  if (mode === 'batch') row.packageConfirmation.sourceSignature = convPackageBatchSourceSignature(row);
+  row.manualConfirmReason = (mode === 'batch' ? '已批量人工确认封装：' : '已人工确认封装：')
+    + row.footprint + ' / 官方 ' + officialPackage + ' / ' + code;
+}
+
+function convPackageBatchSignature(row) {
+  return JSON.stringify([row.comment,row.model,row.designator,row.footprint,row.refs || [],
+    normLcsc(row.lcsc || row.rejectedLcsc),row.rfPreferred,row.rfLibraryLcsc,
+    convPackageBatchSourceSignature(row)]);
+}
+
+function convPackageBatchIndices() {
+  if (!CONV_AUDIT) return [];
+  var indices = [];
+  getConvAuditRows(CONV_AUDIT).forEach(function(item){
+    if (!item.source || item.sourceCopies !== 1 || item.outputCopies !== 1) return;
+    var idx = item.output.rowIndex, row = CONV_OUT[idx];
+    if (row && row.status === 'invalid' && row.packageConfirmRequired && normLcsc(row.lcsc || row.rejectedLcsc)
+        && indices.indexOf(idx) < 0) indices.push(idx);
+  });
+  return indices;
+}
+
+// 只比较明确写出的物理规格，不把厂家型号内部的数字当作尺寸或引脚数。
+function convPackageGeometry(raw) {
+  var text = String(raw || '').trim().toUpperCase();
+  var result = {chip:extractStdPkg(raw) || extractStdPkg(text.replace(/^(?:SMD|SMT)\s*[,，:]\s*/,''))};
+  if (!schematicPackageConstraint(raw)) return result;
+  var family = text.match(/^(QFN|DFN|SOIC|SOP|SSOP|TSSOP|MSOP|LQFP|TQFP|BGA|DIP)[-_\s,]*(\d+)/);
+  if (family) {result.family = family[1];result.pins = Number(family[2]);}
+  var variant = text.match(/^(SOT|TO)[-_\s]?(\d+)(?:[-_\s](\d+)P?(?:$|[_ ,]))?/);
+  if (variant) {result.family=variant[1];result.variant=variant[2];if(variant[3])result.pins=Number(variant[3]);}
+  var pins = text.match(/(?:^|[\s,_;-])(\d+)\s*(?:P|PIN|PINS)(?:$|[\s,_;-])/);
+  if (pins) result.pins = Number(pins[1]);
+  var pitch = text.match(/(?:\bP|PITCH|间距)\s*[=:：]\s*(\d+(?:\.\d+)?)\s*MM/);
+  if (pitch) result.pitch = Number(pitch[1]);
+  var dims = text.match(/(\d+(?:\.\d+)?)\s*[X×]\s*(\d+(?:\.\d+)?)\s*MM/);
+  if (dims) result.dims = [Number(dims[1]),Number(dims[2])].sort(function(a,b){return a-b;}).join('x');
+  if (/^(?:SMD|SMT|QFN|DFN|SOT|SOIC|SOP|SSOP|TSSOP|MSOP|LQFP|TQFP|BGA)/.test(text)) result.mount = '贴片';
+  if (/^(?:插件|直插|通孔|DIP)/.test(text)) result.mount = '直插';
+  return result;
+}
+
+function convPackageBatchPhysicalError(source, official) {
+  var a = convPackageGeometry(source), b = convPackageGeometry(official);
+  if (a.chip && b.chip && a.chip !== b.chip) return '实际封装尺寸不同：'+a.chip+' / '+b.chip;
+  if (a.family && b.family && a.family !== b.family) return '封装系列不同：'+a.family+' / '+b.family;
+  if (a.variant && b.variant && a.variant !== b.variant) return '封装规格代码不同：'+a.variant+' / '+b.variant;
+  if (a.pins && b.pins && a.pins !== b.pins) return '引脚数不同：'+a.pins+' / '+b.pins;
+  if (a.pitch && b.pitch && a.pitch !== b.pitch) return '引脚间距不同：'+a.pitch+'mm / '+b.pitch+'mm';
+  if (a.dims && b.dims && a.dims !== b.dims) return '明确标注的封装尺寸不同：'+a.dims+' / '+b.dims+'mm';
+  if (a.mount && b.mount && a.mount !== b.mount) return '安装方式不同：'+a.mount+' / '+b.mount;
+  return '';
+}
+
+function convPackageBatchCheck(row, code, result) {
+  if (!result || !result.ok || !result.data || !result.data.hit) return {kind:'failed',message:(result && result.error) || '未取得官方详情，请稍后重试'};
+  var data = result.data;
+  if (normLcsc(data.productCode) !== code) return {kind:'blocked',message:'官方返回的立创编号与当前编号不一致'};
+  if (!String(row.footprint || '').trim() || !String(data.package || '').trim()) return {kind:'blocked',message:'源封装或官方封装缺失，无法批量确认'};
+  var pref = findRfInductorPreference(Object.assign({},row,{_schematic:true}));
+  if (row.rfPreferred || pref.mode === 'exact' || pref.mode === 'conflict') return {kind:'blocked',message:pref.message || '射频指定库器件请按公司库逐项核对'};
+  var errors = validateLcscMapping(row,data), hard = errors.filter(function(message){return !isConvPackageError(message);});
+  var model = schematicExplicitModel(row);
+  if (model && model !== normModel(data.productModel || '')) hard.push('器件型号与官方型号不一致，请单独核对');
+  var physical = convPackageBatchPhysicalError(row.footprint,data.package);
+  if (physical) hard.push(physical);
+  if (hard.length) return {kind:'blocked',message:hard.join('；')};
+  if (!errors.some(isConvPackageError)) return {kind:'blocked',message:'最新资料已无封装差异，请重新核验该行，无需人工确认'};
+  var warning = !schematicPackageConstraint(row.footprint) && normModel(row.footprint) !== normModel(row.comment || row.model || '')
+    ? '封装名与器件型号不同，可能为旧型号或自定义名称；请核对PCB焊盘后勾选' : '';
+  return {kind:'eligible',message:warning || '仅封装描述不同，仍需工程师确认PCB焊盘兼容',warning:warning};
+}
+
+function convPackageBatchCurrent(entry) {
+  var refs = (entry.row.refs || []).map(convAuditClean);
+  var duplicate = CONV_OUT.some(function(row){return row !== entry.row && (row.refs || splitRefs(row.designator)).some(function(ref){return refs.indexOf(convAuditClean(ref))>=0;});});
+  return CONV_OUT[entry.index] === entry.row && entry.row.status === 'invalid' && entry.row.packageConfirmRequired
+    && !duplicate && convPackageBatchSignature(entry.row) === entry.signature;
+}
+
+function ensureConvPackageBatchModal() {
+  var modal = document.getElementById('convPackageBatchModal');
+  if (modal) return modal;
+  modal = document.createElement('div');modal.id = 'convPackageBatchModal';modal.className = 'conv-package-batch';modal.style.display = 'none';
+  modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.setAttribute('aria-labelledby','convPackageBatchTitle');
+  modal.innerHTML = '<div class="conv-package-batch-panel"><div class="conv-package-batch-head"><h3 id="convPackageBatchTitle">批量确认封装名称差异</h3><button type="button" aria-label="关闭批量封装确认" onclick="closeConvPackageBatch()">×</button></div>'
+    + '<p>请确认所选器件与PCB实际焊盘兼容。封装名可能是器件型号或旧型号，系统无法仅凭名称证明兼容。确认作用于该合并行的全部位号，并记录在本次BOM校验报告中。</p>'
+    + '<p id="convPackageBatchSummary" role="status" aria-live="polite"></p>'
+    + '<label><input type="checkbox" id="convPackageBatchAll" onchange="selectAllConvPackageBatch(this.checked)"> 全选可确认项（含需人工核对的旧型号/自定义封装）</label>'
+    + '<div class="conv-package-batch-table"><table><thead><tr><th>选择</th><th>位号</th><th>型号 / 立创编号</th><th>原理图封装</th><th>官方封装</th><th>核对结果</th></tr></thead><tbody id="convPackageBatchBody"></tbody></table></div>'
+    + '<div class="conv-package-batch-footer"><button type="button" id="convPackageBatchCancel" onclick="closeConvPackageBatch()">取消</button><button type="button" id="convPackageBatchConfirm" onclick="confirmConvPackageBatch()" disabled>我已核对，确认所选</button></div></div>';
+  modal.addEventListener('keydown',function(event){
+    if (event.key === 'Escape') {event.preventDefault();closeConvPackageBatch();}
+    if (event.key === 'Tab') {
+      var controls = Array.prototype.slice.call(modal.querySelectorAll('button:not(:disabled),input:not(:disabled)')).filter(function(el){return el.getClientRects().length;});
+      var first = controls[0], last = controls[controls.length-1];
+      if (event.shiftKey && document.activeElement === first) {event.preventDefault();last.focus();}
+      else if (!event.shiftKey && document.activeElement === last) {event.preventDefault();first.focus();}
+    }
+  });
+  document.body.appendChild(modal);return modal;
+}
+
+function closeConvPackageBatch() {
+  CONV_PACKAGE_BATCH = null;
+  var modal = document.getElementById('convPackageBatchModal');if (modal) modal.style.display = 'none';
+  var trigger = document.getElementById('convAuditBatchPackage');
+  if (trigger && !trigger.disabled) trigger.focus({preventScroll:true});
+  else if (document.getElementById('convAuditSearch')) document.getElementById('convAuditSearch').focus({preventScroll:true});
+}
+
+function convPackageBatchRefCount(entries) {
+  var refs = [];
+  entries.forEach(function(entry){(entry.row.refs || []).forEach(function(ref){if(refs.indexOf(ref)<0)refs.push(ref);});});
+  return refs.length;
+}
+
+function updateConvPackageBatchSelection() {
+  var state = CONV_PACKAGE_BATCH;if (!state) return;
+  var eligible = state.entries.filter(function(entry){return entry.kind === 'eligible';});
+  var selected = eligible.filter(function(entry){return entry.selected;});
+  var all = document.getElementById('convPackageBatchAll');
+  all.disabled = state.phase !== 'ready' || !eligible.length;
+  all.checked = eligible.length>0 && selected.length === eligible.length;all.indeterminate = selected.length>0 && selected.length<eligible.length;
+  var confirm = document.getElementById('convPackageBatchConfirm');
+  confirm.disabled = state.phase !== 'ready' || !selected.length;
+  confirm.style.display = state.phase === 'done' ? 'none' : '';
+  confirm.textContent = '我已核对，确认所选 '+selected.length+' 行 / '+convPackageBatchRefCount(selected)+' 个位号';
+  document.getElementById('convPackageBatchCancel').textContent = state.phase === 'done' ? '关闭' : '取消';
+}
+
+function selectAllConvPackageBatch(checked) {
+  var state = CONV_PACKAGE_BATCH;if (!state || state.phase !== 'ready') return;
+  state.entries.forEach(function(entry){entry.selected = entry.kind === 'eligible' && checked;});renderConvPackageBatch();
+}
+function toggleConvPackageBatch(index, checked) {
+  var state = CONV_PACKAGE_BATCH, entry = state && state.entries[index];
+  if (!entry || state.phase !== 'ready' || entry.kind !== 'eligible') return;
+  entry.selected = checked;updateConvPackageBatchSelection();
+}
+
+function renderConvPackageBatch() {
+  var state = CONV_PACKAGE_BATCH;if (!state) return;
+  var text = state.scope+'；共 '+state.entries.length+' 行物料 / '+convPackageBatchRefCount(state.entries)+' 个位号。';
+  if (state.phase === 'loading') text += ' 正在核对官方资料…';
+  else if (state.phase === 'applying') text += ' 正在重新核验所选器件，请等待；关闭窗口会取消尚未提交的确认。';
+  else if (state.phase === 'done') text += ' 成功 '+state.entries.filter(function(e){return e.outcome==='success';}).length+' 行；跳过 '+state.entries.filter(function(e){return e.outcome==='skipped';}).length+' 行；失败 '+state.entries.filter(function(e){return e.outcome==='failed';}).length+' 行。';
+  else text += ' 可确认 '+state.entries.filter(function(e){return e.kind==='eligible';}).length+' 行；其余项目保留原因供单独处理。';
+  document.getElementById('convPackageBatchSummary').textContent = text;
+  document.getElementById('convPackageBatchBody').innerHTML = state.entries.map(function(entry,index){
+    var row = entry.row, result = entry.result && entry.result.data;
+    var active = state.phase === 'ready' && entry.kind === 'eligible';
+    return '<tr'+(entry.warning?' class="conv-package-batch-warning"':'')+'><td><input type="checkbox" aria-label="确认 '+esc(row.designator)+'" data-batch-index="'+index+'" '+(entry.selected?'checked ':'')+(active?'':'disabled ')+'onchange="toggleConvPackageBatch('+index+',this.checked)"></td>'
+      + '<td>'+esc(row.designator)+'<br><span class="conv-audit-note">'+(row.refs || []).length+' 个位号</span></td><td>'+esc(row.comment)+'<br>'+esc(entry.code)+'</td><td>'+esc(row.footprint)+'</td><td>'+esc(result && result.package || '未取得')+'</td>'
+      + '<td>'+convAuditBadge(entry.outcome==='success'?'已批量人工确认':entry.kind==='eligible'?'待人工确认':entry.kind==='loading'?'核对中':entry.kind==='failed'?'查询失败':'需单独处理',entry.outcome==='success'?'ok':entry.kind==='eligible'?'warn':'bad')+'<div>'+esc(entry.message || '正在读取官方资料')+'</div></td></tr>';
+  }).join('');
+  updateConvPackageBatchSelection();
+}
+
+function openConvPackageBatch() {
+  renderConvAudit();
+  var indices = convPackageBatchIndices();
+  if (!indices.length) {alert('当前筛选中没有等待确认封装的物料');return Promise.resolve();}
+  var modal = ensureConvPackageBatchModal();
+  var state = {phase:'loading',scope:'当前筛选：'+CONV_AUDIT_VIEWS[CONV_AUDIT_FILTER].label+(CONV_AUDIT_QUERY?'；搜索：'+CONV_AUDIT_QUERY:''),entries:indices.map(function(idx){
+    var row = CONV_OUT[idx];return {index:idx,row:row,code:normLcsc(row.lcsc || row.rejectedLcsc),signature:convPackageBatchSignature(row),kind:'loading',selected:false};
+  })};
+  CONV_PACKAGE_BATCH = state;modal.style.display = 'flex';renderConvPackageBatch();document.getElementById('convPackageBatchCancel').focus();
+  return fetchLcscDetailsByCodes(state.entries.map(function(entry){return entry.code;})).then(function(map){
+    if (CONV_PACKAGE_BATCH !== state) return;
+    state.entries.forEach(function(entry){
+      entry.result = map[entry.code];
+      var check = convPackageBatchCurrent(entry) ? convPackageBatchCheck(entry.row,entry.code,entry.result) : {kind:'blocked',message:'源BOM或物料状态已变化，请重新打开清单'};
+      Object.assign(entry,check);entry.selected = entry.kind === 'eligible' && !entry.warning;
+      if (entry.result && entry.result.data) entry.reviewedOfficial = JSON.stringify([convAuditClean(entry.result.data.productModel),convAuditClean(entry.result.data.package)]);
+    });state.phase = 'ready';renderConvPackageBatch();
+  }).catch(function(error){
+    if (CONV_PACKAGE_BATCH !== state) return;
+    state.entries.forEach(function(entry){entry.kind='failed';entry.message='查询失败：'+(error.message || error);});state.phase='ready';renderConvPackageBatch();
+  });
+}
+
+function confirmConvPackageBatch() {
+  var state = CONV_PACKAGE_BATCH;if (!state || state.phase !== 'ready') return Promise.resolve();
+  var selected = state.entries.filter(function(entry){return entry.kind === 'eligible' && entry.selected;});
+  if (!selected.length) return Promise.resolve();
+  state.phase = 'applying';renderConvPackageBatch();
+  return fetchLcscDetailsByCodes(selected.map(function(entry){return entry.code;})).then(function(map){
+    if (CONV_PACKAGE_BATCH !== state) return;
+    state.entries.forEach(function(entry){entry.outcome = entry.kind === 'failed' ? 'failed' : 'skipped';});
+    selected.forEach(function(entry){
+      entry.result = map[entry.code];
+      var check = convPackageBatchCurrent(entry) ? convPackageBatchCheck(entry.row,entry.code,entry.result) : {kind:'blocked',message:'源BOM、编号、型号、位号或封装已变化，旧确认未应用'};
+      if (check.kind === 'eligible' && entry.reviewedOfficial !== JSON.stringify([convAuditClean(entry.result.data.productModel),convAuditClean(entry.result.data.package)])) check={kind:'blocked',message:'官方型号或封装资料已变化，请重新打开清单核对'};
+      if (check.kind !== 'eligible') {Object.assign(entry,check);entry.outcome=check.kind==='failed'?'failed':'skipped';return;}
+      var row = entry.row, before = Object.assign({},row);
+      try {
+        recordConvPackageConfirmation(row,entry.code,entry.result.data.package,'batch');
+        row.lcsc=entry.code;applyOfficialVerification(row,entry.result);
+        if (row.status !== 'matched' || row.verification !== 'manual_confirmed') throw new Error(row.verifyError || '核验未通过');
+        entry.outcome='success';entry.message=row.manualConfirmReason;
+      } catch (error) {
+        Object.keys(row).forEach(function(key){delete row[key];});Object.assign(row,before);
+        entry.outcome='failed';entry.message='确认失败：'+(error.message || error);
+      }
+    });
+    state.entries.forEach(function(entry){if(entry.outcome==='skipped' && entry.kind==='eligible')entry.message='未勾选，本次未确认';});
+    state.phase='done';updateConvStats();renderConvTable();renderConvAudit();renderConvPackageBatch();
+  }).catch(function(error){
+    if (CONV_PACKAGE_BATCH !== state) return;
+    selected.forEach(function(entry){entry.outcome='failed';entry.message='确认失败：'+(error.message || error);});
+    state.entries.forEach(function(entry){if(!entry.outcome)entry.outcome='skipped';});state.phase='done';renderConvPackageBatch();
+  });
 }
 
 function confirmConvPackage(idx) {
@@ -3011,6 +3259,8 @@ function buildConvAudit(sourceRows, outputRows) {
         officialModel:row.officialModel || '', officialTolerance:row.officialTolerance || '',
         verification:row.verification || '', verifyError:row.verifyError || '',
         packageConfirmed:!!confirmed, verified:!!verified, hardErrors:hardErrors,
+        confirmationMode:row.packageConfirmation && row.packageConfirmation.mode || '',
+        confirmationTime:row.packageConfirmation && row.packageConfirmation.confirmedAt || '',
         deferredConfirmed:isConvDeferred(row)});
     });
   });
@@ -3029,7 +3279,7 @@ function buildConvAudit(sourceRows, outputRows) {
         packageDiff = true; mismatches.push('输出封装变化');
       } else if (convAuditClean(src.fp) !== convAuditClean(out.footprint)) changes.push('输出封装规范化');
       if (out.officialPackage && normPkg(out.footprint) !== normPkg(out.officialPackage)) {
-        if (out.packageConfirmed) changes.push('已人工确认封装：' + out.footprint + ' / 官方 ' + out.officialPackage);
+        if (out.packageConfirmed) changes.push((out.confirmationMode === 'batch' ? '已批量人工确认封装：' : '已人工确认封装：') + out.footprint + ' / 官方 ' + out.officialPackage + (out.confirmationTime ? '；确认时间：'+out.confirmationTime : ''));
         else {packageDiff = true; mismatches.push('官方封装与原理图不一致');}
       } else if (out.officialPackage && convAuditClean(src.fp) !== convAuditClean(out.officialPackage)) changes.push('官方封装规范化');
     }
@@ -3191,6 +3441,8 @@ function renderConvAuditTable() {
   var count = CONV_AUDIT.items.filter(view.test).length;
   document.getElementById('convAuditScope').textContent = '当前：'+view.label+'，共 '+count+' 个位号；'+(CONV_AUDIT_QUERY?'搜索后':'当前')+'显示 '+rows.length+' 条明细';
   document.getElementById('convAuditExportFiltered').disabled = !rows.length;
+  var batchIndices = convPackageBatchIndices(), batchButton = document.getElementById('convAuditBatchPackage');
+  batchButton.disabled = !batchIndices.length;batchButton.textContent = '批量确认封装（'+batchIndices.length+'行）';
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#64748b;">'+(CONV_AUDIT_QUERY?'当前类别内没有匹配的记录，可清除搜索或返回全部。':CONV_AUDIT_FILTER==='attention'?'没有需要确认的异常。':'当前类别暂无记录，或问题已处理完成。')+'</td></tr>';return;
   }
@@ -9953,7 +10205,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.63 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.64 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>
