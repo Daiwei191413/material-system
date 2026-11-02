@@ -15,6 +15,8 @@ let r=E.analyze(doc([row()]));
 assert(!has(r,'TYPE_CONFLICT'));assert(!has(r,'PACKAGE_CONFLICT'));assert(has(r,'PARAMETERS_MISSING','pending'));
 assert(Array.isArray(r.coreIssues));assert.equal(typeof r.categoryCounts.model,'number');
 assert.equal(r.auditCounts.abnormal,0);assert.equal(r.auditCounts.unverified,1);assert.equal(r.rowAudits[0].status,'unverified');
+const lZero=E.analyze(doc([{...row('L16,L17,L20,L21','0R','SL0402','厚膜电阻 0Ω ±1% 1/16W SMD 0402'),'数量':4}]));
+assert(!has(lZero,'TYPE_CONFLICT'));assert(!has(lZero,'VALUE_CONFLICT'));assert(!has(lZero,'PACKAGE_CONFLICT'));assert.equal(lZero.auditCounts.abnormal,0);
 const reviewExample=E.analyze(doc([
   row('C30','1nF SC0201','SC0201','MLCC 1nF ±10% 25V - SMD 0201'),
   {...row('C37,C70,C74','22uF SC0603','SC0603','MLCC 22uF ±20% 25V SMD 0603'),'数量':'3'}

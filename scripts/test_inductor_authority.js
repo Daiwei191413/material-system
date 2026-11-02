@@ -5,8 +5,8 @@ const vm = require('vm');
 
 const repoRoot = path.resolve(__dirname, '..');
 const targets = [
-  { file: 'v3-cloudbase/web/index.html', version: 'V1.0.61' },
-  { file: 'v3-legacy/index.html', version: 'V3.0.85' },
+  { file: 'v3-cloudbase/web/index.html', version: 'V1.0.62' },
+  { file: 'v3-legacy/index.html', version: 'V3.0.86' },
 ];
 
 function section(html, start, end) {
@@ -66,7 +66,8 @@ function section(html, start, end) {
         codes.map((code) => [code, { ok: true, data: official }]),
       ),
     };
-    vm.runInNewContext(`${inductorNaming}\n${specBuilder}\n${helpers}`, context, { filename: target.file });
+    const actualType = section(html, 'function explicitPassiveType(raw)', 'function convPassiveKind(row)');
+    vm.runInNewContext(`${actualType}\n${inductorNaming}\n${specBuilder}\n${helpers}`, context, { filename: target.file });
 
     assert.strictEqual(context.parseInductanceNh('0.22uH'), 220, `${target.file}: uH conversion failed`);
     assert.strictEqual(context.parseInductanceNh('220nH'), 220, `${target.file}: nH conversion failed`);

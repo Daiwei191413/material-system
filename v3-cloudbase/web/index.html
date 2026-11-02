@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理神器 V1.0.61 团队版</title>
+  <title>技象科技研发BOM 整理神器 V1.0.62 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png?v=3.0.23-cb1">
 <script src="assets/vendor/xlsx.full.min.js?v=0.18.5"></script>
 <script src="assets/vendor/jszip.min.js?v=3.10.1"></script>
@@ -275,7 +275,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理神器</h2>
-    <p class="v3-sub">团队版 V1.0.61 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V1.0.62 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -936,8 +936,8 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<div class="release-date"><span>更新日期：<time datetime="2026-10-30">20261030</time></span></div>
-        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.61 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+<div class="release-date"><span>更新日期：<time datetime="2026-11-02">20261102</time></span></div>
+        <h1>⚡ 技象科技研发BOM 整理神器 V1.0.62 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1250,7 +1250,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.61</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.62</span></h3>
 
     <!-- 库切换 Tab -->
     <div class="lib-tabs" style="margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -1389,6 +1389,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
           <div style="color:#27AE60;"><b>已匹配 LCSC：</b><span id="convStatMatched">-</span> 行</div>
           <div style="color:#1976d2;"><b>官方核验中：</b><span id="convStatVerifying">-</span> 行</div>
           <div style="color:#F39C12;"><b>未匹配：</b><span id="convStatUnmatched">-</span> 行</div>
+          <div style="color:#6d28d9;"><b>已确认后补：</b><span id="convStatDeferred">0</span> 行</div>
         </div>
       </div>
     </div>
@@ -1403,10 +1404,15 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
         </div>
       </div>
       <div class="table-wrap">
+        <div style="display:flex;gap:8px;align-items:center;margin:8px 0;font-size:12px;">
+          <button type="button" id="convDeferSelected" onclick="setSelectedConvDeferred(true)" disabled>所选物料导出后补充</button>
+          <button type="button" id="convUndeferSelected" onclick="setSelectedConvDeferred(false)" disabled>撤销所选后补</button>
+          <span id="convDeferredSelection" style="color:#64748b;">勾选未匹配的专用料或线下采购物料</span>
+        </div>
         <table id="convTable">
           <thead>
             <tr>
-              <th>#</th>
+              <th><input type="checkbox" id="convDeferredSelectAll" aria-label="选择可后补物料" onchange="selectAllConvDeferred(this.checked)"> #</th>
               <th>Comment</th>
               <th>Designator</th>
               <th>Footprint</th>
@@ -1430,6 +1436,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
           <button class="conv-audit-filter" data-audit-filter="attention" onclick="setConvAuditFilter('attention')">需要确认</button>
           <button class="conv-audit-filter" data-audit-filter="all" onclick="setConvAuditFilter('all')">全部位号</button>
           <button class="conv-audit-filter" data-audit-filter="unmatched" onclick="setConvAuditFilter('unmatched')">未匹配</button>
+          <button class="conv-audit-filter" data-audit-filter="deferred" onclick="setConvAuditFilter('deferred')">导出后补充</button>
           <button class="conv-audit-filter" data-audit-filter="dnp" onclick="setConvAuditFilter('dnp')">DNP</button>
           <button class="conv-audit-filter" data-audit-filter="normalized" onclick="setConvAuditFilter('normalized')">规范化变化</button>
         </div>
@@ -1633,6 +1640,7 @@ function trimZero(n) {
 var CONV_RAW = [];      // 原始行：[{value, ref, fp}]
 var CONV_OUT = [];      // 输出行：[{comment, designator, footprint, lcsc, refs:[], status, matchLevel, dnp}]
 var CONV_SOURCE_FILE = '';
+var CONV_DEFER_SELECTED = [];
 var CONV_AUDIT = null;
 var CONV_AUDIT_FILTER = 'attention';
 var CONV_VERIFY_RUN_ID = 0;
@@ -1680,6 +1688,7 @@ function runConvert(rows) {
   var verifyRunId = ++CONV_VERIFY_RUN_ID;
   CONV_RAW = [];
   CONV_OUT = [];
+  CONV_DEFER_SELECTED = [];
 
   // 1. 列名归一 + 拆位号
   // 同规范值（含耐压）+ 同封装合并；不同耐压分行保留。
@@ -1833,16 +1842,73 @@ function runConvert(rows) {
   verifyConvertedRows(CONV_OUT, verifyRunId);
 }
 
+// 后补仅表示工程师确认线下处理，不代表商品已核验，也不写入任何物料库。
+function convDeferredEligibilityError(row) {
+  if (!row || ['unmatched','deferred'].indexOf(row.status) < 0) return '仅未匹配物料可确认后补';
+  if ([row.lcsc,row.rejectedLcsc,row.officialCode].some(function(v){return String(v || '').trim();}) || row.verifyError) return '已有编号或核验异常，请先处理';
+  if (convSmallCapPf(row) !== null) return '小于10pF电容必须先通过±0.1pF精度核验';
+  if (row.rfPreferred) return '射频电感库指定器件不可后补';
+  var pref = findRfInductorPreference(Object.assign({}, row, {_schematic:true}));
+  if (pref.mode === 'exact' || pref.mode === 'conflict') return pref.message || '必须使用射频电感库指定器件';
+  return '';
+}
+function convDeferredSignature(row) {
+  return JSON.stringify([row.comment,row.designator,row.footprint,row.refs || []]);
+}
+function isConvDeferred(row) {
+  return !!(row && row.status === 'deferred' && row.deferredConfirmation
+    && row.deferredConfirmation.signature === convDeferredSignature(row) && !convDeferredEligibilityError(row));
+}
+function toggleConvDeferredSelection(idx, checked) {
+  CONV_DEFER_SELECTED = CONV_DEFER_SELECTED.filter(function(n){return n !== idx;});
+  if (checked && CONV_OUT[idx] && (!convDeferredEligibilityError(CONV_OUT[idx]) || CONV_OUT[idx].status === 'deferred')) CONV_DEFER_SELECTED.push(idx);
+  updateConvDeferredSelection();
+}
+function selectAllConvDeferred(checked) {
+  CONV_DEFER_SELECTED = [];
+  if (checked) CONV_OUT.forEach(function(row,i){if (!convDeferredEligibilityError(row) || row.status === 'deferred') CONV_DEFER_SELECTED.push(i);});
+  renderConvTable();
+}
+function updateConvDeferredSelection() {
+  CONV_DEFER_SELECTED = CONV_DEFER_SELECTED.filter(function(i){var row=CONV_OUT[i];return row && (!convDeferredEligibilityError(row) || row.status === 'deferred');});
+  var selected=CONV_DEFER_SELECTED.map(function(i){return CONV_OUT[i];});
+  var mark=document.getElementById('convDeferSelected'), revoke=document.getElementById('convUndeferSelected');
+  if (mark) mark.disabled=!selected.some(function(row){return row.status === 'unmatched' && !convDeferredEligibilityError(row);});
+  if (revoke) revoke.disabled=!selected.some(function(row){return row.status === 'deferred';});
+  var text=document.getElementById('convDeferredSelection');
+  if (text) text.textContent=selected.length ? '已选 '+selected.length+' 行物料；保留型号、位号和封装，编码留空' : '勾选未匹配的专用料或线下采购物料';
+  var all=document.getElementById('convDeferredSelectAll');
+  var eligible=CONV_OUT.filter(function(row){return !convDeferredEligibilityError(row) || row.status === 'deferred';}).length;
+  if (all) {all.checked=eligible>0 && selected.length===eligible;all.indeterminate=selected.length>0 && selected.length<eligible;}
+}
+function setSelectedConvDeferred(mark) {setConvDeferredRows(CONV_DEFER_SELECTED.slice(),mark);}
+function setConvDeferredRows(indices, mark) {
+  var ids=indices.filter(function(i,pos){return indices.indexOf(i)===pos && CONV_OUT[i];});
+  if (mark) {
+    ids=ids.filter(function(i){return CONV_OUT[i].status !== 'deferred';});
+    if (!ids.length) return;
+    var blocked=ids.map(function(i){return convDeferredEligibilityError(CONV_OUT[i]);}).filter(Boolean);
+    if (blocked.length) {alert('不能设为导出后补充：'+blocked.join('；'));return;}
+    if (!confirm('确认将以下物料作为专用料/线下采购，导出后自行补充？\n\n'+ids.map(function(i){return CONV_OUT[i].designator+' / '+CONV_OUT[i].comment;}).join('\n')+'\n\n保留全部位号和原封装，嘉立创编号留空；这不代表已完成商品核验。')) return;
+    ids.forEach(function(i){var row=CONV_OUT[i];row.status='deferred';row.verification='deferred';row.deferredConfirmation={signature:convDeferredSignature(row),reason:'专用料/线下采购，导出后补充'};});
+  } else {
+    ids.forEach(function(i){var row=CONV_OUT[i];if(row.status !== 'deferred')return;row.status=(row.lcsc || row.rejectedLcsc || row.officialCode || row.verifyError)?'invalid':'unmatched';row.verification='';delete row.deferredConfirmation;});
+  }
+  CONV_DEFER_SELECTED=[];updateConvStats();renderConvTable();renderConvAudit();
+}
+
 function updateConvStats() {
-  var matched = 0, unmatched = 0, dnp = 0, verifying = 0;
+  var matched = 0, unmatched = 0, dnp = 0, verifying = 0, deferred = 0;
   CONV_OUT.forEach(function(o){
     if (o.status === 'dnp') dnp += (o.refs || []).length;
+    else if (isConvDeferred(o)) deferred++;
     else if (o.status === 'matched') matched++;
     else if (o.status === 'verifying' || o.status === 'searching') verifying++;
     else unmatched++;
   });
   document.getElementById('convStatMatched').textContent = matched;
   document.getElementById('convStatUnmatched').textContent = unmatched;
+  if (document.getElementById('convStatDeferred')) document.getElementById('convStatDeferred').textContent = deferred;
   if (document.getElementById('convStatDnp')) document.getElementById('convStatDnp').textContent = dnp;
   if (document.getElementById('convStatVerifying')) document.getElementById('convStatVerifying').textContent = verifying;
 }
@@ -2498,7 +2564,20 @@ function exportCostReport() {
   XLSX.writeFile(wb, base + '_立创成本评估_' + new Date().toISOString().split('T')[0] + '.xlsx');
 }
 
+// 明确的实装参数优先于历史位号、封装类别前缀；不从厂家型号内部推断数值。
+function explicitPassiveType(raw) {
+  var value = String(raw == null ? '' : raw).trim().replace(/[μµ]/g, 'u').split(/[\/\\／]/)[0].trim();
+  var tail = value.match(/[,\s]+((?:SC|SL|SR|C|L|R)?[_-]?\d{4,5})$/i);
+  if (tail && extractStdPkg(tail[1])) value = value.slice(0, tail.index).trim();
+  if (/^\d+(?:\.\d+)?\s*(?:pF|nF|uF|mF|F)$/i.test(value)) return 'capacitor';
+  if (/^\d+(?:\.\d+)?\s*(?:pH|nH|uH|mH|H)$/i.test(value)) return 'inductor';
+  if (/^\d+(?:\.\d+)?\s*(?:[RKM](?:\d+)?\s*(?:Ω|OHMS?|欧姆|欧)?|Ω|OHMS?|欧姆|欧)$/i.test(value)) return 'resistor';
+  return '';
+}
+
 function convPassiveKind(row) {
+  var actual = explicitPassiveType(row.comment || row.model || row['型号']);
+  if (actual) return actual === 'capacitor' ? 'cap' : actual === 'resistor' ? 'res' : '';
   var ref = ((row.refs && row.refs[0]) || row.designator || '').toString().trim().toUpperCase();
   var pkg = (row.footprint || row.package || '').toString().trim().toUpperCase();
   var value = (row.comment || row.model || '').toString().trim();
@@ -2525,7 +2604,7 @@ function convPassiveNumber(value, kind) {
   if (kind === 'res') {
     var milli = s.match(/^([\d.]+)\s*m(?:Ω|OHMS?)$/i);
     if (milli) return parseFloat(milli[1]) / 1000;
-    s = s.toUpperCase().replace(/OHMS?|Ω/g, '').replace(/\s+/g, '');
+    s = s.toUpperCase().replace(/OHMS?|Ω|欧姆|欧/g, '').replace(/\s+/g, '');
     if (/^\d+(?:\.\d+)?$/.test(s)) return parseFloat(s);
     var compact = s.match(/^(\d+)([RKM])(\d+)$/);
     if (compact) return parseFloat(compact[1] + '.' + compact[3]) * ({R:1,K:1e3,M:1e6}[compact[2]]);
@@ -2791,6 +2870,10 @@ function renderConvTable() {
         actionBtn = '<button type="button" onclick="openLcscSearch('+i+')" style="margin-left:6px;padding:2px 8px;font-size:12px;background:#fff;border:1px solid #0078b8;color:#0078b8;border-radius:3px;cursor:pointer;">换</button>';
       }
       if (o.rfSourcePending) statusBadge += '<div style="color:#b45309;font-size:11px;margin-top:4px;">新关键电感待入库：本次保留源BOM指定器件</div>';
+    } else if (o.status === 'deferred') {
+      statusBadge = '<span style="color:#6d28d9;font-weight:600;">'+(isConvDeferred(o) ? '专用料，已确认导出后补充（编码留空）' : '后补确认已失效，请撤销后重新处理')+'</span>';
+      actionBtn = '<button type="button" onclick="setConvDeferredRows(['+i+'],false)">撤销后补</button>';
+      rowStyle = 'background:#faf5ff;';
     } else if (o.status === 'verifying') {
       statusBadge = '<span style="background:#1976d2;color:white;padding:2px 8px;border-radius:4px;font-size:12px;">正在核验</span>';
     } else if (o.status === 'searching') {
@@ -2810,10 +2893,13 @@ function renderConvTable() {
         + (o.onlinePullNote ? '<div style="color:#9a6700;font-size:11px;margin-top:4px;max-width:360px;">'+esc(o.onlinePullNote)+'</div>' : '');
       actionBtn = '<button type="button" onclick="openLcscSearch('+i+')" style="margin-left:6px;padding:2px 8px;font-size:12px;background:#0078b8;border:0;color:white;border-radius:3px;cursor:pointer;">🔍 立创搜索</button>';
     }
+    if (o.status === 'unmatched' && !convDeferredEligibilityError(o)) actionBtn += '<button type="button" onclick="setConvDeferredRows(['+i+'],true)" style="margin-left:6px;">导出后补充</button>';
+    if (explicitPassiveType(o.comment) === 'resistor' && /^(?:L|C)\d/i.test(o.designator || '')) statusBadge += '<div style="color:#475569;font-size:11px;">实装电阻（保留原位号）</div>';
+    var selector = (!convDeferredEligibilityError(o) || o.status === 'deferred') ? '<input type="checkbox" aria-label="选择后补物料 '+esc(o.designator)+'" '+(CONV_DEFER_SELECTED.indexOf(i)>=0?'checked ':'')+'onchange="toggleConvDeferredSelection('+i+',this.checked)"> ' : '';
     var tr = document.createElement('tr');
     if (o.matchedFromLcscLibrary) statusBadge += '<div style="color:#137333;font-size:11px;margin-top:4px;">立创库复用</div>';
     tr.setAttribute('style', rowStyle);
-    tr.innerHTML = '<td>'+(i+1)+'</td>'
+    tr.innerHTML = '<td>'+selector+(i+1)+'</td>'
       + '<td><b>'+esc(o.comment)+'</b></td>'
       + '<td style="font-size:12px;">'+esc(o.designator)+' <span style="color:#999;">('+o.refs.length+')</span></td>'
       + '<td>'+esc(o.footprint)+'<br><span style="color:#7b8794;font-size:11px;">'+(o.officialPackage ? '官方：'+esc(o.officialPackage) : '')+'</span></td>'
@@ -2823,6 +2909,7 @@ function renderConvTable() {
       + '<td>'+statusBadge+actionBtn+'</td>';
     tbody.appendChild(tr);
   });
+  updateConvDeferredSelection();
 }
 
 // ==================== 原理图与嘉立创BOM转换校验 ====================
@@ -2859,7 +2946,7 @@ function buildConvAudit(sourceRows, outputRows) {
       convAuditAdd(outMap, ref, {
         comment:comment || '', footprint:footprint || '', lcsc:lcsc || '', status:status,
         rejectedLcsc:row.rejectedLcsc || '', officialPackage:row.officialPackage || '', officialModel:row.officialModel || '', officialTolerance:row.officialTolerance || '',
-        verification:row.verification || '', verifyError:row.verifyError || ''
+        verification:row.verification || '', verifyError:row.verifyError || '', deferredConfirmed:isConvDeferred(row)
       });
     });
   });
@@ -2868,7 +2955,7 @@ function buildConvAudit(sourceRows, outputRows) {
   Object.keys(srcMap).forEach(function(ref){ refSet[ref] = true; });
   Object.keys(outMap).forEach(function(ref){ refSet[ref] = true; });
   var refs = sortRefs(Object.keys(refSet));
-  var counts = { completed:0, unmatched:0, invalid:0, verifying:0, verifyFailed:0, dnp:0, missing:0, duplicate:0, extra:0, fieldMismatch:0, normalized:0 };
+  var counts = { deferred:0, completed:0, unmatched:0, invalid:0, verifying:0, verifyFailed:0, dnp:0, missing:0, duplicate:0, extra:0, fieldMismatch:0, normalized:0 };
 
   var items = refs.map(function(ref){
     var srcRows = srcMap[ref] || [];
@@ -2883,6 +2970,7 @@ function buildConvAudit(sourceRows, outputRows) {
     else if (out && out.status === 'invalid') status = 'invalid';
     else if (out && (out.status === 'verifying' || out.status === 'searching')) status = 'verifying';
     else if (out && out.status === 'verify_failed') status = 'verifyFailed';
+    else if (out && out.deferredConfirmed) status = 'deferred';
     else if (out && !convAuditClean(out.lcsc)) status = 'unmatched';
     else status = 'completed';
     counts[status]++;
@@ -2946,9 +3034,9 @@ function renderConvAudit() {
   var stats = document.getElementById('convAuditStats');
   if (!box || !banner || !stats) return;
   box.style.display = 'block';
-  banner.className = 'conv-audit-banner ' + (CONV_AUDIT.pass ? 'pass' : 'warn');
+  banner.className = 'conv-audit-banner ' + (CONV_AUDIT.pass && !CONV_AUDIT.counts.deferred ? 'pass' : 'warn');
   banner.textContent = CONV_AUDIT.pass
-    ? '✓ 转换校验通过：原理图位号均已覆盖，可以导出嘉立创 BOM'
+    ? (CONV_AUDIT.counts.deferred ? '可导出：位号均已覆盖；'+CONV_AUDIT.counts.deferred+' 个位号已确认导出后补充，未完成立创商品核验' : '✓ 转换校验通过：原理图位号均已覆盖，可以导出嘉立创 BOM')
     : '⚠ 发现 ' + CONV_AUDIT.attentionCount + ' 个位号需要确认，请先处理异常再导出';
   var c = CONV_AUDIT.counts;
   stats.innerHTML = convAuditStat(CONV_AUDIT.sourceTotal, '原理图位号', 'info')
@@ -2979,7 +3067,7 @@ function convAuditBadge(text, cls) {
 
 function convAuditResultHtml(item) {
   var labels = {
-    completed:['转换完成','ok'], unmatched:['未匹配编号','warn'], invalid:['编码异常','bad'], verifying:['待官方核验','warn'], verifyFailed:['核验失败','bad'], dnp:['DNP剔除','muted'],
+    deferred:['已确认导出后补充','warn'], completed:['转换完成','ok'], unmatched:['未匹配编号','warn'], invalid:['编码异常','bad'], verifying:['待官方核验','warn'], verifyFailed:['核验失败','bad'], dnp:['DNP剔除','muted'],
     missing:['输出缺失','bad'], duplicate:['重复位号','bad'], extra:['异常新增','bad']
   };
   var cfg = labels[item.status] || [item.status,'muted'];
@@ -2996,6 +3084,7 @@ function renderConvAuditTable() {
     if (CONV_AUDIT_FILTER === 'all') return true;
     if (CONV_AUDIT_FILTER === 'attention') return item.attention;
     if (CONV_AUDIT_FILTER === 'unmatched') return item.status === 'unmatched';
+    if (CONV_AUDIT_FILTER === 'deferred') return item.status === 'deferred';
     if (CONV_AUDIT_FILTER === 'dnp') return item.status === 'dnp';
     if (CONV_AUDIT_FILTER === 'normalized') return item.changes.length > 0;
     return true;
@@ -3020,7 +3109,7 @@ function renderConvAuditTable() {
 
 function convAuditStatusText(item) {
   if (item && item.output && item.output.verification === 'manual_confirmed') return '人工确认';
-  var labels = { completed:'转换完成', unmatched:'未匹配编号', invalid:'编码异常', verifying:'待官方核验', verifyFailed:'核验失败', dnp:'DNP剔除', missing:'输出缺失', duplicate:'重复位号', extra:'异常新增' };
+  var labels = { deferred:'已确认导出后补充（未核验商品）', completed:'转换完成', unmatched:'未匹配编号', invalid:'编码异常', verifying:'待官方核验', verifyFailed:'核验失败', dnp:'DNP剔除', missing:'输出缺失', duplicate:'重复位号', extra:'异常新增' };
   return labels[item.status] || item.status;
 }
 
@@ -3029,9 +3118,9 @@ function exportConvAudit() {
   var c = CONV_AUDIT.counts;
   var summary = [
     ['校验项目','数量'], ['原理图位号',CONV_AUDIT.sourceTotal], ['嘉立创BOM位号',CONV_AUDIT.outputTotal],
-    ['转换完成',c.completed], ['未匹配编号',c.unmatched], ['编码异常',c.invalid], ['待官方核验',c.verifying], ['核验失败',c.verifyFailed], ['DNP剔除',c.dnp], ['输出缺失',c.missing],
+    ['转换完成',c.completed], ['已确认导出后补充',c.deferred], ['未匹配编号',c.unmatched], ['编码异常',c.invalid], ['待官方核验',c.verifying], ['核验失败',c.verifyFailed], ['DNP剔除',c.dnp], ['输出缺失',c.missing],
     ['重复位号',c.duplicate], ['异常新增',c.extra], ['字段异常',c.fieldMismatch], ['规范化变化',c.normalized],
-    ['最终结论',CONV_AUDIT.pass ? '校验通过' : '存在需要确认的异常']
+    ['最终结论',CONV_AUDIT.pass ? (c.deferred ? '位号已覆盖，包含未核验的后补物料' : '校验通过') : '存在需要确认的异常']
   ];
   var detail = [['#','位号','原理图Value','原理图Footprint','嘉立创Comment','输出Footprint','嘉立创元件编号','官方型号','官方封装','官方精度','公司精度规则','核验状态','变化说明']];
   CONV_AUDIT.items.forEach(function(item, i){
@@ -3066,6 +3155,7 @@ function jlcExportFilename(sourceName) {
 
 // 导出嘉立创 BOM（严格 4 列：Comment/Designator/Footprint/嘉立创元件编号）
 function exportJlcBom() {
+  if (CONV_OUT.some(function(row){return row.status === 'deferred' && !isConvDeferred(row);})) {alert('后补确认已失效，请撤销后重新处理再导出。');return;}
   if (!CONV_OUT.length) { alert('还没有可导出的数据'); return; }
   if (CONV_OUT.some(function(row){
     return row.verification === 'manual_confirmed' && !convPackageConfirmationMatches(row, {productCode:row.lcsc,package:row.officialPackage});
@@ -3085,7 +3175,7 @@ function exportJlcBom() {
   }
   var blockers = { unmatched:0, invalid:0, verifying:0, failed:0 };
   CONV_OUT.forEach(function(o){
-    if (o.status === 'dnp') return;
+    if (o.status === 'dnp' || isConvDeferred(o)) return;
     var verifiedOk = o.verification === 'verified' || o.verification === 'manual_confirmed';
     if (o.status === 'invalid') blockers.invalid++;
     else if (o.status === 'verifying' || o.status === 'searching') blockers.verifying++;
@@ -3138,7 +3228,8 @@ function exportConvMap() {
   CONV_OUT.forEach(function(o, i){
     var lvText = ['未匹配','L1','L2','L3'][o.matchLevel] || '未匹配';
     var stText = o.status === 'dnp' ? (o.dnpReason || 'DNP（已剔除）')
-      : (o.verification === 'manual_confirmed' ? (o.manualConfirmReason || '人工确认')
+      : (isConvDeferred(o) ? '已确认导出后补充（编码留空）' : o.status === 'deferred' ? '后补确认失效，禁止导出'
+      : o.verification === 'manual_confirmed' ? (o.manualConfirmReason || '人工确认')
       : (o.status === 'matched' ? '已匹配' : '未匹配'));
     data.push([
       i+1,
@@ -3156,6 +3247,9 @@ function exportConvMap() {
   ws['!cols'] = [{wch:5},{wch:20},{wch:18},{wch:40},{wch:8},{wch:14},{wch:14},{wch:10},{wch:14}];
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '映射关系');
+  var deferred = [['型号','位号','位号数','原封装','嘉立创编号','状态']];
+  CONV_OUT.forEach(function(o){if(isConvDeferred(o)) deferred.push([o.comment,o.designator,(o.refs||[]).length,o.footprint,'',o.deferredConfirmation.reason]);});
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(deferred), '导出后补充清单');
   XLSX.writeFile(wb, '嘉立创BOM_映射关系_'+_ts()+'.xlsx');
 }
 
@@ -3180,6 +3274,7 @@ function openLcscSearch(idx) {
   if (!_LCSC_SEARCH_ROW_OVERRIDE) _LCSC_SEARCH_MODE = 'schematic';
   var o = _LCSC_SEARCH_ROW_OVERRIDE || CONV_OUT[idx];
   if (!o) return;
+  if (!_LCSC_SEARCH_ROW_OVERRIDE && o.status === 'deferred') {alert('请先撤销后补，再搜索立创器件。');return;}
   _LCSC_SEARCH_IDX = idx;
 
   // 默认 query：comment（已经是规范化后的型号或容值）
@@ -3339,6 +3434,8 @@ function isRegularPassiveForBrandPlan(row, kind) {
 function getLcscBrandPlan(rowOrDesignator) {
   var row = rowOrDesignator && typeof rowOrDesignator === 'object' ? rowOrDesignator : null;
   var d = firstRefText(rowOrDesignator);
+  var actual = row && explicitPassiveType(row.comment || row.model || row['型号']);
+  if (actual) d = actual === 'capacitor' ? 'C1' : actual === 'resistor' ? 'R1' : 'L1';
   if (d.charAt(0) === 'C' && /^C\d/.test(d)) {
     if (row && !isRegularPassiveForBrandPlan(row, 'cap')) return null;
     return {
@@ -3915,6 +4012,7 @@ function searchLcscOnline(q, pkg) {
 }
 
 function collectOnlineLcscCandidates(row) {
+  if (row.status === 'deferred') return Promise.resolve([]);
   var q = String(row.comment || '').trim();
   if (convSmallCapPf(row) !== null && !/±\s*0\.1\s*pF/i.test(q)) q += ' ±0.1pF';
   var pkg = schematicPackageConstraint(row.footprint || '');
@@ -6432,6 +6530,8 @@ function extractSize(row){
 
 // 判断物料类型（电容/电阻/电感/其他）
 function detectMaterialType(row){
+  var actual = explicitPassiveType(row['型号'] || row.model || row.comment || '');
+  if (actual) return actual;
   var name = String(row['物料名称'] || '').toLowerCase();
   var model = String(row['型号'] || '').toUpperCase();
   var identityText = name + ' ' + model;
@@ -6464,6 +6564,8 @@ function isFerrite(row){
 // 已经可以确认的器件类型、数值和封装，避免线下 BOM 出现名称/描述空白。
 function basicInductorDescription(row){
   row = row || {};
+  var actual = explicitPassiveType(row['型号'] || row.model || row.comment);
+  if (actual && actual !== 'inductor') return null;
   var ref = String(row['位号'] || '').trim().toUpperCase();
   var model = String(row['型号'] || '').trim();
   var name = String(row['物料名称'] || '').trim();
@@ -7606,6 +7708,8 @@ function inductanceValuesConflict(leftNh, rightNh) {
 }
 
 function isInductorAuthorityRow(row) {
+  var actual = explicitPassiveType(row && (row['型号'] || row.model || row.comment));
+  if (actual && actual !== 'inductor') return false;
   var ref = String(row && row['位号'] || '').trim().toUpperCase();
   return /(^|[,;\s])(L|FB)\d+/.test(ref)
     || isFerrite(row)
@@ -7831,6 +7935,8 @@ function officialInductorNh(data) {
 
 function isRfInductorSourceRow(row) {
   row = row || {};
+  var actual = explicitPassiveType(row['型号'] || row.model || row.comment);
+  if (actual && actual !== 'inductor') return false;
   if (isFerrite(row)) return false;
   var refs = String(row['位号'] || row.designator || (row.refs || []).join(',') || '').toUpperCase();
   if (/\b(?:FB|BEAD)\d+/i.test(refs)) return false;
@@ -7853,7 +7959,7 @@ function rfInductorSourceIdentity(row) {
   var materialCode = String(row['物料编码'] || row.material_code || row.companyMaterialCode || '').trim();
   var lcsc = normLcsc(row['立创编号'] || row.lcsc_code || row.lcsc || '');
   var model = String(row._mfgPart || row['原厂型号'] || row.productModel || row['型号'] || row.model || row.comment || '').trim();
-  if (inductorModelIsParameterPlaceholder(model) || /^(?:射频|绕线|贴片|功率)?电感$/i.test(model)) model = '';
+  if (explicitPassiveType(model) || inductorModelIsParameterPlaceholder(model) || /^(?:射频|绕线|贴片|功率)?电感$/i.test(model)) model = '';
   var brand = String(row['品牌'] || row.brand || '').trim();
   var type = materialCode ? 'material' : (lcsc ? 'lcsc' : (model ? 'model' : ''));
   var value = type === 'material' ? materialCode : (type === 'lcsc' ? lcsc : model);
@@ -7947,6 +8053,7 @@ function findRfInductorPreference(row) {
 
 function rfInductorSourceOfficialErrors(row, data) {
   var errors = [];
+  if (!isRfInductorSourceRow(row)) return errors;
   var identity = rfInductorSourceIdentity(row);
   if (!identity.hasIdentity) return errors;
   if (!data || !data.hit) return identity.materialCode ? errors : ['新关键电感无法取得立创官方资料'];
@@ -9027,6 +9134,8 @@ function matchInLib(lib, fn){
 
 function lcscStrictPackageKind(row){
   row = row || {};
+  var actual = explicitPassiveType(row['型号'] || row.model || row.comment);
+  if (actual) return actual;
   var refText = String(row['位号'] || row.designator || '').trim().toUpperCase();
   var firstRef = (refText.split(/[,，;\s]+/).filter(Boolean)[0] || '').toUpperCase();
   var model = String(row['型号'] || row.model || row.comment || '').trim();
@@ -9752,7 +9861,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.61 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理神器 V1.0.62 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>
