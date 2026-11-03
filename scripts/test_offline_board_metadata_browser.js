@@ -139,8 +139,10 @@ async function inspectExport(file, item, templateZip, originalWorkbook) {
         let downloaded=false;const onDownload=()=>{downloaded=true;};page.on('download',onDownload);
         await page.evaluate(()=>fmt('AB'));await page.waitForFunction(()=>!fmtBusy);
         page.off('download',onDownload);
-        const alerts=await page.evaluate(()=>testAlerts);
-        assert(!downloaded,guard.id+' bypassed the technical guard');assert(alerts.some(s=>s.includes(guard.reason)),JSON.stringify(alerts));
+        const issues=await page.evaluate(()=>OFFLINE_REVIEW_STATE.issues);
+        assert(!downloaded,guard.id+' bypassed the technical guard');
+        assert(issues.some(i=>i.kind==='hard'&&i.reason.includes(guard.reason)),JSON.stringify(issues));
+        assert(await page.locator('#offlineReviewExport').isDisabled(),'Hard conflict allowed normal export');
         results.push({label,guard:guard.id,blocked:true});
       }
       assert.deepEqual(errors,[]);await page.close();console.log(label+': 10 metadata export cases, workbook contents/styles, upload reset and 2 technical guards passed');

@@ -6,13 +6,14 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理工具 V1.0.66 团队版</title>
+  <title>技象科技研发BOM 整理工具 V1.0.67 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png?v=3.0.23-cb1">
 <script src="assets/vendor/xlsx.full.min.js?v=0.18.5"></script>
 <script src="assets/vendor/jszip.min.js?v=3.10.1"></script>
 <link rel="stylesheet" href="assets/bom-review.css?v=1.2.1">
 <script defer src="assets/bom-review-engine.js?v=1.2.1"></script>
 <script defer src="assets/bom-review-ui.js?v=1.2.1"></script>
+<script defer src="assets/offline-review.js?v=20261103-1"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:#f0f2f5;min-height:100vh;display:flex;flex-direction:column}
@@ -307,7 +308,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理工具</h2>
-    <p class="v3-sub">团队版 V1.0.66 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V1.0.67 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -969,7 +970,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 </div>
 <header>
 <div class="release-date"><span>更新日期：<time datetime="2026-11-03">20261103</time></span></div>
-        <h1>⚡ 技象科技研发BOM 整理工具 V1.0.66 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+        <h1>⚡ 技象科技研发BOM 整理工具 V1.0.67 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1283,7 +1284,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.66</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.67</span></h3>
 
     <!-- 库切换 Tab -->
     <div class="lib-tabs" style="margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -5654,6 +5655,7 @@ function bindUpload(btnId,boxId,msgId,fmId,side){
     var f = inp.files && inp.files[0];
     if (!f) return;
     B = null;
+    resetOfflineReview();
     document.getElementById('goBtn').disabled = true;
     setCompareActionsReady(false);
     var rd = new FileReader();
@@ -5663,6 +5665,7 @@ function bindUpload(btnId,boxId,msgId,fmId,side){
         var p = parse(wb);
         if (!p.rows.length || !p.fm['位号'] || !p.fm['型号']) throw new Error('立创BOM缺少位号、型号或有效物料行');
         B = p; B._fn = f.name; B._reviewWorkbook = wb; B._reviewBytes = new Uint8Array(ev.target.result);
+        B._offlineSourceRows = p.rows.map(function(row){return Object.assign({},row);});
         fillBoardFields(f.name);
         document.getElementById(boxId).classList.add('ok');
         document.getElementById(msgId).textContent = '✅ ' + f.name + '（' + p.rows.length + '条物料）';
@@ -7403,6 +7406,7 @@ function setCompareActionsReady(ready){
 
 async function doCompare(){
   if(!A||!B)return;
+  if (!B._offlineSourceRows) B._offlineSourceRows = B.rows.map(function(row){return Object.assign({},row);});
   RES = null;
   var missingRef = B.rows.filter(function(r){return !r['位号']}).length;
   var missingModel = B.rows.filter(function(r){return !r['型号']}).length;
@@ -7413,11 +7417,15 @@ async function doCompare(){
   document.getElementById('out').classList.add('show');
   setCompareActionsReady(false);
   document.getElementById('out').scrollIntoView({behavior:'smooth'});
+  var checkedBom = B;
   var onlineSummary = await batchAutoFetchAll({automatic:true, silent:true});
+  if (B !== checkedBom) return;
+  var reviewState = await offlineReviewPrepare();
+  if (B !== checkedBom || !reviewState) return;
   var onlineText = onlineSummary.total
     ? ' 自动查询 ' + onlineSummary.total + ' 条：已确认 ' + onlineSummary.ok + ' 条，查无此号 ' + onlineSummary.notHit + ' 条，资料冲突 ' + onlineSummary.conflict + ' 条，查询失败 ' + onlineSummary.fail + ' 条。'
     : ' 无需在线补齐。';
-  document.getElementById('checkSummary').textContent = summary + onlineText + ' 生成后可进入线下BOM审查。';
+  document.getElementById('checkSummary').textContent = summary + onlineText + offlineReviewSummary() + ' 生成时可处理待确认项或导出待复核稿。';
   setCompareActionsReady(true);
   return onlineSummary;
 }
@@ -8045,6 +8053,7 @@ function appendReportSheet(zip, enrichStats, enrichDetails){
     // 生成补齐报告 sheet XML
     function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     var reportRows = [['位号','型号','匹配等级','补齐字段','待核实事项']];
+    if (enrichStats.draft) reportRows.push(['文件状态','待复核稿','','','存在未解决事项；明确冲突行按源资料保留，请逐项复核']);
     enrichDetails.forEach(function(d){
       reportRows.push([d.ref, d.model, d.level === 'review' ? '待核实' : (d.level === 'auto' ? '基础描述' : (d.level === 'rf' ? '射频库' : 'L'+d.level)), d.filled.join(' / '), (d.warnings || []).join('；')]);
     });
@@ -8354,6 +8363,11 @@ function officialInductorNh(data) {
 
 function isRfInductorSourceRow(row) {
   row = row || {};
+  // 官方已明确为功率/插件电感或共模滤波器时，按实际类型处理；公司指定库身份仍优先。
+  if (/功率电感|插件电感|共模|差模|POWER INDUCTOR|COMMON.?MODE/i.test(String(row._officialProductType || ''))) {
+    var explicitIdentity = rfInductorSourceIdentity(row);
+    if (!materialDB_rf_inductor.some(function(item){return rfInductorIdentityMatches(item,explicitIdentity);})) return false;
+  }
   var actual = explicitPassiveType(row['型号'] || row.model || row.comment);
   if (actual && actual !== 'inductor') return false;
   if (isFerrite(row)) return false;
@@ -8703,8 +8717,9 @@ function verifyBomAuthority(rows) {
         return;
       }
       byCode[item.code] = result.data;
+      var typedRow = Object.assign({},item.row,{_officialProductType:result.data.productType || ''});
       var errors = item.rfRecord ? rfInductorOfficialErrors(item.rfRecord, result.data)
-        : (item.rfSource ? rfInductorSourceOfficialErrors(item.row, result.data) : officialPassiveErrors(item.row, result.data));
+        : (item.rfSource && isRfInductorSourceRow(typedRow) ? rfInductorSourceOfficialErrors(item.row, result.data) : officialPassiveErrors(item.row, result.data));
       if (!item.rfRecord && isInductorAuthorityRow(item.row)) {
         var bomNh = getRowInductanceNh(item.row);
         var officialNh = officialInductorNh(result.data);
@@ -8969,65 +8984,17 @@ var fmtBusy = false;
 function fmt(dir){
   if(!A||!B)return;
   if (dir !== 'AB') return fmtCore(dir, Object.create(null));
-  if (!standardLibraryReadyForConversion()) return;
   if (fmtBusy) return;
   updateBoardInfoHint();
   fmtBusy = true;
-  var btn = document.getElementById('fmtAB');
-  var originalHtml = btn ? btn.innerHTML : '';
-  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ 正在核验立创物料...'; }
-
-  function finish(){
+  var btn = document.getElementById('fmtAB'), originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {btn.disabled = true; btn.innerHTML = '⏳ 正在核验立创物料...';}
+  return offlineReviewExport(false).catch(function(error){
+    alert('核对失败：' + (error && error.message || error) + '。请重新检查；源BOM资料已保留。');
+  }).finally(function(){
     fmtBusy = false;
-    if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
-  }
-
-  verifyBomAuthority(B.rows).then(function(result){
-    if (result.mismatches.length) {
-      var lines = result.mismatches.slice(0, 8).map(function(item){
-        return item.ref + ' / ' + item.code + '：' + item.reason + '\nBOM ' + item.bom + '；立创 ' + item.official;
-      });
-      alert('⛔ 已停止导出：BOM 与立创编号对应商品存在规格冲突。\n\n' + lines.join('\n') + '\n\n请修正源 BOM 后重新导出。');
-      return;
-    }
-    var unverifiedRfCandidates = (result.rfCandidates || []).filter(function(item){
-      var code = normLcsc(item.row && item.row['立创编号']);
-      return !(item.identity && item.identity.materialCode) && (!code || result.failedCodes.indexOf(code) >= 0);
-    });
-    if (unverifiedRfCandidates.length) {
-      alert('⛔ 已停止导出：待入库新关键电感未完成立创官方核验。\n\n'
-        + unverifiedRfCandidates.slice(0, 8).map(function(item){ return (item.row['位号'] || '-') + ' / ' + rfInductorIdentityLabel(item.identity); }).join('\n')
-        + '\n\n请恢复立创查询后重试；有公司物料编码的器件仍以公司资料为准。');
-      return;
-    }
-    if (result.failedCodes.length) {
-      var proceed = confirm('⚠️ 以下立创编号未能取得完整官方资料：\n' + result.failedCodes.join('、')
-        + '\n\n继续导出会使用公司标准库和源 BOM，并在补齐报告中标记待核实。是否继续？');
-      if (!proceed) return;
-    }
-    if (result.rfCandidates && result.rfCandidates.length) {
-      var candidateLines = result.rfCandidates.slice(0, 8).map(function(item){
-        return (item.row['位号'] || '-') + ' / ' + rfInductorIdentityLabel(item.identity);
-      });
-      var confirmed = confirm('发现 ' + result.rfCandidates.length + ' 行源BOM明确指定、但尚未纳入射频电感库的新关键电感：\n\n'
-        + candidateLines.join('\n') + (result.rfCandidates.length > 8 ? '\n……' : '')
-        + '\n\n本次将保留源BOM器件，并在线下BOM中标记“新关键电感待入库”。库文件不会自动更新，后续只能由管理员在物料库管理中导入。是否继续？');
-      if (!confirmed) return;
-    }
-    fmtCore(dir, result.byCode);
-  }).catch(function(error){
-    var pendingRfRows = (B && B.rows ? B.rows : []).map(function(row){ return {row:row, rf:findRfInductorPreference(row)}; })
-      .filter(function(item){ return item.rf.mode === 'source' && !(item.rf.identity && item.rf.identity.materialCode); });
-    if (pendingRfRows.length) {
-      alert('⛔ 已停止导出：立创核验服务不可用，且当前BOM包含未入库的新关键电感。\n\n'
-        + pendingRfRows.slice(0, 8).map(function(item){ return (item.row['位号'] || '-') + ' / ' + rfInductorIdentityLabel(item.rf.identity); }).join('\n')
-        + '\n\n为防止错误型号进入线下BOM，请恢复官方核验后重试。');
-      return;
-    }
-    var proceed = confirm('⚠️ 立创物料核验服务暂时不可用：' + (error && error.message ? error.message : error)
-      + '\n\n继续导出会使用公司标准库和源 BOM，并在补齐报告中标记待核实。是否继续？');
-    if (proceed) fmtCore(dir, Object.create(null));
-  }).then(finish, finish);
+    if (btn) {btn.disabled = false; btn.innerHTML = originalHtml;}
+  });
 }
 
 // 线下 BOM 缺参只允许在当前上传会话内补齐；不会写入标准库、立创库或射频电感库。
@@ -9234,11 +9201,21 @@ function pickOfflineSupplementCandidate(candidate) {
     source:'立创搜索（仅本次BOM）'
   };
   source['备注'] = [source['备注'], '本次BOM立创搜索补齐=' + (oldCode || '-') + '→' + newCode].filter(Boolean).join('；');
+  if (B._offlineSourceRows) B._offlineSourceRows[item.sourceIndex] = Object.assign({},source);
+  source._offlineOfficialDetails = {signature:offlineReviewIdentitySignature(source),data:detail};
+  if (OFFLINE_REVIEW_STATE.owner === B) {
+    Object.keys(OFFLINE_REVIEW_STATE.decisions).forEach(function(key){
+      if (JSON.parse(key)[0] === item.sourceIndex) delete OFFLINE_REVIEW_STATE.decisions[key];
+    });
+    OFFLINE_REVIEW_STATE.signature = '';
+  }
   closeLcscSearch();
   renderOfflineSupplementModal();
+  if (OFFLINE_REVIEW_STATE.owner === B && document.getElementById('offlineReviewModal')) offlineReviewRefresh();
 }
 
-function fmtCore(dir, lcscIdentityByCode){
+function fmtCore(dir, lcscIdentityByCode, options){
+  options = options || {};
   lcscIdentityByCode = lcscIdentityByCode || Object.create(null);
   var tpl = dir==='AB' ? A : B;
   var dat = dir==='AB' ? B : A;
@@ -9255,6 +9232,15 @@ function fmtCore(dir, lcscIdentityByCode){
     var clone = {};
     for (var k in u) clone[k] = u[k];
     if (clone._specWarnings) clone._specWarnings = clone._specWarnings.slice();
+    // 明确冲突的待复核稿按原资料保留，不能由归一化器改写成“合规”。
+    if (dir === 'AB' && options.draft && (options.hardRows || []).indexOf(idx) >= 0) {
+      clone = Object.assign({},offlineReviewSourceRow(idx));
+      offlineReviewAnnotate(clone,idx,options,enrichDetails,enrichStats);
+      rows.push(hd.map(function(h){var field=rev[h];return field && clone[field] !== undefined ? clone[field] : '';}));
+      return;
+    }
+    var sourceOfficial = lcscIdentityByCode[normLcsc(clone['立创编号'])];
+    if (sourceOfficial) clone._officialProductType = sourceOfficial.productType || '';
     var offlineManualPick = clone._offlineManualPick;
     // 净化原始参数描述（消除历史 | 分隔脏数据）
     if (clone['参数描述']) clone['参数描述'] = cleanSpec(clone['参数描述']);
@@ -9413,6 +9399,7 @@ function fmtCore(dir, lcscIdentityByCode){
       enrichDetails.push({ref:clone['位号']||'', model:clone['型号']||'', level:'review', filled:[], warnings:reviewMessages.slice()});
       enrichStats.review = (enrichStats.review || 0) + 1;
     }
+    if (dir === 'AB' && options.reviewExport) offlineReviewAnnotate(clone,idx,options,enrichDetails,enrichStats);
     if (dir === 'AB') markInternalCodeAsKeyComponent(clone);
     var r = [];
     hd.forEach(function(h){
@@ -9422,7 +9409,8 @@ function fmtCore(dir, lcscIdentityByCode){
     rows.push(r);
   });
 
-  if (dir === 'AB' && offlineFormatErrors.length) {
+  if (options.preview) return {headers:hd, rows:rows, formatErrors:offlineFormatErrors};
+  if (dir === 'AB' && offlineFormatErrors.length && !options.reviewExport) {
     showOfflineSupplementModal(offlineFormatErrors);
     return;
   }
@@ -9449,6 +9437,12 @@ function fmtCore(dir, lcscIdentityByCode){
       // 生成新文件名：清洗后的 B 原文件名
       var outFilename = cleanBomFilename(B._fn || 'BOM') + '.xlsx';
       if (/^TP1506-M22(?:主板)?$/i.test(boardName)) outFilename = outFilename.replace(/TP1506-MS22/g, 'TP1506-M22');
+      if (options.draft) {
+        outFilename = outFilename.replace(/\.xlsx$/i,'_待复核稿.xlsx');
+        enrichStats.draft = true;
+        replacePairs.push({regex:/单板 BOM 文 件/g, to:'单板 BOM 文 件（待复核稿）'},
+          {regex:/单板BOM清单/g, to:'单板BOM清单（待复核稿）'});
+      }
       patchAndDownloadXlsx(A._raw, rows, enrichStats, enrichDetails, dl, tl, hd, replacePairs, outFilename)
         .catch(function(err){ console.error('内置模板生成失败：', err); alert('生成失败：' + err.message); });
       return;
@@ -9776,6 +9770,12 @@ function lcscJson(url, options) {
 function applyLcscToRow(item, data){
   if (!data || !data.hit) return false;
   var row = item.row;
+  row._offlineOfficialDetails = {signature:offlineReviewIdentitySignature(row),data:data};
+  var smallCapError = companySmallCapToleranceError(row,data);
+  if (smallCapError) {
+    addPassiveWarning(row,smallCapError + '，未引用该立创结果');
+    return false;
+  }
   var passive = passiveIdentity(row);
   var officialSpec = buildSpecFromExtracted(data._extracted, data.productType, data.package) || data.specification || '';
   if (passive) {
@@ -10276,7 +10276,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理工具 V1.0.66 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理工具 V1.0.67 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>
