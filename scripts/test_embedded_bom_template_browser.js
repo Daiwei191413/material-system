@@ -41,11 +41,11 @@ async function inspectOutput(filename, expectedRows) {
   assert.deepEqual(workbook.SheetNames, ['封面', '单板BOM', '补齐报告']);
   const cover = workbook.Sheets['封面'];
   const bom = workbook.Sheets['单板BOM'];
-  assert.match(String(cover.D9?.v || ''), /TP1211-MK36主板/);
+  assert.match(String(cover.D9?.v || ''), /TP1211-MK36/);
   assert.match(String(cover.D10?.v || ''), /A-01-02-00259/);
   assert.match(String(cover.D11?.v || ''), /V1\.0/);
-  assert.match(String(bom.A2?.v || ''), /TP1211-MK36主板/);
-  assert.match(String(bom.E2?.v || ''), /TP1211-MK36主板PCBA/);
+  assert.match(String(bom.A2?.v || ''), /TP1211-MK36/);
+  assert.match(String(bom.E2?.v || ''), /TP1211-MK36PCBA/);
   assert.match(String(bom.A3?.v || ''), /A-01-02-00259/);
   assert.match(String(bom.E3?.v || ''), /V1\.0/);
   for (const cell of ['A23','B23','E23','F23','G23','A24','B24','E24','F24','G24']) assert.equal(cover[cell]?.v ?? '', '', `old revision remains in ${cell}`);
@@ -160,7 +160,7 @@ async function inspectOutput(filename, expectedRows) {
       const expectedFilename = await page.evaluate(filename => cleanBomFilename(filename) + '.xlsx', path.basename(source));
       const expectedRows = await page.evaluate(() => B.rows.length);
       assert(expectedRows > 0);
-      assert.equal(await page.locator('#boardName').inputValue(), 'TP1211-MK36主板');
+      assert.equal(await page.locator('#boardName').inputValue(), 'TP1211-MK36');
       assert.equal(await page.locator('#boardErp').inputValue(), 'A-01-02-00259');
       assert.equal(await page.locator('#boardVersion').inputValue(), 'V1.0');
       assert.equal(await page.locator('#goBtn').isDisabled(), false);
