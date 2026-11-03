@@ -32,8 +32,10 @@ function offlineReviewAdd(issues, index, kind, reason, data, fields) {
   var item = {sourceIndex:index, kind:kind, reason:reason, official:data || null, fields:fields || [],
     ref:row ? row['位号'] || '-' : '整份BOM', model:row ? row['型号'] || '' : '',
     package:row ? row['封装'] || '' : '', lcsc:row ? row['立创编号'] || '' : ''};
+  var authority = row ? findRfInductorPreference(row) : {mode:'none'};
   item.key = JSON.stringify([index,kind,reason,offlineReviewSourceSignature(row),
-    data && data.productCode,data && data.productModel,data && data.package,data && data.specification,data && data._extracted,data && data.productType,data && data.paramLinkedMap]);
+    data && data.productCode,data && data.productModel,data && data.package,data && data.specification,data && data._extracted,data && data.productType,data && data.paramLinkedMap,
+    authority.mode === 'exact' ? authority.record : null]);
   issues.push(item);
 }
 function offlineReviewConfirmed(item) {
@@ -73,7 +75,8 @@ function offlineReviewBuildIssues(result) {
         var kind = /封装/.test(reason) && !/缺少/.test(reason) ? offlineReviewPackageKind(row,data)
           : /缺少|无法取得|未提供|缺.*编号/.test(reason) ? 'lookup' : 'hard';
         if (/缺少可核验立创编号/.test(reason)) kind = 'source';
-        if (/型号.*不一致/.test(reason) && data && offlineReviewModelEvidence(row,normLcsc(data.productCode))) kind = 'model';
+        // 名称不同只能证明映射待核实，不能单凭文字差异认定器件不兼容。
+        if (/型号.*不一致/.test(reason) && data) kind = 'model';
         offlineReviewAdd(issues,index,kind,reason,data);
       });
     });
@@ -100,8 +103,8 @@ function offlineReviewBuildIssues(result) {
       var sourceModel = schematicExplicitModel(row);
       if (sourceModel && data.productModel && sourceModel !== normModel(data.productModel)) {
         var evidence = offlineReviewModelEvidence(row,normLcsc(data.productCode));
-        offlineReviewAdd(issues,index,evidence ? 'model' : 'hard',
-          evidence ? '源型号与官方型号不同，当前公司立创库存在唯一同编号映射，请核对' : '源厂家型号与立创编号对应型号不一致',data);
+        offlineReviewAdd(issues,index,'model',
+          evidence ? '型号对应关系待确认：公司立创库存在唯一同编号映射' : '型号对应关系待人工核实：源型号与商城登记型号不同，可确认保留源型号或修改本次BOM',data);
       }
       if (normLcsc(data.productCode) !== code) offlineReviewAdd(issues,index,'hard','官方返回的立创编号与当前编号不一致',data);
       var p = normPkg(row['封装']), op = normPkg(data.package);
@@ -197,7 +200,7 @@ function offlineReviewPrepare(force) {
   });
 }
 function offlineReviewActionLabel(item) {
-  return item.kind === 'model' ? '已核对唯一同编号的型号映射' : item.kind === 'package' ? '已核对实际焊盘兼容'
+  return item.kind === 'model' ? '已核实型号对应关系，保留源型号及当前采购编号' : item.kind === 'package' ? '已核对实际焊盘兼容'
     : item.kind === 'source' ? '按源BOM保留，线下采购'
     : item.kind === 'parameters' ? '缺失参数留空，标记待核实'
     : item.kind === 'library' ? '采用当前资料，未匹配项待核实'
@@ -253,7 +256,7 @@ function renderOfflineReviewModal() {
     var action = item.kind === 'hard' ? '<span style="color:#b91c1c">明确冲突：须修正后重新校验</span>'
       : '<label><input type="checkbox" ' + (offlineReviewConfirmed(item) ? 'checked ' : '') + 'onchange="offlineReviewSetConfirmation(' + index + ',this.checked)">'
         + esc(offlineReviewActionLabel(item)) + '</label>';
-    var editor = row ? '<details style="margin-top:8px"><summary>修改本次BOM资料</summary>'
+    var editor = row ? '<details style="margin-top:8px"><summary style="display:inline-block;padding:6px 10px;border:1px solid #0078b8;border-radius:4px;color:#0078b8;cursor:pointer;background:#f0f9ff">✎ 修改型号 / 编号 / 封装 / 参数</summary>'
       + ['型号','封装','立创编号','参数描述'].map(function(field,j){return '<label style="display:block">' + field + '<input id="offlineEdit-' + index + '-' + j
         + '" value="' + offlineReviewEscapeAttribute(row[field]) + '" style="display:block;width:220px;box-sizing:border-box"></label>';}).join('')
       + '<button type="button" onclick="offlineReviewSaveRow(' + index + ')">保存并重新校验</button></details>' : '';
@@ -318,8 +321,14 @@ function offlineReviewAnnotate(row,index,options,details,stats) {
     details.push({ref:row['位号'] || '',model:row['型号'] || '',level:'review',filled:[],warnings:[note]});
     stats.review=(stats.review || 0)+1;
     if (item.kind==='package' || item.kind==='source' || item.kind==='model') {
-      row['型号']=source['型号']; row['封装']=source['封装'];
-      row['立创编号']=normLcsc(source['立创编号']);
+      var choice = findRfInductorPreference(source);
+      var identity = choice.mode === 'exact' ? {
+        '型号':choice.record.model || choice.record['型号'] || source['型号'],
+        '封装':choice.record.package || choice.record['封装'] || source['封装'],
+        '立创编号':choice.record.lcsc_code || choice.record['立创编号'] || source['立创编号']
+      } : source;
+      row['型号']=identity['型号']; row['封装']=identity['封装'];
+      row['立创编号']=normLcsc(identity['立创编号']);
       if (!row['立创编号'] && source['立创编号']) row['备注'] += '；源采购标记=' + source['立创编号'];
     }
   });

@@ -323,7 +323,7 @@ async function runAdditionalBoundaries(browser,base,relative,label){
    for(const item of [
     {id:'small-cap',row:['6pF','C6','SC0402','C810002','MLCC 6pF ±0.25pF 50V C0G SMD 0402'],reason:/精度/,original:'±0.25pF'},
     {id:'resistance',row:['10K','R1','SR0402','C810003','厚膜电阻 10KΩ ±1% 1/16W SMD 0402'],reason:/阻值/,original:'10K'},
-    {id:'power-model',row:['DIFFERENT-POWER-MODEL','L1','MWSA0603S-5R6MT','C408450',''],reason:/型号/,original:'DIFFERENT-POWER-MODEL'}
+     {id:'physical-size',row:['MWSA0603S-8R2MT','L1','SMD,8x7mm','C408450',''],reason:/尺寸/,original:'MWSA0603S-8R2MT'}
    ]){
     const guarded=await preparePage(browser,base,relative,fixtures);
     const check=await uploadAndCheck(guarded.page,[item.row],item.id+'.xlsx');
