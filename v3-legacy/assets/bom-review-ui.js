@@ -2,7 +2,7 @@
   'use strict';
   var E=window.BOMReview;
   if(!E)return;
-  var state={primary:null,source:null,result:null,roles:{},bindings:{},serial:{primary:0,source:0},last:null,librarySignature:''};
+  var state={primary:null,source:null,result:null,roles:{},bindings:{},serial:{primary:0,source:0},last:null,librarySignature:'',edits:[],undo:[],revision:0};
   function el(id){return document.getElementById(id);}
   function html(v){return E.text(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function message(s,cls){el('reviewMessage').textContent=s;el('reviewMessage').className='review-message '+(cls||'');}
@@ -13,7 +13,9 @@
   }
   function libraryChanged(){return !!state.result&&state.librarySignature!==JSON.stringify(materialSnapshot());}
   function invalidate(){
+    state.revision++;if(el('reviewEditDialog'))el('reviewEditDialog').close();if(el('reviewBomDialog'))el('reviewBomDialog').close();
     state.result=null;el('reviewExport').disabled=true;el('reviewResults').hidden=true;
+    if(el('reviewExportBom'))el('reviewExportBom').disabled=true;
     el('reviewRun').disabled=!state.primary;
     message(state.primary?'输入或设置已变化，请重新审查。':'请上传待审查线下BOM。','stale');
   }
@@ -40,7 +42,7 @@
   }
   async function load(side,file){
     var sequence=++state.serial[side];state[side]=null;invalidate();editor(side);
-    if(side==='primary'){state.roles={};state.bindings={};el('reviewActuals').value='';preview();}
+    if(side==='primary'){state.roles={};state.bindings={};state.edits=[];state.undo=[];updateEditStatus();el('reviewActuals').value='';preview();}
     if(!file)return;
     try{
       message('正在读取 '+file.name+'…');
@@ -76,6 +78,7 @@
       state.result=E.analyze(state.primary.doc,state.source&&state.source.doc,{roles:state.roles,bindings:state.bindings,actuals:actuals(),materialLibrary:library});
       state.librarySignature=JSON.stringify(library);
       el('reviewResults').hidden=false;el('reviewExport').disabled=false;
+      el('reviewExportBom').disabled=!state.edits.length;
       var r=state.result, files=r.fileCounts||{abnormal:0,unverified:0};
       var duplicateOption=el('reviewFilter').querySelector('option[value=duplicates]');if(duplicateOption)duplicateOption.textContent='同料归一化（'+(r.duplicateGroups||[]).length+'组）';
       el('reviewSummary').innerHTML=[
@@ -122,7 +125,7 @@
       if(a.suggestion)basis+='<div class="review-suggestion"><strong>建议：</strong>'+html(a.suggestion)+'</div>';
       return '<tr><td data-label="行号">'+line+'</td><td data-label="位号 / 型号"><strong>'+html(a.refs||'未提供位号')+'</strong><div class="review-part-model">'+html(a.model||'—')+'</div><div class="review-material-code">物料编码：'+html(a.materialCode||'未提供')+'</div><div class="review-suggestion">封装：'+html(a.package||'未提供')+'；数量：'+html(a.quantity||'未提供')+'</div></td>'
         +'<td data-label="核对结果"><span class="review-issue-badge review-'+html(a.status)+'">'+html(auditLabels[a.status]||a.status)+'</span></td><td data-label="待核对内容与原因">'+reason+'</td><td data-label="依据与建议">'+basis+'</td>'
-        +'<td data-label="操作"><button type="button" class="review-detail-button" '+attr+'>查看全部检查项</button></td></tr>';
+        +'<td data-label="操作"><button type="button" class="review-detail-button" '+attr+'>查看全部检查项</button>'+(a.scope==='file'?'':'<button type="button" class="review-detail-button" data-review-edit="'+html(a.key)+'">修改本行</button>'+((state.result.duplicateGroups||[]).some(function(g){return g.rows.some(function(r){return r.key===a.key;});})?'<button type="button" class="review-detail-button" data-review-merge="'+html(a.key)+'">编辑并确认归并</button>':''))+'</td></tr>';
     }).join('')||'<tr><td colspan="6" class="review-empty">当前筛选条件下没有核对明细。</td></tr>';
   }
   function evidence(id,rowId){
@@ -151,8 +154,84 @@
       var details=[header].concat(r.auditRows.map(function(a){return [a.scope==='file'?'文件范围':a.row,a.refs,a.model,a.materialCode||'',a.specification,a.package,a.quantity,a.inductorStatus||'',auditLabels[a.status],rowFields(a),a.finding,a.expected||'',rowEvidence(a),a.suggestion||'',listText(a.checkedFields),listText(a.uncovered),rowConfirmations(a)];}));
       var checkDetails=[['检查编号','原行号','位号','字段','原单元格','核对结果','当前内容','对照内容','具体原因','依据','建议操作','人工确认记录']].concat(r.checks.map(function(check){return [check.id,check.key?check.row:'文件范围',check.refs,check.field,(check.sheet?check.sheet+'!':'')+(check.cell||'文件范围'),outcomeLabels[outcome(check)],check.observed,check.expected,check.message,check.source,check.suggestion,confirmationText(check.confirmation)];}));
       [['审查结论',overview],['逐行核对明细',details],['检查项明细',checkDetails]].forEach(function(pair){var sheet=XLSX.utils.aoa_to_sheet(pair[1]);sheet['!cols']=pair[0]==='审查结论'?[{wch:25},{wch:100}]:pair[0]==='逐行核对明细'?[10,24,28,22,48,18,10,28,18,22,70,40,45,50,28,60,60].map(function(w){return {wch:w};}):[12,10,24,18,25,18,45,45,70,45,50,60].map(function(w){return {wch:w};});if(pair[0]!=='审查结论')sheet['!autofilter']={ref:sheet['!ref']};XLSX.utils.book_append_sheet(wb,sheet,pair[0]);});
+      if(state.edits.length)window.BOMReviewEdit.appendSheet(wb,XLSX,'本次修改记录',window.BOMReviewEdit.logRows(state.edits));
       XLSX.writeFile(wb,'线下BOM审查报告_'+new Date().toISOString().replace(/[:.]/g,'-')+'.xlsx');
     }catch(error){message('报告导出失败：'+error.message,'error');}
+  }
+  var editSession=null,exportRevision=null;
+  function updateEditStatus(){
+    if(el('reviewUndo'))el('reviewUndo').disabled=!state.undo.length;
+    if(el('reviewEditStatus'))el('reviewEditStatus').textContent=state.edits.length?'本次已修改 '+state.edits.length+' 次，仅保存在当前页面，刷新或重新上传前请导出。原上传文件和物料库保持不变；归并后的空行在导出文件中隐藏，当前工作簿的其他表页保留。':'可在审查明细中修改本行，或编辑并确认同料归并。';
+  }
+  function currentResult(){
+    if(libraryChanged()){invalidate();message('公司标准库已变化，请重新审查。','stale');return false;}
+    return !!state.result&&!!state.primary&&state.primary.valid;
+  }
+  function openEdit(key,merge){
+    if(!currentResult())return;
+    var d=state.primary.doc, group=merge&&(state.result.duplicateGroups||[]).find(function(g){return g.rows.some(function(r){return r.key===key;});});
+    if(merge&&!group)return;
+    if(group&&group.quantity===null){message('这一组的位号或数量需要先修正。请使用“修改本行”，复审后再归并。','error');return;}
+    var keys=group?group.rows.map(function(r){return r.key;}):[key],rows=keys.map(function(k){return d.rows.find(function(r){return r.key===k;});});
+    if(rows.some(function(r){return !r;}))return;
+    editSession={revision:state.revision,keys:keys,group:group,headers:d.headers.slice()};
+    var base=rows[0],fields=d.headers.map(function(h,c){var f=E.FIELDS.find(function(f){return d.mapping[f]===c;}),value=E.text(base.raw[c]);
+      if(group&&f==='位号')value=group.refs.join(', ');if(group&&f==='数量')value=group.quantity;
+      return '<label>'+html(h||E.column(c)+'列')+(group&&new Set(rows.map(function(r){return E.text(r.raw[c]);})).size>1?'<strong class="review-edit-diff"> 原行存在差异</strong>':'')+'<textarea data-edit-col="'+c+'" '+(group&&['位号','数量'].indexOf(f)>=0?'readonly':'')+'>'+html(value)+'</textarea></label>';
+    }).join('');
+    var missing=E.FIELDS.filter(function(f){return d.mapping[f]==null;}).map(function(f){return '<label>'+html(f)+'（补充列）<textarea data-edit-add="'+html(f)+'"></textarea></label>';}).join('');
+    el('reviewEditContent').innerHTML='<h3 id="reviewEditTitle">'+(group?'编辑并确认同料归并':'修改本行')+'</h3><p>仅修改本次BOM工作副本。保存后自动重新审查；本次确认不会放行其他检查项。</p>'
+      +'<p>'+html(group?'原行 '+rows.map(function(r){return r.row;}).join('、')+' → 保留第 '+base.row+' 行；位号 '+group.refs.join('、')+'；数量 '+group.quantity:'第 '+base.row+' 行 · '+base.values['位号'])+'</p>'
+      +(group?'<div class="review-coverage">请逐项核实功率、精度、耐压、品牌、采购编号及装配要求。'+html(group.reasons.join('；'))+'</div>':'')
+      +'<details open><summary>原行完整对照</summary><div class="review-table-wrap"><table class="review-table"><thead><tr><th>字段</th>'+rows.map(function(r){return '<th>第'+r.row+'行 · '+html(r.values['位号'])+'</th>';}).join('')+'</tr></thead><tbody>'+d.headers.map(function(h,c){return '<tr><th>'+html(h||E.column(c)+'列')+'</th>'+rows.map(function(r){return '<td>'+html(r.raw[c])+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table></div></details>'
+      +'<h4>保存后的内容（默认取第一行，请核对后修改）</h4><div class="review-edit-grid">'+fields+'</div>'
+      +(missing?'<details><summary>补充未提供的字段</summary><div class="review-edit-grid">'+missing+'</div></details>':'')
+      +'<div class="review-edit-grid"><label>确认人<input id="reviewEditReviewer" autocomplete="name" value="'+html(window.BOM_API&&window.BOM_API.user&&window.BOM_API.user.username||'')+'"></label><label>修改 / 归并依据<textarea id="reviewEditReason" placeholder="例如：依据图纸或规格书确认功率、精度及采购要求一致"></textarea></label></div>'
+      +'<label class="review-edit-confirm"><input type="checkbox" id="reviewEditConfirmed">'+(group?'我已核对原行差异与装配要求，确认这些位号使用同一物料，并认可上方归并内容。':'我已核对修改内容及依据，确认保存到本次BOM。')+'</label>';
+    el('reviewEditError').textContent='';el('reviewEditDialog').showModal();
+  }
+  async function saveEdit(){
+    var session=editSession;if(!session||session.revision!==state.revision||!currentResult())return;
+    var button=el('reviewEditSave');button.disabled=true;
+    try{
+      var additions={};el('reviewEditContent').querySelectorAll('[data-edit-add]').forEach(function(t){additions[t.dataset.editAdd]=t.value;});
+      var change=window.BOMReviewEdit.change(state.primary,{keys:session.keys,values:Array.from(el('reviewEditContent').querySelectorAll('[data-edit-col]')).map(function(t){return t.value;}),additions:additions,roles:state.roles,reviewer:el('reviewEditReviewer').value,reason:el('reviewEditReason').value,confirmed:el('reviewEditConfirmed').checked},XLSX);
+      var previous=state.primary, bytes=XLSX.write(change.wb,{bookType:'xlsx',type:'array'}),hash=await digest(bytes);
+      if(session!==editSession||!el('reviewEditDialog').open||session.revision!==state.revision||previous!==state.primary||!currentResult())return;
+      var next=Object.assign({},previous,{wb:change.wb,hash:hash,valid:true});
+      next.doc=E.readWorkbook(next.wb,XLSX,{name:next.name,hash:hash,sheet:previous.doc.sheet,headerRow:previous.doc.headerRow,mapping:change.mapping,reviewContext:next.reviewContext});
+      // Validate before committing the working copy; exceptions leave the current BOM intact.
+      E.analyze(next.doc,state.source&&state.source.doc,{roles:state.roles,bindings:state.bindings,actuals:actuals(),materialLibrary:materialSnapshot()});
+      state.undo.push({primary:previous,roles:Object.assign({},state.roles),bindings:Object.assign({},state.bindings)});state.edits.push(change.record);state.primary=next;
+      session.keys.slice(1).forEach(function(key){delete state.roles[key];delete state.bindings[key];});
+      invalidate();editor('primary');preview();updateEditStatus();run();
+      message('已保存'+change.record.action+'并重新审查。请查看剩余冲突或待核实事项，再导出修改后BOM。');
+    }catch(error){el('reviewEditError').textContent=error.message;}finally{button.disabled=false;}
+  }
+  function undoEdit(){
+    var last=state.undo.pop();if(!last)return;
+    state.primary=last.primary;state.roles=last.roles;state.bindings=last.bindings;state.edits.pop();invalidate();editor('primary');preview();updateEditStatus();run();message('已撤销上一次修改并重新审查。');
+  }
+  function openBomExport(){
+    if(!currentResult()||!state.edits.length)return;
+    var r=state.result,conflicts=r.auditCounts.abnormal+(r.fileCounts.abnormal||0);
+    if(conflicts){el('reviewFilter').value='abnormal';renderResults();message('仍有 '+conflicts+' 项明确冲突，请通过“修改本行”修正并复审后导出BOM；可先导出审查报告。','error');return;}
+    exportRevision=state.revision;
+    var pending=r.auditCounts.unverified+(r.fileCounts.unverified||0);
+    el('reviewBomContent').innerHTML='<h3 id="reviewBomTitle">导出修改后BOM</h3><p>已完成 '+state.edits.length+' 次修改，当前 '+r.auditCounts.total+' 行物料，明确冲突 0，待核实行 / 文件项 '+pending+'。</p><p>导出文件附带审查明细和人工修改记录；待核实事项仍保留原状态。其他表页保留，公式请在Excel打开后重新计算。</p>'+(pending?'<details open><summary>待核实范围</summary><ul>'+r.auditRows.filter(function(a){return a.status==='unverified';}).map(function(a){return '<li>'+html((a.scope==='file'?'文件范围':'第'+a.row+'行 '+a.refs)+'：'+a.finding)+'</li>';}).join('')+'</ul></details>':'')+'<label class="review-edit-confirm"><input type="checkbox" id="reviewBomConfirmed">我已阅读本次审查结果，知悉待核实范围，确认导出此版本BOM。</label>';
+    el('reviewBomError').textContent='';el('reviewBomDialog').showModal();
+  }
+  function exportBom(){
+    if(exportRevision!==state.revision||!currentResult()||!state.edits.length)return;
+    if(!el('reviewBomConfirmed').checked){el('reviewBomError').textContent='请先阅读并勾选导出确认。';return;}
+    try{
+      var r=state.result;if(r.auditCounts.abnormal+(r.fileCounts.abnormal||0))throw new Error('当前存在明确冲突，请先修正后复审。');
+      var D=window.BOMReviewEdit,wb=D.clone(state.primary.wb);
+      D.appendSheet(wb,XLSX,'本次修改记录',D.logRows(state.edits));
+      var data=[['项目','内容'],['审查时间',r.time],['导出确认时间',new Date().toISOString()],['规则版本',r.version],['本次BOM摘要',state.primary.hash],['确认范围','工程师已阅读审查结果并确认导出。人工归并仅适用于所记录的操作；待核实项仍待核实。'],['检查范围',r.officialVerification],['行号 / 位号','核对结果','具体原因','尚未覆盖']].concat(r.auditRows.map(function(a){return [a.scope==='file'?'文件范围':'第'+a.row+'行 '+a.refs,auditLabels[a.status],a.finding,listText(a.uncovered)];}));
+      D.appendSheet(wb,XLSX,'本次审查结果',data);
+      XLSX.writeFile(wb,state.primary.name.replace(/\.(xlsx?|csv)$/i,'')+'_修改后BOM.xlsx');el('reviewBomDialog').close();message('已导出修改后BOM，文件包含审查结果和人工修改记录。');
+    }catch(error){el('reviewBomError').textContent=error.message;}
   }
   function remember(headers, rows, source, name,reviewContext){
     state.last={headers:headers.slice(),rows:JSON.parse(JSON.stringify(rows)),reviewContext:reviewContext?JSON.parse(JSON.stringify(reviewContext)):null,source:source?{rows:JSON.parse(JSON.stringify(source.rows||[])),fm:Object.assign({},source.fm),_fn:source._fn,_reviewWorkbook:source._reviewWorkbook?JSON.parse(JSON.stringify(source._reviewWorkbook)):null,_reviewBytes:source._reviewBytes?source._reviewBytes.slice(0):null}:null,name:name};
@@ -162,7 +241,7 @@
     if(!state.last)return;
     var last=state.last;
     var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([last.headers].concat(last.rows)),'整理后BOM');
-    var sequence=++state.serial.primary, sourceSequence=++state.serial.source;state.roles={};state.bindings={};el('reviewActuals').value='';
+    var sequence=++state.serial.primary, sourceSequence=++state.serial.source;state.roles={};state.bindings={};state.edits=[];state.undo=[];updateEditStatus();el('reviewActuals').value='';invalidate();
     state.source=null;editor('source');el('reviewFile').value='';el('reviewSourceFile').value='';
     state.primary={wb:wb,name:last.name||'刚生成的线下BOM.xlsx',hash:'内存数据；请导出原文件获取文件SHA256',reviewContext:last.reviewContext};parseItem('primary',{headerRow:1});
     state.source=null;
@@ -179,6 +258,11 @@
   }
   function boot(){
     if(!el('reviewPanel'))return;
+    el('reviewPanel').insertAdjacentHTML('beforeend','<dialog id="reviewEditDialog" class="review-edit-dialog" aria-labelledby="reviewEditTitle"><div id="reviewEditContent"></div><p id="reviewEditError" class="review-error" role="alert"></p><div class="review-toolbar"><button type="button" id="reviewEditSave" class="btn btn-blue">确认保存并重新审查</button><button type="button" id="reviewEditCancel" class="btn">取消</button></div></dialog><dialog id="reviewBomDialog" class="review-edit-dialog" aria-labelledby="reviewBomTitle"><div id="reviewBomContent"></div><p id="reviewBomError" class="review-error" role="alert"></p><div class="review-toolbar"><button type="button" id="reviewBomSave" class="btn btn-green">确认导出BOM</button><button type="button" id="reviewBomCancel" class="btn">取消</button></div></dialog>');
+    el('reviewEditSave').addEventListener('click',saveEdit);el('reviewEditCancel').addEventListener('click',function(){editSession=null;el('reviewEditDialog').close();});
+    el('reviewEditDialog').addEventListener('cancel',function(){editSession=null;});
+    el('reviewBomSave').addEventListener('click',exportBom);el('reviewBomCancel').addEventListener('click',function(){el('reviewBomDialog').close();});
+    el('reviewExportBom').addEventListener('click',openBomExport);el('reviewUndo').addEventListener('click',undoEdit);updateEditStatus();
     document.addEventListener('bom-standard-sync-changed',function(){if(libraryChanged()){invalidate();message('公司标准库已更新，请重新审查。','stale');}});
     el('reviewFile').addEventListener('change',function(){load('primary',this.files[0]);});
     el('reviewSourceFile').addEventListener('change',function(){load('source',this.files[0]);});
@@ -188,6 +272,7 @@
     el('reviewFilter').addEventListener('change',renderResults);el('reviewSearch').addEventListener('input',renderResults);
     el('reviewRowSearch').addEventListener('input',preview);el('reviewActuals').addEventListener('input',invalidate);
     el('reviewPanel').addEventListener('click',function(ev){
+      var edit=ev.target.closest('[data-review-edit], [data-review-merge]');if(edit){openEdit(edit.dataset.reviewEdit||edit.dataset.reviewMerge,!!edit.dataset.reviewMerge);return;}
       var filterCard=ev.target.closest('[data-review-filter]');
       if(filterCard){el('reviewFilter').value=filterCard.dataset.reviewFilter;renderResults();return;}
       var target=ev.target.closest('[data-review-evidence], [data-review-row]');if(target)evidence(target.dataset.reviewEvidence,target.dataset.reviewRow);
