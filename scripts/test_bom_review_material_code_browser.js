@@ -30,6 +30,7 @@ function materialChecks(result){return result.checks.filter(c=>/^MATERIAL_CODE|^
    if(live&&(await page.title())==='风险提醒')await page.getByText('确定访问',{exact:true}).click({timeout:15000});
    if(!live&&!await page.evaluate(()=>typeof XLSX!=='undefined'))await page.addScriptTag({path:path.join(root,'v3-cloudbase/web/assets/vendor/xlsx.full.min.js')});
    await page.waitForFunction(()=>typeof BOM_REVIEW_UI!=='undefined'&&typeof XLSX!=='undefined');
+   await page.waitForLoadState('domcontentloaded');
    await page.evaluate(({standard})=>{document.body.classList.remove('v3-not-logged');document.getElementById('v3LoginMask').classList.remove('show');BOM_API.user={role:'readonly',username:'controlled-review-test'};V3_applyRoleUI();window.materialDB_standard=[standard];window.materialDB_rf_inductor=[];window.BOM_STANDARD_SYNC={status:'ready',count:1,error:''};document.dispatchEvent(new CustomEvent('bom-standard-sync-changed',{detail:window.BOM_STANDARD_SYNC}));},{standard});
    await page.locator('button[onclick="showPanel(\'review\')"]').click();
    await page.locator('#reviewFile').setInputFiles(file('controlled-offline.xlsx'));await page.waitForFunction(()=>BOM_REVIEW_UI.state.primary?.valid);
