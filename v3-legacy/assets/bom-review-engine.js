@@ -4,7 +4,7 @@
   else root.BOMReview = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function(){
   'use strict';
-  var VERSION = '1.3.0';
+  var VERSION = '1.4.0';
   var ALIASES = {
     '物料编码':['物料编码','料号','Part Number'], '物料名称':['物料名称','名称','Description','物料描述'],
     '型号':['型号','Comment','Comment型号','Value','value','规格型号','Part'],
@@ -191,10 +191,29 @@
     var match=text(raw).replace(/[µμ]/g,'u').match(/±\s*(\d+(?:\.\d+)?)\s*pF(?=$|[\s,，;；/|])/i);
     return !!match&&Math.abs(Number(match[1])-0.1)<=1e-9;
   }
+  function materialKey(raw){return text(raw).toUpperCase().replace(/\s+/g,'');}
+  function materialPackageHasUnit(raw){return /metric|imperial|公制|英制|毫米|inch|\bmm\b/i.test(text(raw));}
+  function materialPackageKey(raw){
+    var p=packageInfo(raw);
+    return p&&p.standard&&/^\d+$/.test(p.key)&&!materialPackageHasUnit(raw)?p.key:materialKey(raw).replace(/[_()\-]/g,'');
+  }
+  function materialLibraryIndex(library){
+    var records=[],seen=new Set(),byCode=new Map(),byIdentity=new Map();
+    ((library&&library.records)||[]).forEach(function(raw){
+      var item={code:text(raw.material_code||raw['物料编码']),model:text(raw.model||raw['型号']),package:text(raw.package||raw['封装']),specification:text(raw.specification||raw['参数描述']),brand:text(raw.brand||raw['品牌']),name:text(raw.name||raw['物料名称'])};
+      if(!item.code)return;
+      var signature=JSON.stringify(item);if(seen.has(signature))return;seen.add(signature);records.push(item);
+      var key=materialKey(item.code);if(!byCode.has(key))byCode.set(key,[]);byCode.get(key).push(item);
+      if(item.model&&item.package){key=materialKey(item.model)+'|'+materialPackageKey(item.package);if(!byIdentity.has(key))byIdentity.set(key,[]);byIdentity.get(key).push(item);}
+    });
+    return {records:records,byCode:byCode,byIdentity:byIdentity,ready:!!library&&library.status==='ready'&&records.length>0};
+  }
   function analyze(doc, source, options){
     options=options||{};
     var checks=[], index=new Map(), sourceIndex=new Map(), codes=new Map(), seq=0;
     var context=doc.reviewContext||{details:[],records:[]};
+    var materialLibrary=options.materialLibrary,materials=materialLibraryIndex(materialLibrary);
+    var materialStatus=materialLibrary?({ready:'已同步',pending:'未同步',loading:'同步中',error:'同步失败'}[materialLibrary.status]||'状态未知'):'';
     function emit(row,rule,status,field,message,expected,origin){
       var check={id:'R'+(++seq),rule:rule,status:status,sheet:row?row.sheet:doc.sheet,row:row?row.row:doc.headerRow,key:row?row.key:'',refs:row?text(row.values['位号']):'',cell:row?(row.cells[field]||''): '',field:field||'',observed:row?text(row.values[field]):'',expected:text(expected),message:message,source:origin||'线下BOM本地规则'};
       checks.push(check);return check;
@@ -205,6 +224,7 @@
     var versions=unique((doc.metadata||[]).filter(function(s){return /BOM版本|版本[:：]|REV/i.test(s);}).map(function(s){var m=s.match(/(?:版本|REV)\s*[:：]?\s*[Vv]?(\d+(?:\.\d+)+)/i);return m?m[1]:'';}).filter(Boolean));
     if(versions.length>1)emit(null,'VERSION_CONFLICT','warning','','封面或明细中的版本标识不一致',versions.join(' / '),'文件内容');
     ['型号','参数描述','封装','位号','数量'].forEach(function(field){if(doc.mapping[field]==null)emit(null,'MISSING_COLUMN','pending',field,'未映射'+field+'列，对应检查未完成');});
+    if(materialLibrary&&doc.mapping['物料编码']==null)emit(null,'MATERIAL_CODE_COLUMN','pending','物料编码','未识别公司物料编码列，本次未完成编码与标准库核对');
     if(source){source.rows.forEach(function(row){if(rowRole(row,{})!=='main')return;unique(refs(row.values['位号']).values).forEach(function(ref){if(!sourceIndex.has(ref))sourceIndex.set(ref,[]);sourceIndex.get(ref).push(row);});});}
     var matchedRefs=new Set(), seenRefs=new Set();
     doc.rows.forEach(function(row){
@@ -284,6 +304,30 @@
       var verifiedModel=record&&record.entries.find(function(e){return e.kind==='verifiedModel'&&e.resolved===true&&e.official&&text(e.official.model)===text(v['型号']);});
       if(verifiedModel)emit(row,'OFFICIAL_MODEL_RECORD','matched','型号',verifiedModel.reason,verifiedModel.official.model,'转换阶段商品核对记录（本次未重新联网）');
       var material=text(v['物料编码']);
+      if(materialLibrary&&doc.mapping['物料编码']!=null){
+        var identityKey=materialKey(v['型号'])+'|'+materialPackageKey(v['封装']);
+        var candidates=materials.ready?(materials.byIdentity.get(identityKey)||[]):[];
+        var candidateCodes=unique(candidates.map(function(m){return m.code;}));
+        var current=materials.ready?(materials.byCode.get(materialKey(material))||[]):[];
+        var origin=(materialLibrary.source||'公司标准库')+'（本次同步状态：'+materialStatus+'；'+materials.records.length+'条编码记录）';
+        var currentSummary=current.map(function(m){return [m.code,m.model,m.package,m.specification].filter(Boolean).join(' / ');}).join('；');
+        var codeCheck;
+        if(!material)codeCheck=emit(row,'MATERIAL_CODE_MISSING','pending','物料编码','当前公司物料编码为空，不能核对编码对应关系',candidateCodes.join(' / '),origin);
+        else if(!materials.ready)codeCheck=emit(row,'MATERIAL_LIBRARY_UNAVAILABLE','pending','物料编码','公司标准库未完成同步或没有可用编码记录，当前编码 '+material+' 尚未核对；请完成库同步后重新审查','',origin);
+        else if(current.length>1)codeCheck=emit(row,'MATERIAL_CODE_AMBIGUOUS','pending','物料编码','标准库中编码 '+material+' 对应多条不同资料，无法唯一确定；请管理员核对库记录',currentSummary,origin);
+        else if(candidateCodes.length===1&&materialKey(candidateCodes[0])!==materialKey(material)&&materials.byCode.get(materialKey(candidateCodes[0])).length===1&&(!current.length||materialKey(current[0].model)!==materialKey(v['型号']))){
+          codeCheck=emit(row,'MATERIAL_CODE_CONFLICT','error','物料编码','当前编码 '+material+' 与标准库按型号 '+text(v['型号'])+'、封装 '+text(v['封装'])+' 唯一匹配的编码 '+candidateCodes[0]+' 不一致'+(currentSummary?'；当前编码在库中对应：'+currentSummary:'；当前编码在标准库中未找到'),candidateCodes[0],origin);
+        }else if(current.length===1){
+          var m=current[0],sameModel=materialKey(m.model)===materialKey(v['型号']),samePackage=!!m.package&&materialPackageKey(m.package)===materialPackageKey(v['封装']);
+          if(sameModel&&samePackage&&m.model&&text(v['型号']))codeCheck=emit(row,'MATERIAL_CODE_MATCH','matched','物料编码','公司物料编码 '+material+' 对应的型号、封装与当前行一致；其他规格仍按各检查项核验',currentSummary,origin);
+          else{
+            var actualPackage=packageInfo(v['封装']),libraryPackage=packageInfo(m.package);
+            var physicalConflict=sameModel&&!materialPackageHasUnit(v['封装'])&&!materialPackageHasUnit(m.package)&&actualPackage&&libraryPackage&&actualPackage.standard&&libraryPackage.standard&&/^\d+$/.test(actualPackage.key)&&/^\d+$/.test(libraryPackage.key)&&actualPackage.key!==libraryPackage.key;
+            codeCheck=emit(row,physicalConflict?'MATERIAL_CODE_PACKAGE_CONFLICT':'MATERIAL_CODE_IDENTITY',physicalConflict?'error':'pending','物料编码','编码 '+material+' 的标准库资料与当前型号/封装未能一致对应；需核实型号别名、实际封装或编码'+(candidateCodes.length>1?'；当前型号封装有多个候选编码：'+candidateCodes.join('、'):''),currentSummary,origin);
+          }
+        }else codeCheck=emit(row,candidateCodes.length>1?'MATERIAL_CODE_CANDIDATES':'MATERIAL_CODE_UNKNOWN','pending','物料编码','标准库未找到当前编码 '+material+(candidateCodes.length>1?'；型号和封装对应多个候选编码，不能自动确定':'，且无法按型号及封装唯一确定编码')+'；需管理员核对或补充依据',candidateCodes.join(' / '),origin);
+        if(codeCheck)codeCheck.materialCandidates=candidates;
+      }
       if(material&&role!=='alternative'){if(!codes.has(material))codes.set(material,[]);codes.get(material).push(row);}
       if(source&&main&&rr.length){
         var matched=unique(rr).map(function(ref){return sourceIndex.get(ref)||[];});
@@ -329,6 +373,7 @@
     }
     function category(c){
       var rule=c.rule;
+      if(/^MATERIAL_CODE|^MATERIAL_LIBRARY/.test(rule))return 'model';
       if(rule==='MISSING_COLUMN'){
         if(c.field==='封装')return 'package';
         if(c.field==='位号')return 'reference';
@@ -358,6 +403,7 @@
       }[c.category]||(c.status==='error'?'对照原单元格及实际装配资料修订后复审':'补充可靠来源后复审'));
       if(/PENDING_NOTE|SUPPLEMENT_PENDING/.test(c.rule))c.suggestion='查看该行补齐报告和原备注，补充具体器件资料；缺参允许导出不等于参数已核实';
       if(c.rule==='RF_LIBRARY_PENDING')c.suggestion='该物料可保留使用；由管理员审核是否录入射频电感库';
+      if(/^MATERIAL_CODE|^MATERIAL_LIBRARY/.test(c.rule))c.suggestion=c.status==='matched'?'保留编码对应关系核对记录':c.core?'按公司标准库核实并修正当前BOM的物料编码或物料资料后重新审查':'核对公司标准库同步状态及该编码记录；有多个候选时由工程师确认，审查不会自动改码';
       if(c.confirmation)c.suggestion='已承接确认：'+c.confirmation.action+'；时间：'+c.confirmation.time;
       c.resolution={passed:'本检查项通过',confirmed:'人工已确认',pending:'待核实',conflict:'明确冲突'}[c.outcome];
     });
@@ -379,9 +425,11 @@
       if(!source)uncovered.push('未提供原始立创BOM，未核对源位号覆盖和源封装');
       if(!modelValue(row))uncovered.push('厂家型号无法直接解析，未自动推断型号内编码的电气参数');
       if(!text(row.values['立创编号']))uncovered.push('线下BOM未包含立创编号，未独立比较采购编号');
+      if(!materialLibrary)uncovered.push('本次未接入公司标准库物料编码核对');
+      else if(doc.mapping['物料编码']==null)uncovered.push('未识别公司物料编码列，未完成公司编码核对');
       return {
         id:'ROW:'+row.key,key:row.key,scope:'row',sheet:row.sheet,row:row.row,
-        refs:text(row.values['位号']),model:text(row.values['型号']),specification:text(row.values['参数描述']),
+        refs:text(row.values['位号']),model:text(row.values['型号']),materialCode:text(row.values['物料编码']),materialCandidates:[].concat.apply([],rowChecks.map(function(c){return c.materialCandidates||[];})),specification:text(row.values['参数描述']),
         package:text(row.values['封装']),quantity:text(row.values['数量']),inductorStatus:rfLibraryStatus(row.values['备注']),status:status,
         abnormalFields:fields,pendingFields:unique(unknown.map(function(c){return c.field;}).filter(Boolean)),checkedFields:unique(rowChecks.filter(function(c){return c.status==='matched';}).map(function(c){return c.field;}).filter(Boolean)),
         checks:rowChecks,confirmedChecks:confirmed,confirmations:confirmed.map(function(c){return c.confirmation;}),uncovered:uncovered,
@@ -407,7 +455,9 @@
     var counts={error:0,warning:0,pending:0,matched:0};checks.forEach(function(c){counts[c.status]++;});
     var categoryCounts={model:0,package:0,reference:0,quantity:0,file:0};coreIssues.forEach(function(c){categoryCounts[c.category]++;});
     var fileCounts={abnormal:fileAudits.filter(function(a){return a.status==='abnormal';}).length,unverified:fileAudits.filter(function(a){return a.status==='unverified';}).length};
-    return {version:VERSION,time:new Date().toISOString(),document:{name:doc.name,hash:doc.hash,sheet:doc.sheet,headerRow:doc.headerRow,rows:doc.rows.length},source:source?{name:source.name,hash:source.hash,sheet:source.sheet}:null,checks:checks,issues:issues,coreIssues:coreIssues,advisories:advisories,rowAudits:rowAudits,auditRows:auditRows,auditCounts:auditCounts,fileCounts:fileCounts,categoryCounts:categoryCounts,counts:counts,affectedRows:unique(coreIssues.map(function(c){return c.key;}).filter(Boolean)).length,affectedRefs:unique([].concat.apply([],coreIssues.map(function(c){return refs(c.refs||c.expected).values;}))).length,sourceCoverage:source?{matchedRefs:matchedRefs.size,totalRefs:seenRefs.size}:null,settings:JSON.parse(JSON.stringify(options)),conclusion:coreIssues.length?'发现'+auditCounts.abnormal+'行明确冲突，文件范围冲突'+fileCounts.abnormal+'项':advisories.length?'当前存在待核实事项，详见逐行依据':'当前规则覆盖的检查项通过',officialVerification:'本次执行BOM字段一致性及公司规则检查；未重新联网核验全部商品参数。人工确认按事项承接，未覆盖范围逐行列出。'};
+    var settings=JSON.parse(JSON.stringify({roles:options.roles||{},bindings:options.bindings||{},actuals:options.actuals||[]}));
+    if(materialLibrary)settings.materialLibrary={status:materialLibrary.status,count:materials.records.length,source:materialLibrary.source||'公司标准库'};
+    return {version:VERSION,time:new Date().toISOString(),document:{name:doc.name,hash:doc.hash,sheet:doc.sheet,headerRow:doc.headerRow,rows:doc.rows.length},source:source?{name:source.name,hash:source.hash,sheet:source.sheet}:null,checks:checks,issues:issues,coreIssues:coreIssues,advisories:advisories,rowAudits:rowAudits,auditRows:auditRows,auditCounts:auditCounts,fileCounts:fileCounts,categoryCounts:categoryCounts,counts:counts,affectedRows:unique(coreIssues.map(function(c){return c.key;}).filter(Boolean)).length,affectedRefs:unique([].concat.apply([],coreIssues.map(function(c){return refs(c.refs||c.expected).values;}))).length,sourceCoverage:source?{matchedRefs:matchedRefs.size,totalRefs:seenRefs.size}:null,settings:settings,conclusion:coreIssues.length?'发现'+auditCounts.abnormal+'行明确冲突，文件范围冲突'+fileCounts.abnormal+'项':advisories.length?'当前存在待核实事项，详见逐行依据':'当前规则覆盖的检查项通过',officialVerification:'本次执行BOM字段一致性及公司规则检查；'+(materialLibrary?'公司物料编码依据本次已加载标准库核对（状态：'+materialStatus+'，'+materials.records.length+'条编码记录）。':'未接入公司物料编码核对。')+'未重新联网核验全部商品参数；人工确认按事项承接，未覆盖范围逐行列出。'};
   }
   return {VERSION:VERSION,FIELDS:FIELDS,ALIASES:ALIASES,text:text,column:column,rowSignature:rowSignature,sourceSignature:sourceSignature,mapping:mapping,detectHeader:detectHeader,readWorkbook:readWorkbook,refs:refs,value:value,equal:equal,packageInfo:packageInfo,specData:specData,assembly:assembly,analyze:analyze};
 });

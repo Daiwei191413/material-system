@@ -2,10 +2,16 @@
   'use strict';
   var E=window.BOMReview;
   if(!E)return;
-  var state={primary:null,source:null,result:null,roles:{},bindings:{},serial:{primary:0,source:0},last:null};
+  var state={primary:null,source:null,result:null,roles:{},bindings:{},serial:{primary:0,source:0},last:null,librarySignature:''};
   function el(id){return document.getElementById(id);}
   function html(v){return E.text(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function message(s,cls){el('reviewMessage').textContent=s;el('reviewMessage').className='review-message '+(cls||'');}
+  function materialSnapshot(){
+    var sync=window.BOM_STANDARD_SYNC||{};
+    var records=[].concat(window.materialDB_standard||[],window.materialDB_rf_inductor||[]).map(function(m){return {material_code:E.text(m.material_code||m['物料编码']),model:E.text(m.model||m['型号']),package:E.text(m.package||m['封装']),specification:E.text(m.specification||m['参数描述']),brand:E.text(m.brand||m['品牌']),name:E.text(m.name||m['物料名称'])};});
+    return {status:sync.status||'pending',source:'公司标准库（含射频指定件）',records:records};
+  }
+  function libraryChanged(){return !!state.result&&state.librarySignature!==JSON.stringify(materialSnapshot());}
   function invalidate(){
     state.result=null;el('reviewExport').disabled=true;el('reviewResults').hidden=true;
     el('reviewRun').disabled=!state.primary;
@@ -66,7 +72,9 @@
     if(!state.primary)return;
     if(!state.primary.valid||(state.source&&!state.source.valid)){invalidate();message('字段设置无效，请修正后再审查。','error');return;}
     try{
-      state.result=E.analyze(state.primary.doc,state.source&&state.source.doc,{roles:state.roles,bindings:state.bindings,actuals:actuals()});
+      var library=materialSnapshot();
+      state.result=E.analyze(state.primary.doc,state.source&&state.source.doc,{roles:state.roles,bindings:state.bindings,actuals:actuals(),materialLibrary:library});
+      state.librarySignature=JSON.stringify(library);
       el('reviewResults').hidden=false;el('reviewExport').disabled=false;
       var r=state.result, files=r.fileCounts||{abnormal:0,unverified:0};
       el('reviewSummary').innerHTML=[
@@ -100,7 +108,7 @@
   function renderResults(){
     if(!state.result)return;
     var filter=el('reviewFilter').value, term=el('reviewSearch').value.trim().toLowerCase();
-    var rows=state.result.auditRows.filter(function(a){return (filter==='all'||a.status===filter)&&(!term||[a.refs,a.row,a.model,a.specification,a.package,a.quantity,a.inductorStatus,a.finding,rowFields(a),rowEvidence(a),a.suggestion,listText(a.uncovered),rowConfirmations(a)].join(' ').toLowerCase().includes(term));});
+    var rows=state.result.auditRows.filter(function(a){return (filter==='all'||a.status===filter)&&(!term||[a.refs,a.row,a.model,a.materialCode,a.specification,a.package,a.quantity,a.inductorStatus,a.finding,rowFields(a),rowEvidence(a),a.suggestion,listText(a.uncovered),rowConfirmations(a)].join(' ').toLowerCase().includes(term));});
     el('reviewSummary').querySelectorAll('[data-review-filter]').forEach(function(card){card.classList.toggle('is-active',card.dataset.reviewFilter===filter);});
     el('reviewResultCount').textContent='共 '+state.result.document.rows+' 行物料，当前显示 '+Math.min(rows.length,500)+' / '+rows.length+' 条明细'+(rows.length>500?'；请搜索缩小范围，导出报告包含全部明细。':'');
     el('reviewResultBody').innerHTML=rows.slice(0,500).map(function(a){
@@ -111,7 +119,7 @@
       var basis=html(rowEvidence(a)||'未提供可用对照依据');
       if(a.expected)basis+='<div class="review-suggestion"><strong>对照内容：</strong>'+html(a.expected)+'</div>';
       if(a.suggestion)basis+='<div class="review-suggestion"><strong>建议：</strong>'+html(a.suggestion)+'</div>';
-      return '<tr><td data-label="行号">'+line+'</td><td data-label="位号 / 型号"><strong>'+html(a.refs||'未提供位号')+'</strong><div class="review-part-model">'+html(a.model||'—')+'</div><div class="review-suggestion">封装：'+html(a.package||'未提供')+'；数量：'+html(a.quantity||'未提供')+'</div></td>'
+      return '<tr><td data-label="行号">'+line+'</td><td data-label="位号 / 型号"><strong>'+html(a.refs||'未提供位号')+'</strong><div class="review-part-model">'+html(a.model||'—')+'</div><div class="review-material-code">物料编码：'+html(a.materialCode||'未提供')+'</div><div class="review-suggestion">封装：'+html(a.package||'未提供')+'；数量：'+html(a.quantity||'未提供')+'</div></td>'
         +'<td data-label="核对结果"><span class="review-issue-badge review-'+html(a.status)+'">'+html(auditLabels[a.status]||a.status)+'</span></td><td data-label="待核对内容与原因">'+reason+'</td><td data-label="依据与建议">'+basis+'</td>'
         +'<td data-label="操作"><button type="button" class="review-detail-button" '+attr+'>查看全部检查项</button></td></tr>';
     }).join('')||'<tr><td colspan="6" class="review-empty">当前筛选条件下没有核对明细。</td></tr>';
@@ -134,13 +142,14 @@
   }
   function exportReport(){
     if(!state.result)return;
+    if(libraryChanged()){invalidate();message('公司标准库资料或同步状态已变化，请重新审查后导出报告。','stale');return;}
     try{
       var r=state.result, wb=XLSX.utils.book_new(), files=r.fileCounts||{abnormal:0,unverified:0};
       var overview=[['项目','内容'],['文件',r.document.name],['文件SHA256',r.document.hash],['物料行数',r.auditCounts.total],['自动检查通过',r.auditCounts.normal],['人工已确认',r.auditCounts.confirmed||0],['待核实',r.auditCounts.unverified],['明确冲突',r.auditCounts.abnormal],['文件范围明确冲突',files.abnormal||0],['文件范围待核实',files.unverified||0],['审查结论',r.conclusion],['检查范围',r.officialVerification],['状态说明','自动检查通过仅代表当前规则覆盖的项目相符；人工确认仅适用于对应检查项；未覆盖项目见逐行明细。'],['源文件',r.source?r.source.name:'未提供'],['源文件SHA256',r.source?r.source.hash:'未提供'],['规则版本',r.version]];
-      var header=['原行号','位号','型号','规格描述','封装','数量','电感库状态','核对结果','涉及字段','具体原因','对照内容','依据','建议操作','已检查字段','尚未覆盖','人工确认记录'];
-      var details=[header].concat(r.auditRows.map(function(a){return [a.scope==='file'?'文件范围':a.row,a.refs,a.model,a.specification,a.package,a.quantity,a.inductorStatus||'',auditLabels[a.status],rowFields(a),a.finding,a.expected||'',rowEvidence(a),a.suggestion||'',listText(a.checkedFields),listText(a.uncovered),rowConfirmations(a)];}));
+      var header=['原行号','位号','型号','物料编码','规格描述','封装','数量','电感库状态','核对结果','涉及字段','具体原因','对照内容','依据','建议操作','已检查字段','尚未覆盖','人工确认记录'];
+      var details=[header].concat(r.auditRows.map(function(a){return [a.scope==='file'?'文件范围':a.row,a.refs,a.model,a.materialCode||'',a.specification,a.package,a.quantity,a.inductorStatus||'',auditLabels[a.status],rowFields(a),a.finding,a.expected||'',rowEvidence(a),a.suggestion||'',listText(a.checkedFields),listText(a.uncovered),rowConfirmations(a)];}));
       var checkDetails=[['检查编号','原行号','位号','字段','原单元格','核对结果','当前内容','对照内容','具体原因','依据','建议操作','人工确认记录']].concat(r.checks.map(function(check){return [check.id,check.key?check.row:'文件范围',check.refs,check.field,(check.sheet?check.sheet+'!':'')+(check.cell||'文件范围'),outcomeLabels[outcome(check)],check.observed,check.expected,check.message,check.source,check.suggestion,confirmationText(check.confirmation)];}));
-      [['审查结论',overview],['逐行核对明细',details],['检查项明细',checkDetails]].forEach(function(pair){var sheet=XLSX.utils.aoa_to_sheet(pair[1]);sheet['!cols']=pair[0]==='审查结论'?[{wch:25},{wch:100}]:pair[0]==='逐行核对明细'?[10,24,28,48,18,10,28,18,22,70,40,45,50,28,60,60].map(function(w){return {wch:w};}):[12,10,24,18,25,18,45,45,70,45,50,60].map(function(w){return {wch:w};});if(pair[0]!=='审查结论')sheet['!autofilter']={ref:sheet['!ref']};XLSX.utils.book_append_sheet(wb,sheet,pair[0]);});
+      [['审查结论',overview],['逐行核对明细',details],['检查项明细',checkDetails]].forEach(function(pair){var sheet=XLSX.utils.aoa_to_sheet(pair[1]);sheet['!cols']=pair[0]==='审查结论'?[{wch:25},{wch:100}]:pair[0]==='逐行核对明细'?[10,24,28,22,48,18,10,28,18,22,70,40,45,50,28,60,60].map(function(w){return {wch:w};}):[12,10,24,18,25,18,45,45,70,45,50,60].map(function(w){return {wch:w};});if(pair[0]!=='审查结论')sheet['!autofilter']={ref:sheet['!ref']};XLSX.utils.book_append_sheet(wb,sheet,pair[0]);});
       XLSX.writeFile(wb,'线下BOM审查报告_'+new Date().toISOString().replace(/[:.]/g,'-')+'.xlsx');
     }catch(error){message('报告导出失败：'+error.message,'error');}
   }
@@ -169,6 +178,7 @@
   }
   function boot(){
     if(!el('reviewPanel'))return;
+    document.addEventListener('bom-standard-sync-changed',function(){if(libraryChanged()){invalidate();message('公司标准库已更新，请重新审查。','stale');}});
     el('reviewFile').addEventListener('change',function(){load('primary',this.files[0]);});
     el('reviewSourceFile').addEventListener('change',function(){load('source',this.files[0]);});
     el('reviewClearSource').addEventListener('click',function(){state.serial.source++;state.source=null;el('reviewSourceFile').value='';editor('source');invalidate();});

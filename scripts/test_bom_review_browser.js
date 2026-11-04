@@ -153,6 +153,8 @@ async function sourceChangeScenario(page,label){
     await BOM_REVIEW_UI.useLast();
    });
    const confirmed=await page.evaluate(()=>BOM_REVIEW_UI.state.result);assert.equal(confirmed.auditCounts.confirmed,1);assert.equal(confirmed.auditCounts.unverified,0);
+   assert(confirmed.checks.some(c=>c.rule==='MATERIAL_CODE_COLUMN'&&c.outcome==='pending'),'Absent company code column must remain visible as file-scope coverage');
+   await page.locator('#reviewFilter').selectOption('confirmed');
    assert((await page.locator('#reviewResultBody').innerText()).includes('人工已确认'));
    const savedAlias={'型号':'CUSTOM-CHIP','封装':'QFN32','位号':'U1','数量':1,'参数描述':'收发芯片','备注':'人工确认：型号对应关系待确认；处理=已核实型号对应关系，保留源型号及当前采购编号','立创编号':'C10001'};
    const savedRecord=signedSourceRecord(savedAlias,[{...savedAlias,'型号':'CATALOG-CHIP','备注':''}]);

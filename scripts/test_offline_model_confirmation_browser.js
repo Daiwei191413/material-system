@@ -90,8 +90,14 @@ async function downloadFinal(page,file){
   // Exercise the real conversion handoff and the downloaded workbook, not a manufactured evidence record.
   await page.evaluate(()=>BOM_REVIEW_UI.useLast());
   const memory=await page.evaluate(()=>BOM_REVIEW_UI.state.result);
-  assert.equal(memory.auditCounts.confirmed,3,JSON.stringify(memory.issues));
-  assert.equal(memory.auditCounts.unverified,0);assert.equal(memory.auditCounts.abnormal,0);
+  assert.equal(memory.auditCounts.confirmed,1,JSON.stringify(memory.issues));
+  assert.equal(memory.auditCounts.unverified,2);assert.equal(memory.auditCounts.abnormal,0);
+  for(const audit of memory.rowAudits){
+    assert(audit.confirmedChecks.length>0,'Model/package confirmation was lost for '+audit.refs);
+    const code=audit.checks.find(c=>/^MATERIAL_CODE/.test(c.rule));
+    assert.equal(code.rule,audit.refs==='U8,U9,U10,U11'?'MATERIAL_CODE_MATCH':'MATERIAL_CODE_MISSING');
+    if(audit.refs!=='U8,U9,U10,U11')assert.equal(code.outcome,'pending','Model confirmation waived missing company code');
+  }
   await page.locator('#reviewFile').setInputFiles(file);
   await page.waitForFunction(()=>BOM_REVIEW_UI.state.primary?.valid);
   await page.locator('#reviewRun').click();
