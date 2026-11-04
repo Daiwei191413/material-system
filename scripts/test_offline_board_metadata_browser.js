@@ -8,6 +8,7 @@ const XLSX = require('../v3-cloudbase/web/assets/vendor/xlsx.full.min.js');
 const JSZip = require('../v3-cloudbase/web/assets/vendor/jszip.min.js');
 
 const root = path.resolve(__dirname, '..');
+const live=process.env.BOM_BOARD_METADATA_LIVE==='1';
 const output = process.env.BOM_BOARD_METADATA_OUTPUT;
 assert(output && /^D:[\\/]/i.test(output), 'BOM_BOARD_METADATA_OUTPUT must be on D:');
 fs.mkdirSync(output, {recursive:true});
@@ -25,12 +26,18 @@ const cases = [
   {id:'tp', file:'A-01-02-00259-TP1211-MK36_V1.0嘉立创BOM20261020.xlsx', name:'TP1211-MK36', erp:'A-01-02-00259', version:'V1.0', saved:'A-01-02-00259-TP1211-MK36_V1.0_20261020.xlsx'},
   {id:'no-version', file:'射频测试板.xlsx', name:'射频测试板', erp:'', version:'', saved:'射频测试板.xlsx'},
   {id:'erp-only', file:'A-01-02-00221_嘉立创BOM.xlsx', name:'', erp:'A-01-02-00221', version:'', saved:'A-01-02-00221.xlsx'},
-  {id:'manual', file:'DMZ_ZJB_V1.1-嘉立创BOM.xlsx', name:'研发&验证<板>$&', erp:'A-01-02-00998', version:'V9.9', saved:'DMZ_ZJB_V1.1.xlsx', manual:true},
+  {id:'manual', file:'DMZ_ZJB_V1.1-嘉立创BOM.xlsx', name:'研发&验证<板>$&', model:'RF-ASSY<&>"$1',erp:'A-01-02-00998', version:'V9.9', saved:'DMZ_ZJB_V1.1.xlsx', manual:true},
+  {id:'mainboard-independent',file:'A-01-02-00259-TP1211-MK36_V1.0.xlsx',name:'TP1211-MK36主板',model:'TP1211-MK36主板PCBA',erp:'A-01-02-00259',version:'V1.0',saved:'A-01-02-00259-TP1211-MK36_V1.0.xlsx',manual:true},
+  {id:'source-explicit',file:'文件名候选_V1.0.xlsx',name:'射频测试板',model:'RF-ASSY-REV-C',erp:'A-01-02-00999',version:'V2.3',saved:'文件名候选_V1.0.xlsx',sourceInfo:{name:'射频测试板',model:'RF-ASSY-REV-C',erp:'A-01-02-00999',version:'V2.3'}},
+  {id:'source-conflict',file:'文件名候选_V1.0.xlsx',name:'',model:'RF-ASSY-REV-C',erp:'A-01-02-00999',version:'V2.3',saved:'文件名候选_V1.0.xlsx',sourceInfo:{name:'射频板A',model:'RF-ASSY-REV-C',erp:'A-01-02-00999',version:'V2.3'},conflict:'射频板B'},
+  {id:'manual-source',file:'文件名候选_V1.0.xlsx',name:'手工确认电源板',model:'POWER-REV-D',erp:'A-01-02-00888',version:'V3.1',saved:'文件名候选_V1.0.xlsx',sourceInfo:{name:'源表名称',model:'SOURCE-MODEL',erp:'A-01-02-00999',version:'V2.3'},manual:true},
   {id:'manual-clear', file:'A-01-02-00221-DMZ_ZJB_V1.1-嘉立创BOM.xlsx', name:'', erp:'', version:'', saved:'A-01-02-00221-DMZ_ZJB_V1.1.xlsx', manual:true},
   {id:'reset-on-upload', file:'BOM.xlsx', name:'', erp:'', version:'', saved:'BOM.xlsx'},
 ];
-function uploadBytes(comment='TEST-IC', ref='U1,U2', footprint='SOT-23-6', code='') {
+function uploadBytes(comment='TEST-IC', ref='U1,U2', footprint='SOT-23-6', code='',item={}) {
   const wb = XLSX.utils.book_new();
+  if(item.sourceInfo){const i=item.sourceInfo;XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['板卡名称：'+i.name],['板卡型号：'+i.model],['板卡 ERP：'+i.erp],['BOM 版本：'+i.version]]),'封面');}
+  if(item.conflict)XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['板卡名称：'+item.conflict]]),'补充信息');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
     ['Comment','Designator','Footprint','嘉立创元件编号'], [comment,ref,footprint,code]
   ]), '嘉立创BOM');
@@ -55,7 +62,7 @@ async function inspectExport(file, item, templateZip, originalWorkbook) {
   assert.equal(labelValue(cover,'D10','板卡ERP'), item.erp);
   assert.equal(labelValue(cover,'D11','BOM版本'), item.version);
   assert.equal(labelValue(bom,'A2','板卡名称'), item.name);
-  assert.equal(labelValue(bom,'E2','板卡型号'), item.name ? item.name+'PCBA' : '');
+  assert.equal(labelValue(bom,'E2','板卡型号'), item.model || '');
   assert.equal(labelValue(bom,'A3','板卡ERP'), item.erp);
   assert.equal(labelValue(bom,'E3','BOM版本'), item.version);
   const detail=XLSX.utils.sheet_to_json(bom,{header:1,defval:''}).slice(5).filter(row=>row.some(v=>v!==''));
@@ -64,8 +71,9 @@ async function inspectExport(file, item, templateZip, originalWorkbook) {
   assert(!/TP1506-(?:M22|MS22)|A-01-02-00195/.test(visible),'Old template board information leaked');
   if(!item.version) assert(!/BOM版本[：:]\s*V\d/.test(visible),'Old BOM version leaked');
   for(const cell of ['A23','B23','E23','F23','G23','A24','B24','E24','F24','G24'])assert.equal(cover[cell]?.v ?? '', '');
-  const missing=[!item.name&&'板卡名称',!item.erp&&'板卡 ERP',!item.version&&'BOM 版本'].filter(Boolean);
+  const missing=[!item.name&&'板卡名称',!item.model&&'板卡型号',!item.erp&&'板卡 ERP',!item.version&&'BOM 版本'].filter(Boolean);
   const report=XLSX.utils.sheet_to_json(wb.Sheets['补齐报告'],{header:1,defval:''});
+  assert(report.some(r=>r[0]==='板卡信息一致性'&&r[1]==='通过'));
   for(const field of missing) assert(report.some(r=>r[0]===field&&String(r[4]).includes('已留空')),'Missing metadata report: '+field);
   if(!missing.length) assert(!report.some(r=>r[0]==='板卡信息待补'));
   for(const name of ['封面','单板BOM'])assert.deepEqual(wb.Sheets[name]['!merges'],originalWorkbook.Sheets[name]['!merges'],'Template merge ranges changed');
@@ -84,7 +92,7 @@ async function inspectExport(file, item, templateZip, originalWorkbook) {
   const browser=await chromium.launch({headless:true,executablePath:edge,downloadsPath:path.join(output,'browser-downloads')});
   const templateZip=await JSZip.loadAsync(templateBytes),originalWorkbook=XLSX.read(templateBytes,{type:'buffer',cellStyles:true}),results=[];
   try {
-    for(const [label,relative] of [['domestic','v3-cloudbase/web/index.html'],['overseas','v3-legacy/index.html']]){
+    for(const [label,relative,url] of [['domestic','v3-cloudbase/web/index.html','https://techphant-bom-v3-d9e3pqqb0b46c88-1363491993.tcloudbaseapp.com/'],['overseas','v3-legacy/index.html','https://techphant-bom-tools-v3.pages.dev/']]){
       const page=await browser.newPage({acceptDownloads:true,viewport:{width:1440,height:1000}}),errors=[];
       page.on('pageerror',e=>errors.push(e.message));
       await page.route('**/*',route=>{
@@ -96,9 +104,12 @@ async function inspectExport(file, item, templateZip, originalWorkbook) {
           const official={C700515:{hit:true,productCode:'C700515',productModel:'SMALL-CAP',productType:'贴片电容',package:'0402',_extracted:{capacitance:'6pF',tolerance:'±0.25pF',voltage:'50V',dielectric:'C0G'}},C100001:{hit:true,productCode:'C100001',productModel:'RES-22R',productType:'贴片电阻',package:'0402',_extracted:{resistance:'22Ω',tolerance:'±1%',power:'1/16W'}}};
           return route.fulfill({json:{ok:true,results:new URL(url).searchParams.get('codes').split(',').map(code=>({query:code,ok:!!official[code],data:official[code]}))}});
         }
+        if(live&&['GET','HEAD'].includes(route.request().method()))return route.continue();
         return route.abort();
       });
-      await page.goto(base+'/'+relative,{waitUntil:'domcontentloaded'});
+      await page.goto(live?url:base+'/'+relative,{waitUntil:'domcontentloaded'});
+      if(live&&await page.title()==='风险提醒')await page.getByText('确定访问',{exact:true}).click();
+      await page.waitForFunction(()=>typeof OfflineBoardInfo!=='undefined');await page.waitForLoadState('domcontentloaded');
       await page.waitForFunction(()=>document.getElementById('msgA')?.textContent.includes('已就绪'));
       await page.evaluate(rows=>{
         document.body.classList.remove('v3-not-logged');document.getElementById('v3LoginMask').classList.remove('show');showPanelDirect('compare');
@@ -109,13 +120,18 @@ async function inspectExport(file, item, templateZip, originalWorkbook) {
       },standard);
       for(const item of cases){
         if(item.id==='reset-on-upload')await page.evaluate(()=>{
-          document.getElementById('boardName').value='OLD-BOARD';document.getElementById('boardErp').value='A-01-02-00999';document.getElementById('boardVersion').value='V8.8';
+          document.getElementById('boardName').value='OLD-BOARD';document.getElementById('boardModel').value='OLD-MODEL';document.getElementById('boardErp').value='A-01-02-00999';document.getElementById('boardVersion').value='V8.8';
         });
-        await page.locator('#fileB').setInputFiles({name:item.file,mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:uploadBytes()});
+        await page.locator('#fileB').setInputFiles({name:item.file,mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:uploadBytes('TEST-IC','U1,U2','SOT-23-6','',item)});
         await page.waitForFunction(name=>B&&B._fn===name,item.file);
-        if(item.manual){await page.locator('#boardName').fill(item.name);await page.locator('#boardErp').fill(item.erp);await page.locator('#boardVersion').fill(item.version);}
+        if(item.manual){await page.locator('#boardName').fill(item.name);await page.locator('#boardModel').fill(item.model||'');await page.locator('#boardErp').fill(item.erp);await page.locator('#boardVersion').fill(item.version);}
         const values=await page.evaluate(()=>getOfflineBoardInfo());
-        assert.equal(values.name,item.name,item.id);assert.equal(values.erp,item.erp,item.id);assert.equal(values.version,item.version,item.id);
+        assert.equal(values.name,item.name,item.id);assert.equal(values.model,item.model||'',item.id);assert.equal(values.erp,item.erp,item.id);assert.equal(values.version,item.version,item.id);
+        const preview=await page.locator('#boardInfoPreview').innerText();assert(preview.includes(item.name||'（留空）'));assert(preview.includes(item.model||'（留空）'));if(item.conflict)assert((await page.locator('#boardInfoHint').innerText()).includes('源文件有不同值'));
+        if(item.id==='mainboard-independent'){
+          await page.locator('.cfg').filter({has:page.locator('#boardName')}).screenshot({path:path.join(output,label+'-四字段预览.png')});
+          await page.setViewportSize({width:390,height:844});const size=await page.locator('#boardInfoPreview').evaluate(e=>({width:e.clientWidth,scroll:e.scrollWidth}));assert(size.scroll<=size.width+2);await page.locator('.cfg').filter({has:page.locator('#boardName')}).screenshot({path:path.join(output,label+'-四字段移动端.png')});await page.setViewportSize({width:1440,height:1000});
+        }
         if(values.missing.length)assert((await page.locator('#boardInfoHint').innerText()).includes('仍可生成'));
         await page.locator('#goBtn').click();
         await page.waitForFunction(()=>!document.getElementById('fmtAB').disabled);
@@ -127,14 +143,14 @@ async function inspectExport(file, item, templateZip, originalWorkbook) {
         const prompts=await page.evaluate(()=>({alerts:testAlerts,confirms:testConfirms,libraryUnchanged:testLibraries===JSON.stringify([materialDB_standard,materialDB_lcsc,materialDB_rf_inductor,materialDB_cost])}));
         assert.equal(prompts.confirms.length,0,'Metadata triggered a blocking confirmation');assert(prompts.libraryUnchanged);
         assert(!prompts.alerts.some(s=>/请先补充.*板卡/.test(s)));
-        results.push({label,case:item.id,sourceFilename:item.file,outputFilename:item.saved,...inspected});
+        results.push({label,live,case:item.id,sourceFilename:item.file,outputFilename:item.saved,...inspected});
         if(item.id==='no-erp')await page.locator('.cfg').filter({has:page.locator('#boardName')}).screenshot({path:path.join(output,label+'-板卡缺项提示.png')});
       }
       // 板卡信息全空也不能绕过真实物料规格冲突及小电容硬性精度要求。
       for(const guard of [{id:'small-cap',comment:'6pF',code:'C700515',ref:'C1',reason:'精度'},{id:'resistance',comment:'10K',code:'C100001',ref:'R1',reason:'阻值'}]){
         await page.locator('#fileB').setInputFiles({name:'BOM.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:uploadBytes(guard.comment,guard.ref,'0402',guard.code)});
         await page.waitForFunction(model=>B&&B.rows[0]['型号']===model,guard.comment);
-        await page.locator('#boardName').fill('');await page.locator('#boardErp').fill('');await page.locator('#boardVersion').fill('');
+        await page.locator('#boardName').fill('');await page.locator('#boardModel').fill('');await page.locator('#boardErp').fill('');await page.locator('#boardVersion').fill('');
         await page.evaluate(()=>{testAlerts=[];testConfirms=[];});
         let downloaded=false;const onDownload=()=>{downloaded=true;};page.on('download',onDownload);
         await page.evaluate(()=>fmt('AB'));await page.waitForFunction(()=>!fmtBusy);
@@ -145,7 +161,7 @@ async function inspectExport(file, item, templateZip, originalWorkbook) {
         assert(await page.locator('#offlineReviewExport').isDisabled(),'Hard conflict allowed normal export');
         results.push({label,guard:guard.id,blocked:true});
       }
-      assert.deepEqual(errors,[]);await page.close();console.log(label+': 10 metadata export cases, workbook contents/styles, upload reset and 2 technical guards passed');
+      assert.deepEqual(errors,[]);await page.close();console.log(label+': '+cases.length+' metadata export cases, workbook contents/styles, upload reset and 2 technical guards passed');
     }
     assert.equal(crypto.createHash('sha256').update(fs.readFileSync(templatePath)).digest('hex'),templateHash,'Source template changed');
     fs.writeFileSync(path.join(output,'board-metadata-results.json'),JSON.stringify({templateSha256:templateHash,results},null,2));

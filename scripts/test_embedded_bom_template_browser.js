@@ -45,7 +45,7 @@ async function inspectOutput(filename, expectedRows) {
   assert.match(String(cover.D10?.v || ''), /A-01-02-00259/);
   assert.match(String(cover.D11?.v || ''), /V1\.0/);
   assert.match(String(bom.A2?.v || ''), /TP1211-MK36/);
-  assert.match(String(bom.E2?.v || ''), /TP1211-MK36PCBA/);
+  assert.match(String(bom.E2?.v || ''), /TP1211-MK36主板PCBA/);
   assert.match(String(bom.A3?.v || ''), /A-01-02-00259/);
   assert.match(String(bom.E3?.v || ''), /V1\.0/);
   for (const cell of ['A23','B23','E23','F23','G23','A24','B24','E24','F24','G24']) assert.equal(cover[cell]?.v ?? '', '', `old revision remains in ${cell}`);
@@ -152,7 +152,7 @@ async function inspectOutput(filename, expectedRows) {
       }, standardLibrary);
       if (useRealLcsc) await page.evaluate(url => { LCSC_WORKER_URL = url; }, liveLcscUrl);
       assert.equal(await page.evaluate(() => A.rows.length), 0, 'template data rows were used');
-      assert.equal(await page.evaluate(() => extractBoardInfo('A-01-02-00195-TP1506-MS22_V1.1嘉立创BOM.xlsx').tp), 'TP1506-M22');
+      assert.equal(await page.evaluate(() => extractBoardInfo('A-01-02-00195-TP1506-MS22_V1.1嘉立创BOM.xlsx').tp), 'TP1506-MS22');
       assert.equal(await page.locator('#fileA').count(), 0, 'old template upload is still present');
       assert.equal(await page.locator('#expBtn').isVisible(), false, 'obsolete difference report is visible');
       await page.locator('#fileB').setInputFiles(source);
@@ -161,6 +161,9 @@ async function inspectOutput(filename, expectedRows) {
       const expectedRows = await page.evaluate(() => B.rows.length);
       assert(expectedRows > 0);
       assert.equal(await page.locator('#boardName').inputValue(), 'TP1211-MK36');
+      assert.equal(await page.locator('#boardModel').inputValue(), '');
+      await page.locator('#boardName').fill('TP1211-MK36主板');
+      await page.locator('#boardModel').fill('TP1211-MK36主板PCBA');
       assert.equal(await page.locator('#boardErp').inputValue(), 'A-01-02-00259');
       assert.equal(await page.locator('#boardVersion').inputValue(), 'V1.0');
       assert.equal(await page.locator('#goBtn').isDisabled(), false);

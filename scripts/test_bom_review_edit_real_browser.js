@@ -5,7 +5,7 @@ const input=process.env.BOM_EDIT_REAL_FILE||'D:/桌面/A-01-02-00258-TP1211-MK22
 const digest=b=>crypto.createHash('sha256').update(b).digest('hex');
 (async()=>{const raw=JSON.parse(fs.readFileSync('D:/研发电子ＢＯＭ工具 2/交互资料/发布记录/2026-11-04-V1.0.70-V3.0.94/current-standard-library-raw.json','utf8').replace(/^\uFEFF/,'')),records=raw.data.Rows.map(encoded=>{const values=typeof encoded==='string'?JSON.parse(encoded):encoded;return Object.fromEntries(raw.data.Columns.map((key,i)=>[key,values[i]]));}),beforeHash=digest(fs.readFileSync(input));
  const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'}),results=[];
- try{for(const [label,local,url,version] of [['domestic','v3-cloudbase/web/index.html','https://techphant-bom-v3-d9e3pqqb0b46c88-1363491993.tcloudbaseapp.com/','V1.0.72'],['overseas','v3-legacy/index.html','https://techphant-bom-tools-v3.pages.dev/','V3.0.96']]){
+ try{for(const [label,local,url,version] of [['domestic','v3-cloudbase/web/index.html','https://techphant-bom-v3-d9e3pqqb0b46c88-1363491993.tcloudbaseapp.com/','V1.0.73'],['overseas','v3-legacy/index.html','https://techphant-bom-tools-v3.pages.dev/','V3.0.97']]){
   const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',route=>(live?['GET','HEAD'].includes(route.request().method()):route.request().url().startsWith('file:'))?route.continue():route.abort());
   await page.goto(live?url:pathToFileURL(path.join(root,local)).href,{waitUntil:'domcontentloaded'});if(live&&await page.title()==='风险提醒')await page.getByText('确定访问',{exact:true}).click();
