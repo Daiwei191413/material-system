@@ -77,6 +77,7 @@
       state.librarySignature=JSON.stringify(library);
       el('reviewResults').hidden=false;el('reviewExport').disabled=false;
       var r=state.result, files=r.fileCounts||{abnormal:0,unverified:0};
+      var duplicateOption=el('reviewFilter').querySelector('option[value=duplicates]');if(duplicateOption)duplicateOption.textContent='同料归一化（'+(r.duplicateGroups||[]).length+'组）';
       el('reviewSummary').innerHTML=[
         [r.auditCounts.total,'物料行','review-total','all'],
         [r.auditCounts.normal,'自动检查通过','review-pass','normal'],
@@ -108,7 +109,7 @@
   function renderResults(){
     if(!state.result)return;
     var filter=el('reviewFilter').value, term=el('reviewSearch').value.trim().toLowerCase();
-    var rows=state.result.auditRows.filter(function(a){return (filter==='all'||a.status===filter)&&(!term||[a.refs,a.row,a.model,a.materialCode,a.specification,a.package,a.quantity,a.inductorStatus,a.finding,rowFields(a),rowEvidence(a),a.suggestion,listText(a.uncovered),rowConfirmations(a)].join(' ').toLowerCase().includes(term));});
+    var rows=state.result.auditRows.filter(function(a){return (filter==='all'||a.status===filter||(filter==='duplicates'&&(a.checks||[]).some(function(c){return c.rule==='DUPLICATE_MATERIAL_ROWS';})))&&(!term||[a.refs,a.row,a.model,a.materialCode,a.specification,a.package,a.quantity,a.inductorStatus,a.finding,rowFields(a),rowEvidence(a),a.suggestion,listText(a.uncovered),rowConfirmations(a)].join(' ').toLowerCase().includes(term));});
     el('reviewSummary').querySelectorAll('[data-review-filter]').forEach(function(card){card.classList.toggle('is-active',card.dataset.reviewFilter===filter);});
     el('reviewResultCount').textContent='共 '+state.result.document.rows+' 行物料，当前显示 '+Math.min(rows.length,500)+' / '+rows.length+' 条明细'+(rows.length>500?'；请搜索缩小范围，导出报告包含全部明细。':'');
     el('reviewResultBody').innerHTML=rows.slice(0,500).map(function(a){
