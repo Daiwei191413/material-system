@@ -42,6 +42,30 @@
       var identity=E.analyze(candidateDoc(rows.map(function(r,i){return i?r:Object.assign({},r,{values:candidateValues,flags:candidateFlags});})),null,{roles:options.roles||{}});
       if(!identity.duplicateGroups.some(function(g){return g.rows.length===rows.length;}))throw new Error('修改后的型号、封装或装配状态已不属于同一候选，请先修改原行后重新审查。');
     }
+    // Original conversion evidence is scoped to old row values/reference sets. Preserve its
+    // concrete scope as pending text when editing changes that binding, including after export.
+    var context=doc.reviewContext||{},carried=[];
+    rows.forEach(function(row){
+      var rr=E.refs(row.values['位号']).values,details=(context.details||[]).slice();
+      (context.records||[]).filter(function(record){return record.signature===E.rowSignature(row.values)||(record.ref&&E.refs(record.ref).values.some(function(ref){return rr.indexOf(ref)>=0;}));}).forEach(function(record){
+        details=details.concat(record.details||[]);
+        (record.entries||[]).forEach(function(entry){
+          if(entry.kind==='information'&&entry.resolved===true)return;
+          var scope=[(entry.fields||[]).join('、')||entry.kind,entry.reason,entry.action,entry.note].filter(Boolean).join('；');
+          if(scope)carried.push('原第'+row.row+'行 '+E.text(row.values['位号'])+' 的'+(entry.confirmed&&entry.resolved?'人工确认':'核对事项')+'：'+scope);
+        });
+      });
+      details.filter(function(detail){return E.refs(detail.ref).values.some(function(ref){return rr.indexOf(ref)>=0;});}).forEach(function(detail){
+        (detail.warnings||[]).forEach(function(w){if(E.text(w))carried.push('原第'+row.row+'行 '+E.text(row.values['位号'])+'：'+E.text(w));});
+      });
+    });
+    carried=Array.from(new Set(carried));
+    if(carried.length){
+      var noteIndex=map['备注'];if(noteIndex==null){noteIndex=headers.length;map['备注']=noteIndex;headers.push('备注');values.push('');}
+      var note=values[noteIndex]||'';carried.forEach(function(scope){var mark='修改前依据待核实（'+scope+'）';if(note.indexOf(mark)<0)note+=(note?'；':'')+mark;});
+      if(note.length>32000)throw new Error('原行待核实依据较多，合并备注超过Excel长度限制，请分组处理。');
+      values[noteIndex]=note;
+    }
     var wb=clone(item.wb), sheet=wb.Sheets[doc.sheet], range=X.utils.decode_range(sheet['!ref']||'A1');
     // Do not silently destroy formulas or cells merged across several material rows.
     var touched=new Set(rows.map(function(r){return r.row-1;}));
