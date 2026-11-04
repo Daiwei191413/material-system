@@ -28,7 +28,7 @@
   function parseItem(side,opts){
     var item=state[side];if(!item)return;
     item.valid=false;
-    item.doc=E.readWorkbook(item.wb,XLSX,Object.assign({name:item.name,hash:item.hash},opts||{}));
+    item.doc=E.readWorkbook(item.wb,XLSX,Object.assign({name:item.name,hash:item.hash,reviewContext:item.reviewContext},opts||{}));
     item.valid=true;
     editor(side);invalidate();if(side==='primary')preview();
   }
@@ -68,56 +68,84 @@
     try{
       state.result=E.analyze(state.primary.doc,state.source&&state.source.doc,{roles:state.roles,bindings:state.bindings,actuals:actuals()});
       el('reviewResults').hidden=false;el('reviewExport').disabled=false;
-      var r=state.result;
+      var r=state.result, files=r.fileCounts||{abnormal:0,unverified:0};
       el('reviewSummary').innerHTML=[
         [r.auditCounts.total,'物料行','review-total','all'],
-        [r.auditCounts.normal,'正常','review-pass','normal'],
-        [r.auditCounts.abnormal,'异常','review-abnormal','abnormal'],
-        [r.auditCounts.unverified,'无法核对','review-unverified','unverified']
+        [r.auditCounts.normal,'自动检查通过','review-pass','normal'],
+        [r.auditCounts.confirmed||0,'人工已确认','review-confirmed','confirmed'],
+        [r.auditCounts.unverified,'待核实','review-unverified','unverified'],
+        [r.auditCounts.abnormal,'明确冲突','review-abnormal','abnormal']
       ].map(function(item){return '<button type="button" class="review-metric review-metric-button '+item[2]+'" data-review-filter="'+item[3]+'" aria-label="查看'+item[1]+'明细"><strong>'+item[0]+'</strong><span>'+item[1]+'</span></button>';}).join('');
-      el('reviewConclusion').className='review-result-note '+(r.coreIssues.length?'review-result-fail':'review-result-pass');
-      el('reviewConclusion').innerHTML=r.coreIssues.length
-        ? '<strong>发现 '+r.auditCounts.abnormal+' 行或文件范围存在明确异常</strong><br>请按逐行明细修正型号、规格描述、封装、位号或数量后重新审查。'
-        : '<strong>未发现明确异常</strong><br>型号、规格描述、封装、位号和数量的当前可核对项一致。'+(r.auditCounts.unverified?' 另有 '+r.auditCounts.unverified+' 行缺少权威依据，已单独列为“无法核对”。':'');
-      el('reviewFilter').value=r.auditCounts.abnormal?'abnormal':(r.auditCounts.unverified?'unverified':'normal');
+      var conflicts=r.auditCounts.abnormal+(files.abnormal||0), pending=r.auditCounts.unverified+(files.unverified||0);
+      el('reviewConclusion').className='review-result-note '+(conflicts?'review-result-fail':pending?'review-result-pending':'review-result-pass');
+      el('reviewConclusion').innerHTML='<strong>'+html(conflicts?'存在明确冲突，请按具体检查项修正后复审':pending?'存在待核实事项，请补充依据或核对确认记录':'当前检查未发现未处理事项')+'</strong>'
+        +'<p>自动检查通过仅代表当前规则覆盖的项目相符；人工确认保留具体范围，未核实的参数仍单独列出。</p>'
+        +'<p>'+html(r.officialVerification||'本次审查不等同于逐颗官方参数核验，请查看每行检查范围。')+'</p>'
+        +'<p class="review-file-counts">文件范围另计：明确冲突 '+(files.abnormal||0)+' 项，待核实 '+(files.unverified||0)+' 项，不计入物料行统计。</p>';
+      el('reviewFilter').value=conflicts?'abnormal':pending?'unverified':r.auditCounts.confirmed?'confirmed':'normal';
       el('reviewEvidence').hidden=true;renderResults();message('审查完成。已自动显示当前最需要处理的明细；也可点击顶部统计卡切换结果。');
     }catch(error){invalidate();message('无法完成审查：'+error.message,'error');}
   }
-  var auditLabels={abnormal:'异常',unverified:'无法核对',normal:'正常'};
+  var auditLabels={abnormal:'明确冲突',unverified:'待核实',normal:'自动检查通过',confirmed:'人工已确认'};
+  var outcomeLabels={conflict:'明确冲突',pending:'待核实',passed:'自动检查通过',confirmed:'人工已确认'};
+  function listText(value){return Array.isArray(value)?value.map(E.text).filter(Boolean).join('；'):E.text(value);}
+  function confirmationText(c){return c?[c.action,c.time?'确认时间：'+c.time:''].filter(Boolean).join('；'):'';}
+  function outcome(c){return c.outcome||(c.status==='matched'?'passed':c.status==='error'?'conflict':'pending');}
+  function rowChecks(a){
+    return a.checks||state.result.checks.filter(function(c){return a.scope==='file'?(a.checkIds||[]).indexOf(c.id)>=0:c.key===a.key;});
+  }
+  function rowFields(a){return Array.from(new Set((a.abnormalFields||[]).concat(a.pendingFields||[]))).join('、');}
+  function rowEvidence(a){return listText(a.evidence)||Array.from(new Set(rowChecks(a).map(function(c){return c.source;}).filter(Boolean))).join('；');}
+  function rowConfirmations(a){return rowChecks(a).map(function(c){return confirmationText(c.confirmation);}).filter(Boolean).join('；');}
   function renderResults(){
     if(!state.result)return;
     var filter=el('reviewFilter').value, term=el('reviewSearch').value.trim().toLowerCase();
-    var rows=state.result.auditRows.filter(function(a){return (filter==='all'||a.status===filter)&&(!term||[a.refs,a.row,a.model,a.specification,a.package,a.quantity,a.inductorStatus,a.finding,a.abnormalFields.join(' ')].join(' ').toLowerCase().includes(term));});
+    var rows=state.result.auditRows.filter(function(a){return (filter==='all'||a.status===filter)&&(!term||[a.refs,a.row,a.model,a.specification,a.package,a.quantity,a.inductorStatus,a.finding,rowFields(a),rowEvidence(a),a.suggestion,listText(a.uncovered),rowConfirmations(a)].join(' ').toLowerCase().includes(term));});
     el('reviewSummary').querySelectorAll('[data-review-filter]').forEach(function(card){card.classList.toggle('is-active',card.dataset.reviewFilter===filter);});
-    el('reviewResultCount').textContent='共 '+state.result.document.rows+' 行物料，当前显示 '+rows.length+' 条核对明细';
+    el('reviewResultCount').textContent='共 '+state.result.document.rows+' 行物料，当前显示 '+Math.min(rows.length,500)+' / '+rows.length+' 条明细'+(rows.length>500?'；请搜索缩小范围，导出报告包含全部明细。':'');
     el('reviewResultBody').innerHTML=rows.slice(0,500).map(function(a){
-      var line=a.checkIds.length?'<button class="review-action-link" data-review-evidence="'+a.checkIds[0]+'">'+(a.scope==='file'?'文件范围':'第'+html(a.row)+'行')+'</button>':(a.scope==='file'?'文件范围':'第'+html(a.row)+'行');
-      var reason=html(a.finding)+(a.expected?'<div class="review-suggestion">正确内容：'+html(a.expected)+'</div>':'');
-      return '<tr><td>'+line+'</td><td>'+html(a.refs||'缺失')+'</td><td>'+html(a.model||'—')+'</td><td>'+html(a.specification||'—')+'</td><td>'+html(a.package||'—')+'</td><td>'+html(a.quantity||'—')+'</td><td>'+html(a.inductorStatus||'—')+'</td><td><span class="review-issue-badge review-'+a.status+'">'+auditLabels[a.status]+'</span></td><td>'+html(a.abnormalFields.length?a.abnormalFields.join('、'):'—')+'</td><td>'+reason+'</td></tr>';
-    }).join('')||'<tr><td colspan="10" class="review-empty">当前筛选条件下没有核对明细。</td></tr>';
+      var checks=rowChecks(a), attr=checks.length?'data-review-evidence="'+html(checks[0].id)+'"':'data-review-row="'+html(a.id)+'"';
+      var line='<button type="button" class="review-action-link" '+attr+'>'+(a.scope==='file'?'文件范围':'第'+html(a.row)+'行')+'</button>';
+      var fields=rowFields(a), reason=(fields?'<strong>涉及字段：'+html(fields)+'</strong><br>':'')+html(a.finding||'请展开检查项查看核对范围');
+      if(a.uncovered&&a.uncovered.length)reason+='<div class="review-coverage"><strong>尚未覆盖：</strong>'+html(listText(a.uncovered))+'</div>';
+      var basis=html(rowEvidence(a)||'未提供可用对照依据');
+      if(a.expected)basis+='<div class="review-suggestion"><strong>对照内容：</strong>'+html(a.expected)+'</div>';
+      if(a.suggestion)basis+='<div class="review-suggestion"><strong>建议：</strong>'+html(a.suggestion)+'</div>';
+      return '<tr><td data-label="行号">'+line+'</td><td data-label="位号 / 型号"><strong>'+html(a.refs||'未提供位号')+'</strong><div class="review-part-model">'+html(a.model||'—')+'</div><div class="review-suggestion">封装：'+html(a.package||'未提供')+'；数量：'+html(a.quantity||'未提供')+'</div></td>'
+        +'<td data-label="核对结果"><span class="review-issue-badge review-'+html(a.status)+'">'+html(auditLabels[a.status]||a.status)+'</span></td><td data-label="待核对内容与原因">'+reason+'</td><td data-label="依据与建议">'+basis+'</td>'
+        +'<td data-label="操作"><button type="button" class="review-detail-button" '+attr+'>查看全部检查项</button></td></tr>';
+    }).join('')||'<tr><td colspan="6" class="review-empty">当前筛选条件下没有核对明细。</td></tr>';
   }
-  function evidence(id){
+  function evidence(id,rowId){
     if(!state.result)return;
-    var c=state.result.checks.find(function(x){return x.id===id;}), row=c&&state.primary.doc.rows.find(function(x){return x.key===c.key;});
-    if(!c)return;
+    var c=state.result.checks.find(function(x){return x.id===id;});
+    var audit=state.result.auditRows.find(function(a){return rowId?a.id===rowId:c&&(a.scope==='file'?(a.checkIds||[]).indexOf(c.id)>=0:a.key===c.key);});
+    if(!audit)return;
+    var row=state.primary.doc.rows.find(function(x){return x.key===audit.key;}), checks=rowChecks(audit);
     el('reviewEvidence').hidden=false;
-    el('reviewEvidence').innerHTML='<h4>第 '+c.row+' 行 · '+html(c.refs||'文件范围')+'</h4><p>'+html(c.message)+'</p><p>建议修正为：'+html(c.expected||'请按实际器件资料确认')+'</p>'
-      +(row?'<div class="review-table-wrap"><table class="review-table"><thead><tr><th>字段</th><th>原单元格</th><th>原始内容</th></tr></thead><tbody>'+E.FIELDS.filter(function(f){return row.cells[f];}).map(function(f){return '<tr><td>'+html(f)+'</td><td>'+html(row.cells[f])+'</td><td>'+html(row.values[f])+'</td></tr>';}).join('')+'</tbody></table></div>':'');
+    el('reviewEvidence').innerHTML='<h4>'+(audit.scope==='file'?'文件范围':'第 '+html(audit.row)+' 行')+' · '+html(audit.refs||audit.model||'核对详情')+'</h4>'
+      +'<p>已检查字段：'+html(listText(audit.checkedFields)||'请查看下方检查项')+'</p>'
+      +'<p class="review-coverage"><strong>尚未覆盖：</strong>'+html(listText(audit.uncovered)||'未列出额外未覆盖项；检查结论仍以本页具体规则和依据为限。')+'</p>'
+      +'<div class="review-check-list">'+checks.map(function(check){var result=outcome(check), confirmation=confirmationText(check.confirmation);return '<article class="review-check-card"><div><span class="review-issue-badge review-outcome-'+html(result)+'">'+html(outcomeLabels[result]||result)+'</span> <strong>'+html(check.field||'文件范围')+'</strong></div>'
+        +'<p>'+html(check.message)+'</p><dl><dt>当前内容</dt><dd>'+html(check.observed||'未提供')+'</dd><dt>对照内容</dt><dd>'+html(check.expected||'未提供对照值')+'</dd><dt>依据</dt><dd>'+html(check.source||'未提供')+'</dd><dt>原单元格</dt><dd>'+html((check.sheet?check.sheet+'!':'')+(check.cell||'文件范围'))+'</dd><dt>建议操作</dt><dd>'+html(check.suggestion||'保留本项核对记录')+'</dd>'
+        +(confirmation?'<dt>人工确认记录</dt><dd>'+html(confirmation)+'</dd>':'')+'</dl></article>';}).join('')+'</div>'
+      +(row?'<details class="review-details" open><summary>原行全部字段</summary><div class="review-table-wrap"><table class="review-table review-original-table"><thead><tr><th>字段</th><th>原单元格</th><th>原始内容</th></tr></thead><tbody>'+E.FIELDS.filter(function(f){return row.cells[f];}).map(function(f){return '<tr><td>'+html(f)+'</td><td>'+html(row.cells[f])+'</td><td>'+html(row.values[f])+'</td></tr>';}).join('')+'</tbody></table></div></details>':'');
     el('reviewEvidence').scrollIntoView({behavior:'smooth',block:'nearest'});
   }
   function exportReport(){
     if(!state.result)return;
     try{
-      var r=state.result, wb=XLSX.utils.book_new();
-      var overview=[['项目','内容'],['文件',r.document.name],['物料行数',r.auditCounts.total],['正常',r.auditCounts.normal],['异常',r.auditCounts.abnormal],['无法核对',r.auditCounts.unverified],['审查结论',r.conclusion],['源文件',r.source?r.source.name:'未提供'],['规则版本',r.version]];
-      var header=['原行号','位号','型号','规格描述','封装','数量','电感库状态','核对结果','异常字段','原因及正确内容'];
-      var details=[header].concat(r.auditRows.map(function(a){return [a.scope==='file'?'文件范围':a.row,a.refs,a.model,a.specification,a.package,a.quantity,a.inductorStatus||'',auditLabels[a.status],a.abnormalFields.join('、'),a.finding+(a.expected?'；正确内容：'+a.expected:'')];}));
-      [['审查结论',overview],['逐行核对明细',details]].forEach(function(pair){var sheet=XLSX.utils.aoa_to_sheet(pair[1]);sheet['!cols']=pair[0]==='审查结论'?[{wch:25},{wch:90}]:[{wch:10},{wch:24},{wch:28},{wch:48},{wch:16},{wch:10},{wch:36},{wch:14},{wch:18},{wch:80}];XLSX.utils.book_append_sheet(wb,sheet,pair[0]);});
+      var r=state.result, wb=XLSX.utils.book_new(), files=r.fileCounts||{abnormal:0,unverified:0};
+      var overview=[['项目','内容'],['文件',r.document.name],['文件SHA256',r.document.hash],['物料行数',r.auditCounts.total],['自动检查通过',r.auditCounts.normal],['人工已确认',r.auditCounts.confirmed||0],['待核实',r.auditCounts.unverified],['明确冲突',r.auditCounts.abnormal],['文件范围明确冲突',files.abnormal||0],['文件范围待核实',files.unverified||0],['审查结论',r.conclusion],['检查范围',r.officialVerification],['状态说明','自动检查通过仅代表当前规则覆盖的项目相符；人工确认仅适用于对应检查项；未覆盖项目见逐行明细。'],['源文件',r.source?r.source.name:'未提供'],['源文件SHA256',r.source?r.source.hash:'未提供'],['规则版本',r.version]];
+      var header=['原行号','位号','型号','规格描述','封装','数量','电感库状态','核对结果','涉及字段','具体原因','对照内容','依据','建议操作','已检查字段','尚未覆盖','人工确认记录'];
+      var details=[header].concat(r.auditRows.map(function(a){return [a.scope==='file'?'文件范围':a.row,a.refs,a.model,a.specification,a.package,a.quantity,a.inductorStatus||'',auditLabels[a.status],rowFields(a),a.finding,a.expected||'',rowEvidence(a),a.suggestion||'',listText(a.checkedFields),listText(a.uncovered),rowConfirmations(a)];}));
+      var checkDetails=[['检查编号','原行号','位号','字段','原单元格','核对结果','当前内容','对照内容','具体原因','依据','建议操作','人工确认记录']].concat(r.checks.map(function(check){return [check.id,check.key?check.row:'文件范围',check.refs,check.field,(check.sheet?check.sheet+'!':'')+(check.cell||'文件范围'),outcomeLabels[outcome(check)],check.observed,check.expected,check.message,check.source,check.suggestion,confirmationText(check.confirmation)];}));
+      [['审查结论',overview],['逐行核对明细',details],['检查项明细',checkDetails]].forEach(function(pair){var sheet=XLSX.utils.aoa_to_sheet(pair[1]);sheet['!cols']=pair[0]==='审查结论'?[{wch:25},{wch:100}]:pair[0]==='逐行核对明细'?[10,24,28,48,18,10,28,18,22,70,40,45,50,28,60,60].map(function(w){return {wch:w};}):[12,10,24,18,25,18,45,45,70,45,50,60].map(function(w){return {wch:w};});if(pair[0]!=='审查结论')sheet['!autofilter']={ref:sheet['!ref']};XLSX.utils.book_append_sheet(wb,sheet,pair[0]);});
       XLSX.writeFile(wb,'线下BOM审查报告_'+new Date().toISOString().replace(/[:.]/g,'-')+'.xlsx');
     }catch(error){message('报告导出失败：'+error.message,'error');}
   }
-  function remember(headers, rows, source, name){
-    state.last={headers:headers.slice(),rows:rows.map(function(r){return r.slice();}),source:source?{rows:JSON.parse(JSON.stringify(source.rows||[])),fm:Object.assign({},source.fm),_fn:source._fn,_reviewWorkbook:source._reviewWorkbook,_reviewBytes:source._reviewBytes}:null,name:name};
+  function remember(headers, rows, source, name,reviewContext){
+    state.last={headers:headers.slice(),rows:JSON.parse(JSON.stringify(rows)),reviewContext:reviewContext?JSON.parse(JSON.stringify(reviewContext)):null,source:source?{rows:JSON.parse(JSON.stringify(source.rows||[])),fm:Object.assign({},source.fm),_fn:source._fn,_reviewWorkbook:source._reviewWorkbook?JSON.parse(JSON.stringify(source._reviewWorkbook)):null,_reviewBytes:source._reviewBytes?source._reviewBytes.slice(0):null}:null,name:name};
     var button=el('reviewLastBtn');if(button)button.disabled=false;
   }
   async function useLast(){
@@ -126,7 +154,7 @@
     var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([last.headers].concat(last.rows)),'整理后BOM');
     var sequence=++state.serial.primary, sourceSequence=++state.serial.source;state.roles={};state.bindings={};el('reviewActuals').value='';
     state.source=null;editor('source');el('reviewFile').value='';el('reviewSourceFile').value='';
-    state.primary={wb:wb,name:last.name||'刚生成的线下BOM.xlsx',hash:'内存数据；请导出原文件获取文件SHA256'};parseItem('primary',{headerRow:1});
+    state.primary={wb:wb,name:last.name||'刚生成的线下BOM.xlsx',hash:'内存数据；请导出原文件获取文件SHA256',reviewContext:last.reviewContext};parseItem('primary',{headerRow:1});
     state.source=null;
     if(last.source&&last.source._reviewWorkbook){
       var sourceHash=last.source._reviewBytes?await digest(last.source._reviewBytes):'原始工作簿会话数据';
@@ -151,7 +179,7 @@
     el('reviewPanel').addEventListener('click',function(ev){
       var filterCard=ev.target.closest('[data-review-filter]');
       if(filterCard){el('reviewFilter').value=filterCard.dataset.reviewFilter;renderResults();return;}
-      var target=ev.target.closest('[data-review-evidence]');if(target)evidence(target.dataset.reviewEvidence);
+      var target=ev.target.closest('[data-review-evidence], [data-review-row]');if(target)evidence(target.dataset.reviewEvidence,target.dataset.reviewRow);
     });
     el('reviewPanel').addEventListener('change',function(ev){
       var t=ev.target;

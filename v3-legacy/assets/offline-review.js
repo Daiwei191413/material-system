@@ -308,18 +308,56 @@ function offlineReviewSaveRow(index) {
   OFFLINE_REVIEW_STATE.signature='';
   return offlineReviewRefresh();
 }
+function offlineReviewDecisionNote(item,options) {
+  var decision=OFFLINE_REVIEW_STATE.decisions[item.key],data=item.official;
+  var comparison='源资料=' + [item.model,item.package,item.lcsc].filter(Boolean).join(' / ')
+    + '；官方资料=' + (data ? [data.productModel,data.package,data.productCode].filter(Boolean).join(' / ') : '未取得完整资料');
+  var note=(options.draft ? '待复核稿：' : '人工确认：') + item.reason + '；' + comparison;
+  if(decision)note+='；处理='+decision.action+'；确认时间='+decision.time;
+  return note;
+}
+function buildOfflineAuditContext(headers,rows,options,details) {
+  var E=window.BOMReview,context={details:[],records:[]};if(!E)return context;
+  var map=E.mapping(headers);
+  var original=B._reviewWorkbook?E.readWorkbook(B._reviewWorkbook,XLSX,{}):{rows:(B.rows||[]).map(function(row){return {values:row};})};
+  rows.forEach(function(cells,index){
+    var values={};E.FIELDS.forEach(function(field){values[field]=map[field]==null?'':E.text(cells[map[field]]);});
+    var entries=(options.issues||[]).filter(function(item){return item.sourceIndex===index||item.sourceIndex<0;}).map(function(item){
+      var decision=OFFLINE_REVIEW_STATE.decisions[item.key],confirmed=!options.draft&&offlineReviewConfirmed(item);
+      return {kind:item.kind,reason:item.reason,fields:item.fields||[],confirmed:confirmed,
+        resolved:confirmed&&['model','package','source'].indexOf(item.kind)>=0,action:decision?decision.action:'',time:decision?decision.time:'',
+        note:offlineReviewDecisionNote(item,options),source:{model:item.model,package:item.package,code:item.lcsc},
+        official:item.official?{model:item.official.productModel,package:item.official.package,code:item.official.productCode,specification:item.official.specification}:null};
+    });
+    var relevant=details.filter(function(d){return d.sourceIndex!=null?d.sourceIndex===index:E.text(d.ref)===values['位号']&&E.text(d.model)===values['型号'];});
+    relevant.forEach(function(d){d.model=values['型号'];});
+    relevant.forEach(function(d){(d.warnings||[]).forEach(function(w){
+      if(w==='标准库候选与立创官方型号不一致，已改用官方资料，未引用该库记录')entries.push({kind:'information',reason:w,note:w,resolved:true,confirmed:false});
+    });});
+    var sourceRow=B.rows[index]||{},official=OFFLINE_REVIEW_STATE.result&&OFFLINE_REVIEW_STATE.result.byCode[normLcsc(sourceRow['立创编号'])];
+    if(official&&official.productModel&&E.text(values['型号'])===E.text(official.productModel)&&E.text(sourceRow['型号'])===E.text(official.productModel))entries.push({kind:'verifiedModel',confirmed:false,resolved:true,
+      reason:'转换阶段已按采购编号 '+normLcsc(sourceRow['立创编号'])+' 核对型号文字：'+official.productModel,
+      source:{model:sourceRow['型号'],code:sourceRow['立创编号']},official:{model:official.productModel,package:official.package,code:official.productCode}});
+    if(!entries.length&&!relevant.some(function(d){return d.level==='review'&&(d.warnings||[]).length;}))return;
+    var record={schema:1,ref:values['位号'],signature:E.rowSignature(values),sourceSignature:E.sourceSignature(original,values['位号']),entries:entries,
+      details:relevant.filter(function(d){return d.level==='review'||d.level==='confirmed';}).map(function(d){return {ref:d.ref,model:d.model,warnings:(d.warnings||[]).slice()};})};context.records.push(record);
+    // Machine-readable evidence is in a hidden report column, while the ordinary report remains readable.
+    var target=relevant[0];
+    if(!target){target={sourceIndex:index,ref:values['位号'],model:values['型号'],level:'auto',filled:[],warnings:[]};details.push(target);}
+    target.reviewEvidence=record;
+  });
+  context.details=details.filter(function(d){return d.level==='review'||d.level==='confirmed';}).map(function(d){return {ref:d.ref,model:d.model,warnings:(d.warnings||[]).slice(),source:'本次转换补齐报告'};});
+  return context;
+}
 function offlineReviewAnnotate(row,index,options,details,stats) {
   var issues=options.issues || [], source=B.rows[index];
   issues.filter(function(item){return item.sourceIndex === index || item.sourceIndex < 0;}).forEach(function(item){
     var decision=OFFLINE_REVIEW_STATE.decisions[item.key];
-    var data=item.official;
-    var comparison='源资料=' + [item.model,item.package,item.lcsc].filter(Boolean).join(' / ')
-      + '；官方资料=' + (data ? [data.productModel,data.package,data.productCode].filter(Boolean).join(' / ') : '未取得完整资料');
-    var note=(options.draft ? '待复核稿：' : '人工确认：') + item.reason + '；' + comparison;
-    if (decision) note += '；处理=' + decision.action + '；确认时间=' + decision.time;
+    var note=offlineReviewDecisionNote(item,options);
     row['备注']=[row['备注'],note].filter(Boolean).join('；');
-    details.push({ref:row['位号'] || '',model:row['型号'] || '',level:'review',filled:[],warnings:[note]});
-    stats.review=(stats.review || 0)+1;
+    var resolved=!options.draft&&offlineReviewConfirmed(item)&&['model','package','source'].indexOf(item.kind)>=0;
+    details.push({ref:row['位号'] || '',model:row['型号'] || '',level:resolved?'confirmed':'review',filled:[],warnings:[note]});
+    if(!resolved)stats.review=(stats.review || 0)+1;
     if (item.kind==='package' || item.kind==='source' || item.kind==='model') {
       var choice = findRfInductorPreference(source);
       var identity = choice.mode === 'exact' ? {

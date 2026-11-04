@@ -6,14 +6,14 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <title>技象科技研发BOM 整理工具 V1.0.68 团队版</title>
+  <title>技象科技研发BOM 整理工具 V1.0.69 团队版</title>
 <link rel="icon" type="image/png" href="assets/favicon.png?v=3.0.23-cb1">
 <script src="assets/vendor/xlsx.full.min.js?v=0.18.5"></script>
 <script src="assets/vendor/jszip.min.js?v=3.10.1"></script>
-<link rel="stylesheet" href="assets/bom-review.css?v=1.2.1">
-<script defer src="assets/bom-review-engine.js?v=1.2.1"></script>
-<script defer src="assets/bom-review-ui.js?v=1.2.1"></script>
-<script defer src="assets/offline-review.js?v=20261103-2"></script>
+<link rel="stylesheet" href="assets/bom-review.css?v=20261104-1">
+<script defer src="assets/bom-review-engine.js?v=20261104-1"></script>
+<script defer src="assets/bom-review-ui.js?v=20261104-1"></script>
+<script defer src="assets/offline-review.js?v=20261104-1"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:#f0f2f5;min-height:100vh;display:flex;flex-direction:column}
@@ -308,7 +308,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <div class="v3-mask" id="v3LoginMask">
   <div class="v3-login-card">
     <h2>技象科技 BOM 整理工具</h2>
-    <p class="v3-sub">团队版 V1.0.68 · 请登录后使用</p>
+    <p class="v3-sub">团队版 V1.0.69 · 请登录后使用</p>
     <label>账号 / 手机号</label>
     <input id="v3Username" type="text" autocomplete="username" placeholder="admin">
     <label>密码</label>
@@ -969,8 +969,8 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   <span class="subtitle">用科技打开想象力</span>
 </div>
 <header>
-<div class="release-date"><span>更新日期：<time datetime="2026-11-03">20261103</time></span></div>
-        <h1>⚡ 技象科技研发BOM 整理工具 V1.0.68 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
+<div class="release-date"><span>更新日期：<time datetime="2026-11-04">20261104</time></span></div>
+        <h1>⚡ 技象科技研发BOM 整理工具 V1.0.69 <span style="font-size:14px;background:#0078b8;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle;margin-left:8px;">团队版</span></h1>
 <p>三级匹配引擎 · 物料库自动补齐 · 立创编号精确识别</p>
 </header>
 <div class="main">
@@ -1157,8 +1157,8 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
   </div>
   <div id="reviewResults" class="panel" hidden>
     <h3>审查结果</h3><div id="reviewSummary" class="review-summary"></div><div id="reviewConclusion" class="review-result-note"></div>
-    <div class="review-config"><label>核对结果 <select id="reviewFilter"><option value="abnormal">仅看异常</option><option value="unverified">无法核对</option><option value="normal">正常</option><option value="all">全部明细</option></select></label><label>搜索 <input id="reviewSearch" type="search" placeholder="位号、行号、型号或异常原因"></label><span id="reviewResultCount"></span></div>
-    <div class="review-table-wrap"><table class="review-table review-audit-table"><thead><tr><th>行号</th><th>位号</th><th>型号</th><th>规格描述</th><th>封装</th><th>数量</th><th>电感库状态</th><th>结果</th><th>异常字段</th><th>原因及正确内容</th></tr></thead><tbody id="reviewResultBody"></tbody></table></div>
+    <div class="review-config"><label>核对结果 <select id="reviewFilter"><option value="abnormal">明确冲突</option><option value="unverified">待核实</option><option value="confirmed">人工已确认</option><option value="normal">自动检查通过</option><option value="all">全部明细</option></select></label><label>搜索 <input id="reviewSearch" type="search" placeholder="位号、行号、型号或异常原因"></label><span id="reviewResultCount"></span></div>
+    <div class="review-table-wrap"><table class="review-table review-audit-table"><thead><tr><th>行号</th><th>位号 / 型号</th><th>核对结果</th><th>待核对内容与原因</th><th>依据与建议</th><th>操作</th></tr></thead><tbody id="reviewResultBody"></tbody></table></div>
     <div id="reviewEvidence" class="review-evidence" hidden></div>
   </div>
 </div>
@@ -1284,7 +1284,7 @@ body.v3-not-logged > *:not(.v3-mask):not(.v3-readonly-hint){display:none !import
 <!-- 物料编码面板 -->
 <div id="materialPanel">
   <div class="panel">
-    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.68</span></h3>
+    <h3>📦 物料库管理 <span style="font-size:13px;color:#888;font-weight:normal;margin-left:8px">团队共享 V1.0.69</span></h3>
 
     <!-- 库切换 Tab -->
     <div class="lib-tabs" style="margin-bottom:14px;border-bottom:2px solid #e8ecef">
@@ -8052,10 +8052,10 @@ function appendReportSheet(zip, enrichStats, enrichDetails){
 
     // 生成补齐报告 sheet XML
     function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-    var reportRows = [['位号','型号','匹配等级','补齐字段','待核实事项']];
+    var reportRows = [['位号','型号','匹配等级','补齐字段','待核实事项','审查依据']];
     if (enrichStats.draft) reportRows.push(['文件状态','待复核稿','','','存在未解决事项；明确冲突行按源资料保留，请逐项复核']);
     enrichDetails.forEach(function(d){
-      reportRows.push([d.ref, d.model, d.level === 'review' ? '待核实' : (d.level === 'auto' ? '基础描述' : (d.level === 'rf' ? '射频库' : 'L'+d.level)), d.filled.join(' / '), (d.warnings || []).join('；')]);
+      reportRows.push([d.ref, d.model, d.level === 'confirmed' ? '人工已确认' : d.level === 'review' ? '待核实' : (d.level === 'auto' ? '基础描述' : (d.level === 'rf' ? '射频库' : 'L'+d.level)), d.filled.join(' / '), (d.warnings || []).join('；'), d.reviewEvidence ? JSON.stringify(d.reviewEvidence) : '']);
     });
     reportRows.push(['']);
     if (enrichStats.boardInfoMissing && enrichStats.boardInfoMissing.length) {
@@ -8086,7 +8086,8 @@ function appendReportSheet(zip, enrichStats, enrichDetails){
 
     var sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
       + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-      + '<dimension ref="A1:E'+reportRows.length+'"/>'
+      + '<dimension ref="A1:F'+reportRows.length+'"/>'
+      + '<cols><col min="6" max="6" hidden="1" width="0" customWidth="1"/></cols>'
       + '<sheetData>' + rowsXml + '</sheetData>'
       + '</worksheet>';
     zip.file(newSheetPath, sheetXml);
@@ -9229,6 +9230,7 @@ function fmtCore(dir, lcscIdentityByCode, options){
   var offlineFormatErrors = [];
 
   dat.rows.forEach(function(u, idx){
+    var detailStart=enrichDetails.length;
     var clone = {};
     for (var k in u) clone[k] = u[k];
     if (clone._specWarnings) clone._specWarnings = clone._specWarnings.slice();
@@ -9236,6 +9238,7 @@ function fmtCore(dir, lcscIdentityByCode, options){
     if (dir === 'AB' && options.draft && (options.hardRows || []).indexOf(idx) >= 0) {
       clone = Object.assign({},offlineReviewSourceRow(idx));
       offlineReviewAnnotate(clone,idx,options,enrichDetails,enrichStats);
+      enrichDetails.slice(detailStart).forEach(function(detail){detail.sourceIndex=idx;});
       rows.push(hd.map(function(h){var field=rev[h];return field && clone[field] !== undefined ? clone[field] : '';}));
       return;
     }
@@ -9400,6 +9403,7 @@ function fmtCore(dir, lcscIdentityByCode, options){
       enrichStats.review = (enrichStats.review || 0) + 1;
     }
     if (dir === 'AB' && options.reviewExport) offlineReviewAnnotate(clone,idx,options,enrichDetails,enrichStats);
+    enrichDetails.slice(detailStart).forEach(function(detail){detail.sourceIndex=idx;});
     if (dir === 'AB') markInternalCodeAsKeyComponent(clone);
     var r = [];
     hd.forEach(function(h){
@@ -9415,7 +9419,8 @@ function fmtCore(dir, lcscIdentityByCode, options){
     return;
   }
 
-  if (dir === 'AB' && window.BOM_REVIEW_UI) window.BOM_REVIEW_UI.remember(hd, rows, B, cleanBomFilename(B._fn || 'BOM') + '.xlsx');
+  var auditContext=dir==='AB' ? buildOfflineAuditContext(hd,rows,options,enrichDetails) : null;
+  if (dir === 'AB' && window.BOM_REVIEW_UI) window.BOM_REVIEW_UI.remember(hd, rows, B, cleanBomFilename(B._fn || 'BOM') + '.xlsx',auditContext);
 
   // ========== 方案 A：AB 方向且 A 有原始字节 → JSZip 原地改 xlsx，保留封面 LOGO + 表头 + 样式 ==========
   if (dir === 'AB' && (!A._raw || typeof JSZip === 'undefined')) {
@@ -9459,9 +9464,9 @@ function fmtCore(dir, lcscIdentityByCode, options){
   XLSX.utils.book_append_sheet(wb, ws1, '整理后BOM');
 
   if (dir === 'AB' && (materialDB_standard.length || enrichDetails.length)) {
-    var report = [['位号','型号','匹配等级','补齐字段','待核实事项']];
+    var report = [['位号','型号','匹配等级','补齐字段','待核实事项','审查依据']];
     enrichDetails.forEach(function(d){
-      report.push([d.ref, d.model, d.level === 'review' ? '待核实' : (d.level === 'auto' ? '基础描述' : 'L'+d.level), d.filled.join(' / '), (d.warnings || []).join('；')]);
+      report.push([d.ref, d.model, d.level === 'confirmed' ? '人工已确认' : d.level === 'review' ? '待核实' : (d.level === 'auto' ? '基础描述' : 'L'+d.level), d.filled.join(' / '), (d.warnings || []).join('；'), d.reviewEvidence ? JSON.stringify(d.reviewEvidence) : '']);
     });
     report.push([]);
     report.push(['统计']);
@@ -9471,6 +9476,7 @@ function fmtCore(dir, lcscIdentityByCode, options){
     report.push(['未命中', enrichStats.l0]);
     report.push(['总补齐字段数', enrichStats.filled]);
     var ws2 = XLSX.utils.aoa_to_sheet(report);
+    ws2['!cols']=[{wch:22},{wch:28},{wch:16},{wch:26},{wch:80},{hidden:true}];
     XLSX.utils.book_append_sheet(wb, ws2, '补齐报告');
   }
 
@@ -10276,7 +10282,7 @@ function batchAutoFillAll(){
   </div>
 </div>
 <footer class="site-footer">
-    <div>© 2026 技象科技 · 研发BOM 整理工具 V1.0.68 · 开发者：David.hao</div>
+    <div>© 2026 技象科技 · 研发BOM 整理工具 V1.0.69 · 开发者：David.hao</div>
   <div style="margin-top:6px"><span style="color:#888">🔗 访问地址：</span><a href="https://techphant-bom-tools-v3.pages.dev" target="_blank" style="color:#0078b8;text-decoration:none;font-weight:500">techphant-bom-tools-v3.pages.dev</a></div>
 </footer>
 </body>

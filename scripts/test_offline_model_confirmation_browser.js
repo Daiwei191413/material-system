@@ -87,6 +87,18 @@ async function downloadFinal(page,file){
  const pending=page.waitForEvent('download',{timeout:20000});await page.locator('#offlineReviewExport').click();
  const download=await pending;assert(!download.suggestedFilename().includes('待复核'));
  await download.saveAs(file);const actual=read(file);assert(!actual.visible.includes('待复核稿'),'Final output still labeled as draft');
+  // Exercise the real conversion handoff and the downloaded workbook, not a manufactured evidence record.
+  await page.evaluate(()=>BOM_REVIEW_UI.useLast());
+  const memory=await page.evaluate(()=>BOM_REVIEW_UI.state.result);
+  assert.equal(memory.auditCounts.confirmed,3,JSON.stringify(memory.issues));
+  assert.equal(memory.auditCounts.unverified,0);assert.equal(memory.auditCounts.abnormal,0);
+  await page.locator('#reviewFile').setInputFiles(file);
+  await page.waitForFunction(()=>BOM_REVIEW_UI.state.primary?.valid);
+  await page.locator('#reviewRun').click();
+  const reloaded=await page.evaluate(()=>BOM_REVIEW_UI.state.result);
+  assert.deepEqual(reloaded.auditCounts,memory.auditCounts,'Saved workbook audit differs from conversion session');
+  assert.equal(reloaded.checks.filter(c=>c.outcome==='confirmed').length,memory.checks.filter(c=>c.outcome==='confirmed').length);
+  await page.evaluate(()=>showPanelDirect('compare'));
  return {...actual,filename:download.suggestedFilename()};
 }
 async function assertLibraries(page){
