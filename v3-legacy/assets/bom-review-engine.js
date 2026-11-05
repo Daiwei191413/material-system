@@ -4,7 +4,7 @@
   else root.BOMReview = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function(){
   'use strict';
-  var VERSION = '1.5.0';
+  var VERSION = '1.5.1';
   var ALIASES = {
     '物料编码':['物料编码','料号','Part Number'], '物料名称':['物料名称','名称','Description','物料描述'],
     '型号':['型号','Comment','Comment型号','Value','value','规格型号','Part'],
@@ -18,6 +18,15 @@
   };
   var FIELDS = Object.keys(ALIASES);
   function text(v){ return v == null ? '' : String(v).trim(); }
+  function pinHeaderSharesFootprint(values){
+    var description = text(values['物料名称']) + ' ' + text(values['参数描述']);
+    if (!/排针|插针|针排|\bpin[\s-]+headers?\b/i.test(description)) return false;
+    function identifier(value){
+      return text(value).normalize('NFKC').trim().replace(/\s+/g, ' ').toUpperCase();
+    }
+    var model = identifier(values['型号']);
+    return model !== '' && model === identifier(values['封装']);
+  }
   function column(n){ var s=''; for(n++;n;n=Math.floor((n-1)/26)) s=String.fromCharCode(65+(n-1)%26)+s; return s; }
   function unique(a){ return Array.from(new Set(a)); }
   function rfLibraryStatus(raw){ var m=text(raw).match(/射频电感状态\s*[=:：]\s*([^；;]+)/); return m?text(m[1]):''; }
@@ -261,6 +270,14 @@
       }
       if(role==='nonplacement')emit(row,'ROW_SCOPE','matched','位号','非贴片/配件行按独立范围审查，不强制位号计数');
       if(fp&&fp.ambiguous)emit(row,'PACKAGE_AMBIGUOUS','pending','封装','封装含多个尺寸或单位体系，需确认后比较');
+      if (!excluded.excluded && doc.mapping['型号'] !== doc.mapping['封装'] && pinHeaderSharesFootprint(v)) {
+        var headerCheck = emit(row, 'PIN_HEADER_MODEL_FOOTPRINT', 'pending', '型号、封装',
+          '排针或插针的型号与封装填写相同，需确认是否将封装名称填入了型号栏',
+          '封装：' + text(v['封装']));
+        headerCheck.fields = ['型号', '封装'];
+        headerCheck.observed = '型号：' + text(v['型号']);
+        headerCheck.cell = headerCheck.fields.map(function(field){ return row.cells[field]; }).join('、');
+      }
       var modelPackages=[], suffix=text(v['型号']).match(/(?:^|\s)S[CRL](01005|0201|0402|0603|0805|1206|1210|2010|2512)\b/i);
       if(suffix)modelPackages.push(packageInfo(suffix[1]));
       if(fp&&fp.key){
@@ -431,7 +448,7 @@
       if(['REF_FORMAT','DUPLICATE_REF_IN_ROW','MISSING_REF','DUPLICATE_MAIN_REF','SOURCE_MISSING','SOURCE_OMISSION','ASSEMBLY_CONFLICT'].indexOf(rule)>=0)return 'reference';
       if(['MISSING_QUANTITY','INVALID_QUANTITY','QUANTITY_REF'].indexOf(rule)>=0)return 'quantity';
       if(['SOURCE_CODE','SOURCE_MODEL','MODEL_EVIDENCE','CONFIRMATION_STALE','SUPPLEMENT_PENDING'].indexOf(rule)>=0)return 'model';
-      if(rule==='PACKAGE_EVIDENCE')return 'package';
+      if(rule==='PACKAGE_EVIDENCE'||rule==='PIN_HEADER_MODEL_FOOTPRINT')return 'package';
       return c.field==='备注'||c.field==='DNP'?'reference':'file';
     }
     checks.forEach(function(c){
@@ -448,6 +465,7 @@
       }[c.category]||(c.status==='error'?'对照原单元格及实际装配资料修订后复审':'补充可靠来源后复审'));
       if(/PENDING_NOTE|SUPPLEMENT_PENDING/.test(c.rule))c.suggestion='查看该行补齐报告和原备注，补充具体器件资料；缺参允许导出不等于参数已核实';
       if(c.rule==='RF_LIBRARY_PENDING')c.suggestion='该物料可保留使用；由管理员审核是否录入射频电感库';
+      if(c.rule==='PIN_HEADER_MODEL_FOOTPRINT')c.suggestion='请按采购资料核对厂家型号，按 PCB 封装库核对焊盘名称、针数和间距。如有误，修改本行后重新审查。';
       if(c.rule==='DUPLICATE_MATERIAL_ROWS')c.suggestion='核对功率、精度、耐压、品牌、采购编码及装配要求；确认同一物料后在本次BOM归并位号和数量，再重新审查。审查不自动修改原表或补齐缺失规格';
       if(/^MATERIAL_CODE|^MATERIAL_LIBRARY/.test(c.rule))c.suggestion=c.status==='matched'?'保留编码对应关系核对记录':c.core?'按公司标准库核实并修正当前BOM的物料编码或物料资料后重新审查':'核对公司标准库同步状态及该编码记录；有多个候选时由工程师确认，审查不会自动改码';
       if(c.confirmation)c.suggestion='已承接确认：'+c.confirmation.action+'；时间：'+c.confirmation.time;
@@ -477,7 +495,7 @@
         id:'ROW:'+row.key,key:row.key,scope:'row',sheet:row.sheet,row:row.row,
         refs:text(row.values['位号']),model:text(row.values['型号']),materialCode:text(row.values['物料编码']),materialCandidates:[].concat.apply([],rowChecks.map(function(c){return c.materialCandidates||[];})),specification:text(row.values['参数描述']),
         package:text(row.values['封装']),quantity:text(row.values['数量']),inductorStatus:rfLibraryStatus(row.values['备注']),status:status,
-        abnormalFields:fields,pendingFields:unique(unknown.map(function(c){return c.field;}).filter(Boolean)),checkedFields:unique(rowChecks.filter(function(c){return c.status==='matched';}).map(function(c){return c.field;}).filter(Boolean)),
+        abnormalFields:fields,pendingFields:unique(unknown.flatMap(function(c){return c.fields||[c.field];}).filter(Boolean)),checkedFields:unique(rowChecks.filter(function(c){return c.status==='matched';}).map(function(c){return c.field;}).filter(Boolean)),
         checks:rowChecks,confirmedChecks:confirmed,confirmations:confirmed.map(function(c){return c.confirmation;}),uncovered:uncovered,
         checkIds:rowChecks.map(function(c){return c.id;}),
         finding:errors.length||unknown.length?finding(errors.concat(unknown),'待核实'):confirmed.length?finding(confirmed,'人工已确认'):'当前规则覆盖的检查项通过；未覆盖项目见详情',

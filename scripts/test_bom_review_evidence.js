@@ -29,6 +29,23 @@ const c16={'位号':'C16','型号':'1nF','参数描述':'MLCC 1nF ±10% 2000V X7
 const chip={'位号':'U1','型号':'CUSTOM-CHIP','参数描述':'收发芯片','封装':'QFN32','数量':'1','立创编号':'C10001'};
 const cases=[];
 function check(name, fn) { fn(); cases.push(name); }
+check('pin header with repeated model and footprint needs a field-specific review', () => {
+  const row = {'物料名称':'排针','位号':'J8','数量':'1','型号':'DPI_2_54_7P','封装':'DPI_2_54_7P'};
+  const rule = 'PIN_HEADER_MODEL_FOOTPRINT';
+  const result = analyze([row], [row]);
+  const finding = result.checks.find(c => c.rule === rule);
+  assert.equal(finding.outcome, 'pending');
+  assert.equal(result.rowAudits[0].status, 'unverified');
+  for (const field of ['型号','封装']) {
+    assert(result.rowAudits[0].pendingFields.includes(field));
+    assert(finding.cell.split('、').includes(doc([row]).rows[0].cells[field]));
+  }
+  for (const changes of [{'型号':'HDR-07'}, {'型号':'','封装':''}, {'物料名称':'收发芯片'}]) {
+    assert(!analyze([{...row,...changes}]).checks.some(c => c.rule === rule));
+  }
+  outcome(analyze([{...row,'物料名称':'连接器','参数描述':'插针结构 1x7P','型号':' dpi_2_54_7p '}]), rule, 'pending');
+  assert.equal(analyze([{...row,'数量':'2'}]).rowAudits[0].status, 'abnormal');
+});
 check('missing information is pending, not a definite conflict', () => {
   const r = analyze([{...c16,'数量':''}]);
   outcome(r,'MISSING_QUANTITY','pending'); assert.equal(r.auditCounts.abnormal,0);
