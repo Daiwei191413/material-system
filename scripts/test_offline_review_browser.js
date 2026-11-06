@@ -40,6 +40,10 @@ const server=http.createServer((req,res)=>{
  fs.createReadStream(file).pipe(res);
 });
 async function preparePage(browser,base,relative,data,library=standard,syncStatus='ready'){
+ const liveUrl=relative.startsWith('v3-cloudbase/')
+  ? 'https://techphant-bom-v3-d9e3pqqb0b46c88-1363491993.tcloudbaseapp.com/'
+  : 'https://techphant-bom-tools-v3.pages.dev/';
+ const live=process.argv.includes('--live');
  const page=await browser.newPage({acceptDownloads:true,viewport:{width:1600,height:1050}});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/*',route=>{
@@ -48,9 +52,11 @@ async function preparePage(browser,base,relative,data,library=standard,syncStatu
   if(url.includes('/npm/xlsx@'))return route.fulfill({path:path.join(root,'v3-cloudbase/web/assets/vendor/xlsx.full.min.js'),contentType:'application/javascript'});
   if(url.includes('/npm/jszip@'))return route.fulfill({path:path.join(root,'v3-cloudbase/web/assets/vendor/jszip.min.js'),contentType:'application/javascript'});
   if(url.includes('/batch?'))return route.fulfill({json:{ok:true,results:new URL(url).searchParams.get('codes').split(',').map(code=>({query:code,ok:!!data[code],data:data[code]}))}});
+  if(live&&url.startsWith(liveUrl)&&['GET','HEAD'].includes(route.request().method()))return route.continue();
   return route.abort();
  });
- await page.goto(base+'/'+relative,{waitUntil:'domcontentloaded'});
+ await page.goto(live?liveUrl:base+'/'+relative,{waitUntil:'domcontentloaded'});
+ if(live&&await page.title()==='风险提醒')await page.getByText('确定访问',{exact:true}).click();
  await page.waitForFunction(()=>typeof offlineReviewPrepare==='function'&&document.getElementById('msgA')?.textContent.includes('已就绪'));
  await page.evaluate(({library,syncStatus})=>{
   document.body.classList.remove('v3-not-logged');document.getElementById('v3LoginMask').classList.remove('show');showPanelDirect('compare');
@@ -259,6 +265,100 @@ async function runAdditionalBoundaries(browser,base,relative,label){
    diameterConflict:true,qfnDimensionsConflict:true,forcedRefreshInvalidates:true,roundtripDoesNotRevive:true,quotedEditsAreText:true};
  }finally{await page.close();}
 }
+
+async function runBrandCases(browser, base, relative, label) {
+ const data = {...fixtures};
+ for (const [code, model, productType, brand] of [
+  ['C880001','COIL-A','绕线电感',''],
+  ['C880002','BLM-TEST','片式磁珠','客户邮寄'],
+  ['C880003','POWER-A','功率电感','Sunlord'],
+  ['C880004','CHOKE-A','共模电感','']
+ ]) data[code] = {hit:true,productCode:code,productModel:model,productType,brand,package:'0402',
+  specification:'电感值：22nH, 精度：±5%, 额定电流：300mA',_extracted:{inductance:'22nH',tolerance:'±5%',current:'300mA'}};
+ const {page,errors} = await preparePage(browser,base,relative,data);
+ try {
+  await uploadAndCheck(page,[
+   ['COIL-A','L1','0402','C880001'],
+   ['BLM-TEST','FB1','0402','C880002'],
+   ['POWER-A','L2','0402','C880003'],
+   ['CHOKE-A','CM1','0402','C880004'],
+   ['0R','L3','0402','','厚膜电阻 0Ω ±1% 1/16W SMD 0402']
+  ],'品牌检查_V1.0.xlsx');
+  const initial = await page.evaluate(()=>({
+   missing:OFFLINE_REVIEW_STATE.issues.filter(i=>i.kind==='brand').map(i=>i.ref),
+   placeholders:['','未知','客户邮寄','TBD','N/A','—','待补充'].map(offlineHasBrand),
+   official:fmtCore('AB',OFFLINE_REVIEW_STATE.result.byCode,{preview:true}),
+   resistor:offlineNeedsInductorBrand({'型号':'0R','位号':'L3','物料名称':'贴片电阻'})
+  }));
+  assert.deepEqual(initial.missing.sort(),['CM1','FB1','L1']);
+  assert(initial.placeholders.every(v=>!v));
+  assert.equal(initial.resistor,false);
+  const brandColumn = await page.evaluate(()=>A.hd.filter(Boolean).indexOf(A.fm['品牌']));
+  assert(brandColumn>=0);
+  assert.equal(initial.official.rows[2][brandColumn],'Sunlord');
+  await openReview(page);
+  await confirmPending(page);
+  await assertNoNormalDownload(page);
+  const draft = await saveDownload(page,path.join(output,label+'-缺品牌待复核稿.xlsx'),()=>page.locator('#offlineReviewDraft').click());
+  assert(draft.visible.includes('品牌待补充'));
+  await openReview(page);
+  const invalid = await page.evaluate(async()=>{
+   const i=OFFLINE_REVIEW_STATE.issues.findIndex(i=>i.kind==='brand');
+   document.getElementById('offlineEdit-'+i+'-4').value='未知';
+   await offlineReviewSaveRow(i);
+   return testAlerts.at(-1);
+  });
+  assert(invalid.includes('实际品牌'));
+  for (const [ref,brand] of [['L1','Test Coil'],['FB1','Test Bead & Co'],['CM1','Test Choke']]) {
+   const index = await page.evaluate(ref=>OFFLINE_REVIEW_STATE.issues.findIndex(i=>i.kind==='brand'&&i.ref===ref),ref);
+   await page.locator('#offlineEdit-'+index+'-4').evaluate(e=>e.closest('details').open=true);
+   await page.locator('#offlineEdit-'+index+'-4').fill(brand);
+   await page.locator('#offlineEdit-'+index+'-4').locator('..').locator('..').getByRole('button',{name:'保存并重新校验'}).click();
+   await page.waitForFunction(ref=>!OFFLINE_REVIEW_STATE.issues.some(i=>i.kind==='brand'&&i.ref===ref),ref);
+  }
+  await confirmPending(page);
+  const saved = await saveDownload(page,path.join(output,label+'-已补品牌最终BOM.xlsx'),()=>page.locator('#offlineReviewExport').click());
+  for (const [ref,brand] of [['L1','Test Coil'],['FB1','Test Bead & Co'],['L2','Sunlord'],['CM1','Test Choke']]) {
+   assert.equal(saved.rows.find(r=>r[5]===ref)[brandColumn],brand,ref+' exported brand');
+  }
+  assert(saved.visible.includes('工程师本次补填品牌'));
+  await assertLibraries(page);
+  // Export must check again even if a caller skips the review modal.
+  const direct = await page.evaluate(()=>{
+   B.rows[0]['品牌']='';delete B.rows[0]._offlineManualBrand;
+   return fmtCore('AB',OFFLINE_REVIEW_STATE.result.byCode,{reviewExport:true});
+  });
+  assert.equal(direct,undefined);
+  await page.evaluate(()=>closeOfflineSupplementModal());
+  await uploadAndCheck(page,[['COIL-A','L1','0402','C880001']],'指定库缺品牌.xlsx');
+  await page.evaluate(async()=>{
+   materialDB_rf_inductor=[{material_code:'1-IN-09-00036',model:'COIL-A',package:'0402',lcsc_code:'C880001',
+    name:'绕线电感',specification:'电感值：22nH, 精度：±5%, 额定电流：300mA',brand:''}];
+   await offlineReviewPrepare(true);
+  });
+  await openReview(page);
+  const companyBrand = await page.evaluate(async()=>{
+   const before=JSON.stringify(materialDB_rf_inductor);
+   const index=OFFLINE_REVIEW_STATE.issues.findIndex(i=>i.kind==='brand');
+   if(index<0)throw new Error('Missing brand check for company RF record');
+   document.getElementById('offlineEdit-'+index+'-4').value='Company Coil';
+   await offlineReviewSaveRow(index);
+   return {before,after:JSON.stringify(materialDB_rf_inductor),preview:fmtCore('AB',OFFLINE_REVIEW_STATE.result.byCode,{preview:true})};
+  });
+  assert.equal(companyBrand.before,companyBrand.after);
+  assert.equal(companyBrand.preview.brandErrors.length,0);
+  assert.equal(companyBrand.preview.rows[0][brandColumn],'Company Coil');
+  const stale = await page.evaluate(async()=>{
+   materialDB_rf_inductor[0].model='OTHER-COIL';
+   await offlineReviewPrepare(true);
+   return fmtCore('AB',OFFLINE_REVIEW_STATE.result.byCode,{preview:true}).brandErrors;
+  });
+  assert.equal(stale.length,1,'Changed target reused a previous manual brand');
+  assert.deepEqual(errors,[]);
+  console.log(label+': missing/placeholder brands, automatic supplement, resistor exclusion, manual edits, draft/final downloads and report readback passed');
+ } finally {await page.close();}
+}
+
 (async()=>{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const base='http://127.0.0.1:'+server.address().port;
@@ -266,6 +366,8 @@ async function runAdditionalBoundaries(browser,base,relative,label){
  const results=[];
  try{
   for(const [label,relative] of [['domestic','v3-cloudbase/web/index.html'],['overseas','v3-legacy/index.html']]){
+   await runBrandCases(browser,base,relative,label);
+   if(process.argv.includes('--brand-only')) continue;
    if(process.argv.includes('--bridge-only')){results.push(await runBridgeBoundary(browser,base,relative,label));console.log(label+': schematic to JLC to offline confirmation bridge passed');continue;}
    results.push(await runAdditionalBoundaries(browser,base,relative,label));
    if(process.argv.includes('--boundaries-only')){console.log(label+': additional offline-review boundaries passed');continue;}
@@ -280,6 +382,11 @@ async function runAdditionalBoundaries(browser,base,relative,label){
    assert(checked.summary.includes('导出核对'));
    await openReview(page);await assertNoNormalDownload(page);
    await page.locator('#offlineReviewModal').screenshot({path:path.join(output,label+'-集中核对.png')});
+   await page.evaluate(async()=>{
+    const index=OFFLINE_REVIEW_STATE.issues.findIndex(i=>i.kind==='brand'&&i.sourceIndex===1);
+    document.getElementById('offlineEdit-'+index+'-4').value='Test mailed inductor';
+    await offlineReviewSaveRow(index);
+   });
    const confirmed=await confirmPending(page);assert.equal(confirmed.pending,0);assert.equal(confirmed.hard,0);
    assert(!(await page.locator('#offlineReviewExport').isDisabled()));
    const normal=await saveDownload(page,path.join(output,label+'-人工确认.xlsx'),()=>page.locator('#offlineReviewExport').click());

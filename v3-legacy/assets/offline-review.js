@@ -1,6 +1,31 @@
 // 本次上传的人工确认只保存在内存；重新上传、源资料或查询结果变化后失效。
 var OFFLINE_REVIEW_STATE = {owner:null, signature:'', result:null, issues:[], decisions:Object.create(null)};
 var OFFLINE_REVIEW_FIELDS = ['型号','位号','封装','立创编号','物料编码','物料名称','参数描述','品牌','数量','单位','备注','_mfgPart','原厂型号','productModel'];
+var OFFLINE_REVIEW_EDIT_FIELDS = ['型号','封装','立创编号','参数描述','品牌'];
+
+function offlineHasBrand(value) {
+  var brand = String(value == null ? '' : value).normalize('NFKC').trim();
+  return !!brand && !isCatalogPlaceholderValue(brand)
+    && !/^(?:未知|无|暂无|待定|待补充|待确认|待核实|未提供|未指定|不详|通用|国产|N\/A|NA|NULL|NONE|TBD|[-—_/？?]+)$/i.test(brand);
+}
+function offlineNeedsInductorBrand(row) {
+  var actual = explicitPassiveType(row['型号'] || '');
+  if (actual && actual !== 'inductor') return false;
+  return isInductorAuthorityRow(row)
+    || /电感|磁珠|共模|\binductor\b|\bferrite\b|\bchoke\b/i.test(
+      [row['物料名称'], row['参数描述'], row._officialProductType].filter(Boolean).join(' '));
+}
+function offlineBrandTarget(row) {
+  var choice = findRfInductorPreference(row);
+  return JSON.stringify([offlineReviewIdentitySignature(row), choice.mode === 'exact' ? choice.record : null]);
+}
+function offlineApplyManualBrand(row, source, details) {
+  var record = source._offlineManualBrand;
+  if (!record || record.target !== offlineBrandTarget(source) || !offlineHasBrand(record.brand)) return;
+  row['品牌'] = record.brand;
+  details.push({ref:row['位号'] || '', model:row['型号'] || '', level:'manual', filled:['品牌'],
+    warnings:['工程师本次补填品牌：' + record.brand + '；时间：' + record.time]});
+}
 
 function offlineReviewEscapeAttribute(value) {
   return String(value == null ? '' : value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -40,7 +65,7 @@ function offlineReviewAdd(issues, index, kind, reason, data, fields) {
 }
 function offlineReviewConfirmed(item) {
   var record = OFFLINE_REVIEW_STATE.decisions[item.key];
-  return item.kind !== 'hard' && !!(record && record.owner === B && record.signature === offlineReviewSourceSignature(B.rows[item.sourceIndex]));
+  return item.kind !== 'hard' && item.kind !== 'brand' && !!(record && record.owner === B && record.signature === offlineReviewSourceSignature(B.rows[item.sourceIndex]));
 }
 function offlineReviewCounts() {
   var issues = OFFLINE_REVIEW_STATE.issues;
@@ -181,6 +206,11 @@ function offlineReviewPrepare(force) {
     });
     var issues = offlineReviewBuildIssues(result);
     var preview = fmtCore('AB',result.byCode,{preview:true});
+    (preview.brandErrors || []).forEach(function(item){
+      offlineReviewAdd(issues,item.sourceIndex,'brand',
+        '电感或磁珠缺少实际品牌（导出型号 ' + item.model + '），请补填品牌并重新校验',
+        result.byCode[normLcsc(item.lcsc)],['品牌']);
+    });
     (preview.formatErrors || []).forEach(function(item){
       // 明确冲突行不再叠加格式确认，待复核稿会原样保留。
       if (!issues.some(function(i){return i.sourceIndex === item.sourceIndex && i.kind === 'hard';})) {
@@ -208,7 +238,7 @@ function offlineReviewActionLabel(item) {
 }
 function offlineReviewSetConfirmation(index, checked) {
   var item = OFFLINE_REVIEW_STATE.issues[index];
-  if (!item || item.kind === 'hard' || OFFLINE_REVIEW_STATE.owner !== B
+  if (!item || item.kind === 'hard' || item.kind === 'brand' || OFFLINE_REVIEW_STATE.owner !== B
       || OFFLINE_REVIEW_STATE.signature !== offlineReviewSignature()) return;
   if (checked) OFFLINE_REVIEW_STATE.decisions[item.key] = {owner:B,
     signature:offlineReviewSourceSignature(B.rows[item.sourceIndex]), action:offlineReviewActionLabel(item), time:new Date().toISOString()};
@@ -218,7 +248,7 @@ function offlineReviewSetConfirmation(index, checked) {
 function offlineReviewConfirmKind(kind) {
   if (OFFLINE_REVIEW_STATE.owner !== B || OFFLINE_REVIEW_STATE.signature !== offlineReviewSignature()) return;
   OFFLINE_REVIEW_STATE.issues.forEach(function(item,index){
-    if (item.kind === kind && item.kind !== 'hard') {
+    if (item.kind === kind && item.kind !== 'hard' && item.kind !== 'brand') {
       OFFLINE_REVIEW_STATE.decisions[item.key] = {owner:B, signature:offlineReviewSourceSignature(B.rows[item.sourceIndex]),
         action:offlineReviewActionLabel(item), time:new Date().toISOString()};
     }
@@ -254,10 +284,11 @@ function renderOfflineReviewModal() {
     var official = data ? [data.productModel,data.productCode,data.package].filter(Boolean).join('；') : '未取得完整资料';
     var officialParams = data && data.specification ? '<details><summary>查看官方参数</summary>' + esc(data.specification) + '</details>' : '';
     var action = item.kind === 'hard' ? '<span style="color:#b91c1c">明确冲突：须修正后重新校验</span>'
+      : item.kind === 'brand' ? '<span style="color:#9a5800">请展开下方编辑框补填实际品牌，再保存校验</span>'
       : '<label><input type="checkbox" ' + (offlineReviewConfirmed(item) ? 'checked ' : '') + 'onchange="offlineReviewSetConfirmation(' + index + ',this.checked)">'
         + esc(offlineReviewActionLabel(item)) + '</label>';
-    var editor = row ? '<details style="margin-top:8px"><summary style="display:inline-block;padding:6px 10px;border:1px solid #0078b8;border-radius:4px;color:#0078b8;cursor:pointer;background:#f0f9ff">✎ 修改型号 / 编号 / 封装 / 参数</summary>'
-      + ['型号','封装','立创编号','参数描述'].map(function(field,j){return '<label style="display:block">' + field + '<input id="offlineEdit-' + index + '-' + j
+    var editor = row ? '<details style="margin-top:8px"><summary style="display:inline-block;padding:6px 10px;border:1px solid #0078b8;border-radius:4px;color:#0078b8;cursor:pointer;background:#f0f9ff">✎ 修改型号 / 编号 / 封装 / 参数 / 品牌</summary>'
+      + OFFLINE_REVIEW_EDIT_FIELDS.map(function(field,j){return '<label style="display:block">' + field + '<input id="offlineEdit-' + index + '-' + j
         + '" value="' + offlineReviewEscapeAttribute(row[field]) + '" style="display:block;width:220px;box-sizing:border-box"></label>';}).join('')
       + '<button type="button" onclick="offlineReviewSaveRow(' + index + ')">保存并重新校验</button></details>' : '';
     var search = row && item.kind === 'parameters' && !offlineSupplementRfLock(row)
@@ -291,13 +322,29 @@ function offlineReviewSearch(index) {
 function offlineReviewSaveRow(index) {
   var item=OFFLINE_REVIEW_STATE.issues[index], row=item && B.rows[item.sourceIndex];
   if (!row) return;
-  var values=['型号','封装','立创编号','参数描述'].map(function(field,j){return document.getElementById('offlineEdit-'+index+'-'+j).value.trim();});
+  var values=OFFLINE_REVIEW_EDIT_FIELDS.map(function(field,j){return document.getElementById('offlineEdit-'+index+'-'+j).value.trim();});
   if (!values[0]) {alert('型号不能留空；请保留可追溯的源器件身份。');return;}
+  var brandChanged = values[4] !== String(row['品牌'] || '').trim();
+  if ((item.kind === 'brand' || brandChanged && offlineNeedsInductorBrand(row)) && !offlineHasBrand(values[4])) {
+    alert('请填写实际品牌；暂时无法确认时可导出待复核稿。');return;
+  }
   var rf=findRfInductorPreference(row);
   if (rf.mode==='exact' && rfInductorHasCompanyMaterialCode(rf.record)) {
-    alert('该器件已有公司定型资料，不能在此改写。请由管理员维护指定库，或导出待复核稿。');return;
+    var otherChanged = OFFLINE_REVIEW_EDIT_FIELDS.slice(0,4).some(function(field,j){
+      return values[j] !== String(row[field] || '').trim();
+    });
+    if (otherChanged || offlineHasBrand(rf.record.brand || rf.record['品牌'])) {
+      alert('该器件已有公司定型资料，请由管理员维护指定库。缺品牌时可仅补填本次品牌。');return;
+    }
   }
-  ['型号','封装','立创编号','参数描述'].forEach(function(field,j){row[field]=values[j];});
+  OFFLINE_REVIEW_EDIT_FIELDS.forEach(function(field,j){row[field]=values[j];});
+  if (row._offlineManualBrand && row._offlineManualBrand.target !== offlineBrandTarget(row) && !brandChanged) {
+    row['品牌'] = '';
+    delete row._offlineManualBrand;
+  }
+  if (brandChanged || item.kind === 'brand') row._offlineManualBrand = {
+    brand:values[4],target:offlineBrandTarget(row),time:new Date().toISOString()
+  };
   row._mfgPart=values[0];
   ['原厂型号','productModel'].forEach(function(field){if(Object.prototype.hasOwnProperty.call(row,field))row[field]=values[0];});
   delete row._lcscOnlineState; delete row._lcscOnlineHit; delete row._specWarnings; delete row._offlineOfficialDetails;
